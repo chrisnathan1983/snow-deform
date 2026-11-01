@@ -4,4 +4,5 @@
 
 [resource]
 script = ExtResource("1_hi4mn")
+snowfall = 1.0
 subdiv = 128

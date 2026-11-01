@@ -4,10 +4,10 @@
 
 [resource]
 script = ExtResource("1")
-sparkle = 0.0
+snowfall = 1.0
+sparkle = 0.5
 flakes = 300
 near = 0
 puff = 4
 res = 256
-subdiv = 63
-msaa = 0
+subdiv = 64

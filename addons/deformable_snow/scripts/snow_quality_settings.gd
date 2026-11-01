@@ -14,13 +14,11 @@ extends Resource
 @export_range(0.0, 0.5, 0.01) var berm_height := 0.08
 ## Maximum number of footprint stamps processed each frame.
 @export_range(1, 512, 1) var max_stamps_per_frame := 64
-## How quickly berms smooth out compared with the footprint beneath them.
-@export_range(0.0, 10.0, 0.1) var berm_decay_mult := 1.5
 ## Time between trail-healing updates, in seconds.
 @export_range(0.05, 5.0, 0.05) var refill_interval := 0.25
-## Trail-healing speed at 100% snowfall, in 8-bit snow levels per second.
+## Trail-healing speed parameter at 100% snowfall.
 @export_range(0.0, 255.0, 1.0) var refill_levels_per_sec := 16.0
-## Falling-snow intensity and trail-healing strength. 0 disables both; 1 is maximum.
+## Shared atmospheric intensity and trail-healing strength. 0 disables both; 1 is maximum.
 @export_range(0.0, 1.0, 0.05) var snowfall := 0.3
 ## Brightness of the snow's sparkle effect. Set to 0 to disable it.
 @export_range(0.0, 3.0, 0.1) var sparkle := 1.0
@@ -50,10 +48,6 @@ extends Resource
 @export_range(128, 2048, 128) var res := 512
 ## Number of snow mesh subdivisions per side.
 @export_range(1, 512, 1) var subdiv := 127
-## Whether to render real-time shadows on the snow.
-@export var shadows := false
-## Multi-sample anti-aliasing level for the viewport.
-@export_enum("Disabled:0", "2x:1", "4x:2") var msaa := 1
 ## Softens dark footprint bevels with cool-tinted wrapped lighting.
 @export var wrapped_diffuse_lighting := true
 
@@ -73,7 +67,6 @@ func to_dictionary() -> Dictionary:
 		"max_stamps_per_frame": max_stamps_per_frame,
 		"snowfall": snowfall,
 		"refill_levels_per_sec": refill_levels_per_sec,
-		"berm_decay_mult": berm_decay_mult,
 		"refill_interval": refill_interval,
 		"wind_x": wind_x,
 		"wind_z": wind_z,
@@ -81,7 +74,5 @@ func to_dictionary() -> Dictionary:
 		"follow_target_mode": follow_target_mode,
 		"puffs_enabled": puffs_enabled,
 		"puff_min_interval": puff_min_interval,
-		"shadows": shadows,
-		"msaa": msaa,
 		"wrapped_diffuse_lighting": wrapped_diffuse_lighting,
 	}

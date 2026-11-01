@@ -2,6 +2,8 @@ class_name SnowNPC
 extends CharacterBody3D
 ## Wanders between random points. Footprints come from its Feet child.
 
+const BallPush = preload("ball_push.gd")
+
 @export var speed := 2.5
 @export var bounds := Vector2(11, 11)
 @export var body_color := Color(0.2, 0.5, 0.9)
@@ -41,7 +43,9 @@ func _physics_process(delta: float) -> void:
 	var dir := to.normalized()
 	var before := global_position
 	velocity = dir * speed
+	var motion_velocity := velocity
 	move_and_slide()
+	BallPush.apply_contact_impulses(self, motion_velocity)
 	rotation.y = lerp_angle(rotation.y, atan2(-dir.x, -dir.z), 8.0 * delta)
 
 	# Blocked (e.g. by a tree) = moved far less than we should have.

@@ -5,6 +5,7 @@ const PERSON_SCENE := preload("res://demo/actors/npc.tscn")
 const MOUSE_SCENE := preload("res://demo/actors/mouse.tscn")
 
 @onready var snow: SnowField = $SnowField
+@onready var weather: SnowWeather = $SnowWeather
 @onready var player: Player = $Actors/Player
 @onready var npcs: Node3D = $Actors/NPCs
 @onready var sled: Node3D = $Actors/Sled
@@ -21,8 +22,7 @@ var _msaa_mode := Viewport.MSAA_2X
 
 func _ready() -> void:
 	var initial_settings := snow.get_active_quality_settings()
-	_real_shadows = initial_settings["shadows"]
-	_msaa_mode = initial_settings["msaa"] as Viewport.MSAA
+	weather.apply_quality_settings(initial_settings, snow.snowfall)
 	_apply_follow_target(initial_settings["follow_target_mode"])
 	snow.quality_changed.connect(_on_quality_changed)
 	_on_quality_changed(snow.quality)
@@ -94,10 +94,8 @@ func _apply_options(
 		if custom:
 			snow.apply_quality_settings(settings)
 	snow.snowfall = snowfall
+	weather.apply_quality_settings(settings, snowfall)
 	snow.wrapped_diffuse_lighting = wrapped_diffuse_lighting
-	if custom:
-		_real_shadows = settings["shadows"]
-		_msaa_mode = settings["msaa"] as Viewport.MSAA
 	_apply_follow_target(settings["follow_target_mode"])
 	_apply_render_options()
 
@@ -105,11 +103,11 @@ func _apply_options(
 func _apply_follow_target(mode: int) -> void:
 	match mode:
 		1:
-			snow.follow_target = player
+			weather.set_follow_target(player)
 		2:
-			snow.follow_target = sled
+			weather.set_follow_target(sled)
 		_:
-			snow.follow_target = null
+			weather.set_follow_target(null)
 
 
 func _add_person() -> void:

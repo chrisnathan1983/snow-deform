@@ -2,7 +2,7 @@
 class_name SnowFall
 extends CPUParticles3D
 ## Falling snowflakes: one box emitter above a target, simulated in world space.
-## Works on its own (no SnowField needed). SnowField also creates two of these.
+## Works on its own (no SnowField needed). SnowWeather shares emitters across fields.
 ##
 ## Centers on `follow_target`, or on the active camera if that is empty
 ## (or if `follow_camera` is true).
@@ -55,52 +55,67 @@ func _ready() -> void:
 	# Box is centered on the node, flakes fall `height` below it; pad for wind drift.
 	visibility_aabb = AABB(Vector3(-area.x * 0.5 - 8.0, -height - 2.0, -area.y * 0.5 - 8.0),
 			Vector3(area.x + 16.0, height + 4.0, area.y + 16.0))
-	amount = max_amount
 	_apply_wind()
 	_apply_intensity()
+	preprocess = 0.0
 
 
 func _process(_delta: float) -> void:
-	var cam := get_viewport().get_camera_3d()
 	var t: Node3D = null
-	if follow_camera:
-		t = cam
-	if t == null and is_instance_valid(follow_target):
+	if not follow_camera and is_instance_valid(follow_target):
 		t = follow_target
-	if t == null:
-		t = cam
+	else:
+		t = get_viewport().get_camera_3d()
 	var c := global_position
 	if t:
 		c = t.global_position
-	global_position = Vector3(c.x, ground_y + height, c.z)
+	var target_position := Vector3(c.x, ground_y + height, c.z)
+	if not global_position.is_equal_approx(target_position):
+		global_position = target_position
 
 
 func set_max_amount(n: int) -> void:
-	max_amount = maxi(n, 1)
+	var updated := maxi(n, 1)
+	if max_amount == updated:
+		return
+	max_amount = updated
 	_apply_intensity()
 
 
 ## 0..1. Scales the particle count; 0 stops emission.
 func set_intensity(v: float) -> void:
-	_intensity = clampf(v, 0.0, 1.0)
+	var updated := clampf(v, 0.0, 1.0)
+	if is_equal_approx(_intensity, updated):
+		return
+	_intensity = updated
 	_apply_intensity()
 
 
 func set_enabled(v: bool) -> void:
+	if _enabled == v:
+		return
 	_enabled = v
 	_apply_intensity()
 
 
 ## Horizontal drift acceleration in m/s^2 (x, z).
 func set_wind(w: Vector2) -> void:
+	if _wind.is_equal_approx(w):
+		return
 	_wind = w
 	_apply_wind()
 
 
 func _apply_intensity() -> void:
-	amount = maxi(roundi(max_amount * _intensity), 1)
-	emitting = _enabled and _intensity > 0.01
+	var target_amount := maxi(roundi(max_amount * _intensity), 1)
+	if amount != target_amount:
+		amount = target_amount
+	var should_emit := _enabled and _intensity > 0.0
+	if emitting != should_emit:
+		emitting = should_emit
 
 
 func _apply_wind() -> void:
-	gravity = Vector3(_wind.x, 0.0, _wind.y)   # horizontal drift only
+	var target_gravity := Vector3(_wind.x, 0.0, _wind.y)
+	if not gravity.is_equal_approx(target_gravity):
+		gravity = target_gravity   # horizontal drift only

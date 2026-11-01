@@ -4,9 +4,8 @@ Deformable, sparkly snow built for the **Compatibility renderer**, so it can run
 in a browser (WebGL2) and on phones. Characters leave boot prints, sleds leave
 runner grooves, snow piles up in berms, snowfall slowly heals the trails, and
 kicked-up snow puffs fly. World-space noise breaks up smooth stamp bevels into
-subtle clumpy edges. The demo also includes a fast-scurrying mouse that tunnels
-under the snow, briefly pops out, raises a quickly fading bulge, and erases
-older tracks.
+subtle clumpy edges. The demo also includes a fast-scurrying mouse that travels
+underground while hidden, briefly popping out to leave footprints.
 
 > **Status: pre-release (0.1.0).** It was written without access to a Godot
 > runtime, so it has not been verified on a range of devices. Please test early
@@ -29,15 +28,16 @@ The demo world, SnowField, HUD instance, player, NPC placements, and sled are
 authored in `demo/main.tscn`; HUD controls are in `demo/ui/demo_hud.tscn`, and
 forest layout settings are available on the Forest node.
 Open **Options** in the demo to choose Low / Medium / High and adjust map
-resolution, mesh subdivisions, sparkle, flake counts, puff particles, and
-snowfall, real-time shadows, MSAA (Disabled, 2x, or 4x), and wrapped diffuse
-lighting. The in-game options menu uses **Surface**, **Particles**, and
+resolution, mesh subdivisions, sparkle, flake counts, puff particles, snowfall,
+real-time shadows, MSAA (Disabled, 2x, or 4x), and wrapped diffuse lighting.
+The in-game options menu uses **Surface**, **Particles**, and
 **Graphics** tabs. Surface controls cover field size, depth, berms, stamp
-budget, berm decay, refill interval, trail refill speed, snowfall, and sparkle
+budget, refill interval, trail refill speed, snowfall, and sparkle
 intensity; particle controls cover wind, flakes, puffs, and their follow target.
-Each setting has an in-menu description, and the quality resources expose
-collapsible groups with the same organization and Inspector descriptions. Quality
-presets choose the default values, which can then be adjusted independently.
+Each setting has an in-menu description, and quality resources expose
+collapsible groups with Inspector descriptions. Quality presets choose snow
+settings; demo shadows and MSAA remain independent render options. Values can
+then be adjusted independently.
 Editing a setting changes the selection to
 **Custom** without modifying a built-in preset, and each change applies
 immediately. **Cancel**
@@ -47,8 +47,8 @@ options menu is open.
 The SnowField's starting quality (including Custom) is selectable in its
 Inspector; the demo keeps automatic platform selection disabled. Low, Medium,
 High, and Custom profiles are editable `SnowQualitySettings` resources and
-include all options-menu values, including snowfall, shadows, MSAA, and wrapped
-diffuse lighting.
+include snow options such as snowfall and wrapped diffuse lighting. Shadows
+and MSAA are demo render options, not quality-profile settings.
 
 ## Quick start
 
@@ -57,8 +57,9 @@ diffuse lighting.
 2. Under each character add a **SnowFootsteps** node (origin at the feet,
    character facing -Z). For anything else (sleds, boxes, wheels) add a
    **SnowDeformer**.
-3. On the SnowField set `follow_target` (your player) and `sun` (your
-   DirectionalLight3D). Flakes fall around the target; the sparkle follows the sun.
+3. Add one **SnowWeather** node to the scene and set its `follow_target` (your
+   player). Set the SnowField's `sun` (your DirectionalLight3D) for sparkle.
+   The weather node owns shared snowfall; each SnowField handles its own terrain.
 
 In code:
 
@@ -67,8 +68,12 @@ var snow := SnowField.new()
 snow.area_size = Vector2(24, 24)
 snow.quality = SnowField.recommended_quality()   # Low on phones, High on desktop
 snow.sun = $Sun
-snow.follow_target = $Player
 add_child(snow)
+
+var weather := SnowWeather.new()
+weather.follow_target = $Player
+add_child(weather)
+weather.apply_quality_settings(snow.get_active_quality_settings(), snow.snowfall)
 
 var d := SnowDeformer.new()      # e.g. a sled runner
 d.radius = 0.5
@@ -91,15 +96,15 @@ The snow surface. Keep it unrotated and unscaled; the surface is at its Y.
 | `low_quality`, `medium_quality`, `high_quality`, `custom_quality` | Editable `SnowQualitySettings` resources for each profile. |
 | `max_stamps_per_frame` | Per-frame brush budget; unfinished trails resume next frame. |
 | `berm_strength`, `berm_height` | Ridges beside prints (0 strength disables). |
-| `snowfall` | 0..1. Drives flake count and trail healing; both reach twice their previous maximum at 100%. 0 = trails permanent. |
-| `refill_levels_per_sec`, `berm_decay_mult`, `refill_interval` | Healing speed and pass rate. |
-| `wind`, `fall_height`, `follow_target` | Flake drift, emitter height, what flakes follow (camera if empty). |
+| `snowfall` | 0..1. Controls this field's trail healing; 0 = trails permanent. Atmospheric flakes are managed by SnowWeather. |
+| `refill_levels_per_sec`, `refill_interval` | Packed-height recovery speed and pass rate. |
 | `puffs_enabled`, `puff_min_interval` | Kick-up snow bursts. |
 
 Methods and signals: `reset_trails()`, `SnowField.recommended_quality()`,
 `quality_changed(q)`. Changing quality rebuilds the mesh but preserves trails
-unless the map resolution or field size changes. Editing other options (such as
-snowfall, lighting, or particle counts) does not reset the simulation.
+unless the map resolution, field size, maximum depth, or berm height changes.
+Editing other options (such as snowfall, lighting, or particle counts) does not
+reset the simulation.
 `reset_trails()` explicitly clears the map.
 
 ### SnowDeformer
@@ -117,30 +122,43 @@ Marks the snow under its X/Z position.
 Two alternating feet with speed-based stride; add under a character. Properties:
 `foot_radius`, `foot_aspect`, `spread`, `stride_min`, `stride_max`, `speed_for_max`.
 
+### SnowWeather
+Shared atmospheric snowfall manager. Add one per scene to avoid duplicating
+flakes across multiple SnowFields. It owns the main emitter and camera-relative
+near flakes, and controls their intensity, wind, height, and follow target.
+The demo applies its active quality profile to this node. SnowFields retain
+their own terrain recovery and deformation puffs.
+
 ### SnowFall
-Falling flakes in world space. Works standalone: set `follow_target`
-(or leave empty to follow the camera). Methods: `set_intensity(0..1)`,
+Low-level falling-flake emitter in world space. Use SnowWeather for scene-wide
+atmospheric snow; SnowFall also works standalone with `follow_target` (or an
+empty target to follow the camera). Methods: `set_intensity(0..1)`,
 `set_wind(Vector2)`, `set_max_amount(n)`, `set_enabled(bool)`.
 
 ## Customizing the look
 Create a ShaderMaterial in the inspector, pick `shaders/snow.gdshader`, and assign it to
 `SnowField.material`. Useful uniforms: `snow_color`, `shadow_color` (compressed snow),
-`normal_strength`, `bulge_height` (default `0.24` m at full blue-channel bulge),
-`sparkle_density`, `sparkle_threshold`, `sparkle_fade_*`.
+`normal_strength`, `sparkle_density`, `sparkle_threshold`, and
+`sparkle_fade_*`.
 Keep snow albedo slightly below pure white, or lighting clips to a flat sheet and
 sparkles disappear.
 
 ## Performance notes
 - The deformation map renders **only when something changed** (or every
   `refill_interval` while it is snowing).
-- Cost is roughly constant in the number of deformers (a stamp is a sprite).
+- The map stores combined height in red (`0.5` is flat, lower is pressed,
+  higher is bermed) and baked X/Z height gradients in green and blue.
+- Stamp brushes are submitted together through one `MultiMeshInstance2D`.
+- Deformers are processed only after a transform or stamp-property change;
+  field-assigned deformers are isolated from unrelated SnowFields.
 - Map memory: 256² / 512² / 1024² RGB8 for Low / Medium / High.
 - For phones start on Low; consider MSAA off, no real shadows, and a small `area_size`.
 - Larger worlds: use a small SnowField and move it with the player in whole-texel
   steps (not implemented yet).
 
 ## Known limits
-- 8-bit map: ~255 pit-depth levels. Healing uses stochastic rounding so trails do heal fully.
+- 8-bit map: roughly 127 levels are available on either side of neutral height
+  for pits and berms. Height and baked slopes recover toward neutral together.
 - Snow depth can't be read back on the CPU (that would stall WebGL); fake character
   sinking visually if you need it.
 - Needs a square, unrotated SnowField.

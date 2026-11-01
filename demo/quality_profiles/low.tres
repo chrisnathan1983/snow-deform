@@ -1,30 +1,18 @@
-[gd_resource type="Resource" script_class="SnowQualitySettings" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="SnowQualitySettings" format=3 uid="uid://b0ik5hb2lmqbg"]
 
-[ext_resource type="Script" path="res://addons/deformable_snow/scripts/snow_quality_settings.gd" id="1"]
+[ext_resource type="Script" uid="uid://t0klmxkahq1p" path="res://addons/deformable_snow/scripts/snow_quality_settings.gd" id="1"]
 
 [resource]
 script = ExtResource("1")
-res = 256
-subdiv = 63
+area_size = 24.0
+refill_levels_per_sec = 8.0
+snowfall = 1.0
 sparkle = 0.0
 flakes = 300
 near = 0
 puff = 4
-area_size = 24.0
-max_depth = 0.25
-berm_strength = 0.15
-berm_height = 0.08
-max_stamps_per_frame = 64
-snowfall = 1.0
-refill_levels_per_sec = 8.0
-berm_decay_mult = 1.5
-refill_interval = 0.25
 wind_x = 0.4
 wind_z = 0.1
-fall_height = 9.0
-follow_target_mode = 0
-puffs_enabled = true
-puff_min_interval = 0.2
-shadows = false
-msaa = 0
+res = 256
+subdiv = 63
 wrapped_diffuse_lighting = false

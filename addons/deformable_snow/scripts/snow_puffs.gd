@@ -10,6 +10,7 @@ const SnowUtil = preload("snow_util.gd")
 
 var _pool: Array[CPUParticles3D] = []
 var _next := 0
+var _amount := 8
 
 
 func _ready() -> void:
@@ -34,7 +35,7 @@ func _ready() -> void:
 		p.emitting = false
 		p.one_shot = true
 		p.explosiveness = 1.0
-		p.amount = 8
+		p.amount = _amount
 		p.lifetime = 0.6
 		p.local_coords = false   # world space: puffs stay put after the node moves
 		p.mesh = mesh
@@ -54,8 +55,12 @@ func _ready() -> void:
 
 
 func set_amount(n: int) -> void:
+	if _amount == n:
+		return
+	_amount = n
 	for p in _pool:
-		p.amount = n
+		if p.amount != n:
+			p.amount = n
 
 
 ## `push` biases the spray direction (e.g. opposite to travel for a sled).

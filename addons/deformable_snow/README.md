@@ -25,8 +25,8 @@ friendly) and requires **Godot 4.3 or newer**.
 2. Add a `SnowFootsteps` under each walking character, with its origin at the
    feet and the character facing -Z. For sleds, wheels, or other objects, add
    one or more `SnowDeformer` nodes instead.
-3. Set the field's `follow_target` to the player and `sun` to the scene's
-   `DirectionalLight3D`.
+3. Add one `SnowWeather` node to the scene and set its `follow_target` to the
+   player. Set the field's `sun` to the scene's `DirectionalLight3D`.
 
 The editor displays a flat preview of the field. A minimal runtime setup:
 
@@ -35,8 +35,12 @@ var snow := SnowField.new()
 snow.area_size = Vector2(24, 24)
 snow.quality = SnowField.recommended_quality()
 snow.sun = $Sun
-snow.follow_target = $Player
 add_child(snow)
+
+var weather := SnowWeather.new()
+weather.follow_target = $Player
+add_child(weather)
+weather.apply_quality_settings(snow.get_active_quality_settings(), snow.snowfall)
 
 var runner := SnowDeformer.new()
 runner.radius = 0.5
@@ -48,7 +52,7 @@ $Sled.add_child(runner)
 
 ### SnowField
 
-The snow surface and controller for deformation, snowfall, and puffs. Keep the
+The snow surface and controller for deformation, track recovery, and puffs. Keep the
 field and its parents unrotated and unscaled. The surface is at the field's Y
 position; `area_size` should be square.
 
@@ -59,31 +63,28 @@ position; `area_size` should be square.
 | `sun` | Empty | Optional directional light that controls sparkle direction. |
 | `wrapped_diffuse_lighting` | `true` | Enables wrapped diffuse lighting with cool-tinted shadows on footprint bevels; disable to use standard diffuse lighting. |
 | `max_depth` | `0.25` | Sink depth in meters at full compression. Deformers above this height are ignored. |
-| `quality` | Medium | Starting quality profile. Choose Low, Medium, High, or Custom. Quality changes preserve tracks unless map resolution or field size changes. |
+| `quality` | Medium | Starting quality profile. Choose Low, Medium, High, or Custom. Quality changes preserve tracks unless map resolution, field size, maximum depth, or berm height changes. |
 | `low_quality`, `medium_quality`, `high_quality` | Quality resources | Editable `SnowQualitySettings` resources used by each built-in profile. |
 | `custom_quality` | Medium-equivalent resource | Editable `SnowQualitySettings` resource used by the Custom profile. Each SnowField duplicates it at runtime. |
 | `auto_quality` | `false` | Selects Low on mobile, Medium on desktop browsers, and High elsewhere at startup. Overrides `quality`. |
 | `max_stamps_per_frame` | `64` | Maximum deformation stamps drawn per frame. Unfinished tracks continue on later frames. |
 | `berm_strength` | `0.15` | Strength of ridges beside tracks; set to `0` to disable berms. |
 | `berm_height` | `0.08` | Maximum berm height in meters. |
-| `snowfall` | `0.3` | Snowfall intensity from `0` to `1`. Controls flake intensity and track healing; `0` stops flakes and healing. |
-| `refill_levels_per_sec` | `16.0` | Track-healing rate at snowfall `1`, measured in 8-bit map levels per second. |
-| `berm_decay_mult` | `1.5` | Berms smooth out this many times faster than tracks heal. |
+| `snowfall` | `0.3` | Snowfall intensity from `0` to `1` for track healing; `0` stops healing. Atmospheric flakes are managed by SnowWeather. |
+| `refill_levels_per_sec` | `16.0` | Packed-height recovery speed at snowfall `1`. Height and slopes recover together. |
 | `refill_interval` | `0.25` | Seconds between track-healing passes. |
-| `wind` | `(0.3, 0)` | Horizontal flake drift acceleration in world X/Z, in meters per second squared. |
-| `fall_height` | `9.0` | Height of the main flake emitter above the field. |
-| `follow_target` | Empty | Node followed by the main emitter. If empty, it follows the active camera. The demo menu selects Camera, Player, or Sled. |
 | `puffs_enabled` | `true` | Enables kicked-up puffs from deformers. |
 | `puff_min_interval` | `0.2` | Minimum seconds between puffs from one deformer. |
 
 #### Quality resources
 
-Each profile is a `SnowQualitySettings` resource containing all settings
-exposed in the demo menu. The Inspector displays them in collapsible Surface
-(field size, depth, berms, stamp budget, berm decay, refill interval, trail
-refill speed, snowfall, and sparkle), Particles (wind, flake and puff settings, and
-follow target), and Graphics (map/mesh quality, shadows, MSAA, and wrapped
-diffuse lighting) groups. In-game, these groups are separate tabs, and each
+Each profile is a `SnowQualitySettings` resource containing field and weather
+settings exposed in the demo menu. The Inspector displays them in collapsible
+Surface (field size, depth, berms, stamp budget, refill interval, trail refill
+speed, snowfall, and sparkle), Particles (wind, flake and puff settings, and
+follow target), and Graphics (map/mesh quality and wrapped diffuse lighting)
+groups. In-game, these groups are separate tabs; demo-only shadows and MSAA
+controls are independent of quality profiles. Each
 setting has a short description in the menu and Inspector. The default
 Low, Medium, High, and Custom resources are in `resources/quality_*.tres`;
 assign or edit these profiles on the SnowField in the Inspector. Node
@@ -99,9 +100,11 @@ no near-camera emitter.
 | Medium | 512 x 512 | 127 | 900 | 120 | 8 |
 | High | 1024 x 1024 | 191 | 2000 | 280 | 12 |
 
-Snowfall scales the particle count from zero to the preset maximum. At 100%,
-track recovery uses the configured `refill_levels_per_sec` (16 levels per
-second by default). Snowfall does not change berm height or the puff rate.
+The shared snowfall intensity scales weather particle counts from zero to each
+preset maximum. At 100%, each field's track recovery uses its configured
+`refill_levels_per_sec` (16 by default).
+Pits, berms, and their baked slopes recover together; snowfall does not change
+berm height or the puff rate.
 
 **Methods and signal**
 
@@ -118,9 +121,9 @@ second by default). Snowfall does not change berm height or the puff rate.
   of `custom_quality`, without changing built-in presets or the source resource.
   Supported keys correspond to the fields in `SnowQualitySettings`.
   Applying custom settings marks the active quality as Custom, even if the
-  values happen to match a preset. Settings updates preserve existing tracks
-  unless the field size or map resolution changes; mesh subdivision changes
-  rebuild the mesh without clearing tracks.
+  values happen to match a preset.   Settings updates preserve existing tracks unless the field size, map resolution,
+  maximum depth, or berm height changes; mesh subdivision changes rebuild the mesh
+  without clearing tracks.
 - `reset_trails()` clears deformation without changing the mesh, material, or
   particle settings.
 - `quality_changed(q)` is emitted when the quality changes.
@@ -138,7 +141,6 @@ is used for the stamp. Deformers above the field's `max_depth` are ignored.
 | Property | Default | Description |
 |---|---:|---|
 | `field` | Empty | Optional target `SnowField`. Empty means every field in the scene. |
-| `stamp_mode` | `FOOTPRINT` | `BULGE_ERASER` continuously adds a temporary blue-channel mound, leaves a faint green trace, and subtracts red-channel pits. |
 | `radius` | `0.4` | Print radius in meters. |
 | `strength` | `1.0` | Compression strength from `0` to `1`. |
 | `active` | `true` | Disables stamping when false; useful when a foot is lifted. |
@@ -147,9 +149,8 @@ is used for the stamp. Deformers above the field's `max_depth` are ignored.
 | `puff_distance` | `0.0` | Also emit a puff every this many meters while moving. `0` disables distance-based puffs. |
 
 For a boot use an aspect around `2`; for a sled runner use around `3`.
-The demo mouse uses `BULGE_ERASER` and moves quickly beneath the snow, briefly
-popping out now and then. Its temporary bulge erodes immediately as it moves;
-the faint green trace heals with the regular snow map.
+The demo mouse moves underground while hidden and disables its deformer; when it
+pops out, it leaves footprints.
 
 ### SnowFootsteps
 
@@ -171,11 +172,26 @@ does not advance its stride. Airborne state is not detected, so disable the
 `SnowFootsteps` node or its child deformers while airborne if prints should
 pause.
 
-### SnowFall
+### SnowWeather
+Shared atmospheric snowfall manager. Add one per scene to avoid duplicating
+flakes across multiple SnowFields. It owns the main emitter and camera-relative
+near flakes, and controls their intensity, wind, height, and follow target.
+`apply_quality_settings(settings, intensity)` applies particle counts, wind, and
+emitter height from a settings dictionary. Set `follow_target` independently.
+SnowFields retain their own terrain recovery and deformation puffs.
 
-Standalone falling snow emitter, implemented with `CPUParticles3D`. A
-`SnowField` creates its own emitters; use `SnowFall` directly when you only need
-falling flakes.
+| Property | Meaning |
+|---|---|
+| `snowfall` | Shared flake intensity from `0` to `1`. |
+| `wind` | Horizontal flake drift acceleration in world X/Z. |
+| `fall_height` | Height of the main emitter above the weather node's Y position. |
+| `flakes`, `near_flakes` | Maximum particle counts for the main and camera-relative emitters. |
+| `follow_target` | Target for the main emitter; empty follows the active camera. |
+
+### SnowFall
+Low-level falling-flake emitter implemented with `CPUParticles3D`. Use
+`SnowWeather` for scene-wide atmospheric snow; `SnowFall` can still be used
+directly when you only need a standalone emitter.
 
 | Property | Default | Description |
 |---|---:|---|
@@ -207,7 +223,6 @@ Useful shader uniforms include:
 | `snow_color` | Main snow color. |
 | `shadow_color` | Color in compressed tracks. |
 | `normal_strength` | Strength of surface shading from track details. |
-| `bulge_height` | Displacement in meters at full blue-channel bulge; defaults to `0.24`. |
 | `wrapped_diffuse_lighting` | Enables wrapped diffuse lighting with cool-tinted shadows; `false` uses standard diffuse lighting. |
 | `bevel_noise_scale` | World-space noise frequency in cells per meter for stamp bevels. |
 | `bevel_noise_strength` | Amount of noise applied to the deformation slope at stamp edges. |
@@ -229,18 +244,21 @@ its scale and strength with `bevel_noise_scale` and `bevel_noise_strength`.
 
 ## How it works
 
-- A hidden 2D viewport stores deformation in an 8-bit texture: red is pit depth
-  (`0` untouched, `1` fully pressed), and green is berm height.
-- The snow mesh shader displaces vertices from that map and derives surface
-  shading from nearby samples.
-- World-space noise modulates the stamp-edge slopes in the shader, keeping the
+- A hidden 2D viewport stores deformation in an 8-bit texture: red stores
+  combined height (`0.5` flat, lower for pits, higher for berms); green and blue
+  store baked X/Z height gradients.
+- The vertex shader samples height for displacement. The fragment shader reads
+  packed height and gradients in one deformation-map texture lookup.
+- World-space noise modulates baked stamp-edge slopes in the shader, keeping the
   roughened detail independent of deformation-map resolution.
-- Snowfall reduces pit depth and erodes berms at configurable rates. Stochastic
-  rounding lets gradual recovery progress despite the 8-bit map.
-- The shader scales berm height by `1 - pit_depth`, so depressions always
-  suppress overlapping rims.
-- Deformation stamps are sprites. The viewport updates when the map changes,
-  rather than rendering continuously.
+- Snowfall recovers combined height and baked gradients toward their neutral
+  values at the same rate.
+- Deformation stamps bake height and its slopes into the map. A single
+  `MultiMeshInstance2D` batches the brushes; the viewport updates when the map
+  changes, rather than rendering continuously.
+- Deformers notify their assigned field when their transform or stamp properties
+  change, so stationary objects do not need per-frame deformation calculations.
+  Unassigned deformers are shared across SnowFields.
 - Flakes and puffs use CPU particles for broader Compatibility-renderer and
   Web/mobile support.
 
@@ -261,8 +279,8 @@ its scale and strength with `bevel_noise_scale` and `bevel_noise_strength`.
 ## Files
 
 - `scripts/` contains the four public nodes and internal particle helpers.
-- `shaders/` contains the snow surface shader and a single two-channel map
-  refill shader for pit and berm erosion.
+- `shaders/` contains the snow surface, additive/subtractive stamp, and map
+  refill shaders.
 - `icons/` contains the node icons.
 - `plugin.cfg` and `plugin.gd` make the addon visible in Godot's plugin list;
   no editor integration is required for the nodes to work.

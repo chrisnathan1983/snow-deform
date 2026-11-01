@@ -3,7 +3,7 @@ class_name SnowFootsteps
 extends Node3D
 ## Add as a child of a character (origin at ground level, facing -Z).
 ## Needs a SnowField in the scene.
-## Two alternating feet with shallow drags restricted to touchdown and liftoff transitions.
+## Two alternating feet stamp footprints as the character moves.
 
 @export var foot_radius := 0.17
 @export var foot_aspect := 2.0
@@ -14,16 +14,12 @@ extends Node3D
 @export var active := true
 @export var puff_on_touchdown := true
 
-# Drag settings
-@export var enable_drags := false
-@export var drag_radius_scale := 0.65  # Narrower radius for lighter drag marks
-@export var drag_window := 0.95        # How close to the transition boundary (0.0 to 1.0) the drag occurs
-
 var _feet: Array[SnowDeformer] = []
-var _drags: Array[SnowDeformer] = []
 var _phase := 0.0
 var _stride := 0.2
 var _prev := Vector3.ZERO
+var _was_active := true
+var _has_updated_feet := false
 
 
 func _ready() -> void:
@@ -34,15 +30,6 @@ func _ready() -> void:
 		d.puff_on_touchdown = puff_on_touchdown
 		add_child(d)
 		_feet.append(d)
-	
-	if enable_drags:
-		for i in 2:
-			var drag := SnowDeformer.new()
-			drag.radius = foot_radius * drag_radius_scale
-			drag.aspect = foot_aspect
-			drag.puff_on_touchdown = false
-			add_child(drag)
-			_drags.append(drag)
 
 	_prev = global_position
 
@@ -51,22 +38,27 @@ func _process(delta: float) -> void:
 	var gp := global_position
 	if not active:
 		_prev = gp
-		for foot in _feet:
-			foot.active = false
-		for drag in _drags:
-			drag.active = false
+		if _was_active:
+			for foot in _feet:
+				foot.active = false
+		_was_active = false
 		return
 
+	var reactivated := not _was_active
+	if reactivated:
+		_prev = gp
+	_was_active = true
 	var movement := Vector3(gp.x - _prev.x, 0.0, gp.z - _prev.z)
 	var moved := Vector2(movement.x, movement.z).length()
-	var forward_movement := movement.dot(-global_basis.z)
 	_prev = gp
+	if moved <= 0.0005 and not reactivated and _has_updated_feet:
+		return
 
 	if moved > 0.0005:
 		var speed := moved / maxf(delta, 0.0001)
 		var target := lerpf(stride_min, stride_max, clampf(speed / speed_for_max, 0.0, 1.0))
 		_stride = lerpf(_stride, target, 1.0 - exp(-8.0 * delta))
-		_phase += forward_movement * PI / (_stride * 2.0)
+		_phase += moved * PI / (_stride * 2.0)
 
 	for i in 2:
 		var ph := _phase + i * PI
@@ -78,9 +70,4 @@ func _process(delta: float) -> void:
 		# Primary planted foot
 		_feet[i].position = foot_pos
 		_feet[i].active = is_planted
-
-		# Drag only activates in a narrow window right around the transition point (c near 0.0)
-		if enable_drags:
-			_drags[i].position = foot_pos
-			var transition_intensity := 1.0 - (absf(c) / drag_window)
-			_drags[i].active = (transition_intensity > 0.0) and (moved > 0.01)
+	_has_updated_feet = true

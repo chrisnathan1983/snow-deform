@@ -112,7 +112,6 @@ func _ready() -> void:
 		&"berm_height": $OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/BermHeightRow/BermHeight,
 		&"max_stamps_per_frame": $OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/MaxStampsRow/MaxStamps,
 		&"refill_levels_per_sec": $OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/RefillRateRow/RefillRate,
-		&"berm_decay_mult": $OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/BermDecayRow/BermDecay,
 		&"refill_interval": $OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/RefillIntervalRow/RefillInterval,
 		&"wind_x": $OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles/WindXRow/WindX,
 		&"wind_z": $OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles/WindZRow/WindZ,
@@ -121,7 +120,6 @@ func _ready() -> void:
 	}
 	_boolean_setting_inputs = {
 		&"puffs_enabled": puffs_enabled_toggle,
-		&"shadows": shadows_toggle,
 		&"wrapped_diffuse_lighting": wrapped_diffuse_toggle,
 	}
 	for setting in _setting_inputs:
@@ -130,6 +128,7 @@ func _ready() -> void:
 	for setting in _boolean_setting_inputs:
 		var input: CheckButton = _boolean_setting_inputs[setting]
 		input.toggled.connect(_on_boolean_setting_changed.bind(setting))
+	shadows_toggle.toggled.connect(_on_boolean_setting_changed.bind(&"shadows"))
 
 	snowfall_slider.value_changed.connect(_on_snowfall_changed)
 	_follow_target_option.item_selected.connect(_on_follow_target_selected)
@@ -180,8 +179,6 @@ func set_draft_preset(q: int, settings: Dictionary) -> void:
 	_draft_custom = false
 	_draft_settings = settings.duplicate(true)
 	_draft_snowfall = _draft_settings["snowfall"]
-	_draft_shadows = _draft_settings["shadows"]
-	_draft_msaa = _draft_settings["msaa"]
 	_draft_wrapped_diffuse_lighting = _draft_settings["wrapped_diffuse_lighting"]
 	_update_controls()
 	_emit_options_preview()
@@ -250,6 +247,7 @@ func _update_controls() -> void:
 	for setting in _boolean_setting_inputs:
 		var input: CheckButton = _boolean_setting_inputs[setting]
 		input.button_pressed = _draft_settings[String(setting)]
+	shadows_toggle.button_pressed = _draft_shadows
 	_follow_target_option.select(_draft_settings["follow_target_mode"])
 	snowfall_slider.value = _draft_snowfall
 	_update_snowfall_label(_draft_snowfall)
@@ -298,8 +296,7 @@ func _on_msaa_selected(index: int) -> void:
 	if _updating_options:
 		return
 	_draft_msaa = msaa_option.get_item_id(index)
-	_draft_settings["msaa"] = _draft_msaa
-	_mark_options_custom()
+	_emit_options_preview()
 
 
 func _on_follow_target_selected(index: int) -> void:
@@ -312,11 +309,14 @@ func _on_follow_target_selected(index: int) -> void:
 func _on_boolean_setting_changed(enabled: bool, setting: StringName) -> void:
 	if _updating_options:
 		return
-	_draft_settings[String(setting)] = enabled
 	if setting == &"shadows":
 		_draft_shadows = enabled
-	elif setting == &"wrapped_diffuse_lighting":
-		_draft_wrapped_diffuse_lighting = enabled
+		_emit_options_preview()
+		return
+	else:
+		_draft_settings[String(setting)] = enabled
+		if setting == &"wrapped_diffuse_lighting":
+			_draft_wrapped_diffuse_lighting = enabled
 	_mark_options_custom()
 
 

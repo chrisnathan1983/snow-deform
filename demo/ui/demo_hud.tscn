@@ -280,32 +280,6 @@ text = "Limits how many footprint stamps are processed per frame. Higher values 
 autowrap_mode = 3
 size_flags_horizontal = 3
 
-[node name="BermDecayRow" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface"]
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="Label" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/BermDecayRow"]
-layout_mode = 2
-custom_minimum_size = Vector2(150, 0)
-text = "Berm decay multiplier"
-size_flags_horizontal = 3
-
-[node name="BermDecay" type="SpinBox" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/BermDecayRow"]
-layout_mode = 2
-custom_minimum_size = Vector2(120, 40)
-min_value = 0.0
-max_value = 10.0
-step = 0.1
-value = 1.5
-
-[node name="BermDecayDescription" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
-theme_override_font_sizes/font_size = 12
-text = "Controls how quickly raised berms smooth out compared with the footprint beneath them."
-autowrap_mode = 3
-size_flags_horizontal = 3
-
 [node name="RefillIntervalRow" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface"]
 layout_mode = 2
 theme_override_constants/separation = 8
@@ -407,7 +381,7 @@ value = 16.0
 layout_mode = 2
 theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
 theme_override_font_sizes/font_size = 12
-text = "Trail-healing speed at 100% snowfall, in 8-bit snow levels per second."
+text = "Controls how quickly packed height and surface slopes recover at 100% snowfall."
 autowrap_mode = 3
 size_flags_horizontal = 3
 

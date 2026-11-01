@@ -10,6 +10,4 @@ flakes = 2000
 near = 280
 puff = 12
 res = 1024
-subdiv = 191
-msaa = 2
-wrapped_diffuse_lighting = false
+subdiv = 256

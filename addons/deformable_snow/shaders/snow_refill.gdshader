@@ -1,9 +1,7 @@
 shader_type canvas_item;
-render_mode blend_sub;
+render_mode blend_mix;
 
-uniform float pit_levels = 1.0;
-uniform float berm_levels = 1.5;
-uniform float bulge_levels = 65.0;
+uniform float recovery_alpha = 0.0;
 uniform float seed = 0.0;
 
 float hash12(vec2 p) {
@@ -13,19 +11,8 @@ float hash12(vec2 p) {
 }
 
 void fragment() {
-	float pit_whole = floor(pit_levels);
-	float pit_extra = hash12(FRAGCOORD.xy + seed) < (pit_levels - pit_whole) ? 1.0 : 0.0;
-
-	float berm_whole = floor(berm_levels);
-	float berm_extra = hash12(FRAGCOORD.xy + seed + 37.0) < (berm_levels - berm_whole) ? 1.0 : 0.0;
-
-	float bulge_whole = floor(bulge_levels);
-	float bulge_extra = hash12(FRAGCOORD.xy + seed + 73.0) < (bulge_levels - bulge_whole) ? 1.0 : 0.0;
-
-	COLOR = vec4(
-		(pit_whole + pit_extra) / 255.0,
-		(berm_whole + berm_extra) / 255.0,
-		(bulge_whole + bulge_extra) / 255.0,
-		1.0
-	);
+	// Stochastically boost alpha above 0.51 on a fraction of pixels so 8-bit values
+	// within ±26 of 128 don't stall. Pixels already at 128 stay at 128 for any alpha.
+	float dither_snap = step(hash12(FRAGCOORD.xy + seed), recovery_alpha * 0.75) * 0.52;
+	COLOR = vec4(vec3(128.0 / 255.0), max(recovery_alpha, dither_snap));
 }

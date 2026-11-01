@@ -8,11 +8,9 @@
 [ext_resource type="PackedScene" uid="uid://c1qxwd3hn6anl" path="res://demo/actors/sled.tscn" id="6_sled"]
 [ext_resource type="PackedScene" path="res://demo/ui/demo_hud.tscn" id="7_hud"]
 [ext_resource type="Script" uid="uid://c01n4wbhvbn0m" path="res://addons/deformable_snow/scripts/snow_field.gd" id="8_snow"]
-[ext_resource type="Resource" path="res://demo/quality_profiles/low.tres" id="9_quality_low"]
-[ext_resource type="Resource" path="res://demo/quality_profiles/medium.tres" id="10_quality_medium"]
-[ext_resource type="Resource" path="res://demo/quality_profiles/high.tres" id="11_quality_high"]
-[ext_resource type="Resource" uid="uid://bj4khc0m16i26" path="res://addons/deformable_snow/resources/quality_medium_custom.tres" id="12_fdg1k"]
 [ext_resource type="PackedScene" uid="uid://c01t78ey68jer" path="res://demo/actors/mouse.tscn" id="12_mouse"]
+[ext_resource type="Script" path="res://addons/deformable_snow/scripts/snow_weather.gd" id="13_weather"]
+[ext_resource type="PackedScene" path="res://demo/actors/soccer_ball.tscn" id="14_ball"]
 
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
@@ -156,13 +154,15 @@ height = 0.2
 wobble_amplitude = 0.95
 wobble_cycles = 7.3
 
-[node name="SnowField" type="Node3D" parent="." unique_id=188116127]
+[node name="SoccerBall" parent="Actors" instance=ExtResource("14_ball")]
+position = Vector3(2.5, 0.35, -3.0)
+
+[node name="SnowField" type="Node3D" parent="." unique_id=188116127 node_paths=PackedStringArray("sun")]
 script = ExtResource("8_snow")
-quality = 3
-low_quality = ExtResource("9_quality_low")
-medium_quality = ExtResource("10_quality_medium")
-high_quality = ExtResource("11_quality_high")
-custom_quality = ExtResource("12_fdg1k")
-snowfall = 1.0
+sun = NodePath("../Sun")
+quality = 2
+
+[node name="SnowWeather" type="Node3D" parent="."]
+script = ExtResource("13_weather")
 
 [node name="HUD" parent="." unique_id=1561618672 instance=ExtResource("7_hud")]

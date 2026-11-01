@@ -3,6 +3,8 @@ extends CharacterBody3D
 ## Movement and jump actions are registered if missing. Remap or override them
 ## in Project Settings > Input Map if you like.
 
+const BallPush = preload("ball_push.gd")
+
 @export var speed := 5.0
 @export var jump_velocity := 5.0
 var touch_stick: TouchStick
@@ -61,7 +63,9 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity.y -= float(ProjectSettings.get_setting("physics/3d/default_gravity")) * delta
 	_jump_requested = false
+	var motion_velocity := velocity
 	move_and_slide()   # the arena walls (see main.gd) keep us inside
+	BallPush.apply_contact_impulses(self, motion_velocity)
 
 	if v.length() > 0.1:
 		rotation.y = lerp_angle(rotation.y, atan2(-v.x, -v.y), 12.0 * delta)

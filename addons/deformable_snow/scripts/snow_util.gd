@@ -4,7 +4,13 @@ extends RefCounted
 
 
 ## Soft round white dot, used for flakes and puffs.
+static var _dot_cache: GradientTexture2D
+
+
 static func soft_dot(size := 32) -> GradientTexture2D:
+	if size == 32 and _dot_cache != null:
+		return _dot_cache
+
 	var g := Gradient.new()
 	g.set_color(0, Color(1, 1, 1, 1.0))
 	g.set_color(1, Color(1, 1, 1, 0.0))
@@ -16,4 +22,6 @@ static func soft_dot(size := 32) -> GradientTexture2D:
 	t.fill_to = Vector2(1.0, 0.5)
 	t.width = size
 	t.height = size
+	if size == 32:
+		_dot_cache = t
 	return t
