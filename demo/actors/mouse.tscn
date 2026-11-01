@@ -1,0 +1,73 @@
+[gd_scene format=3 uid="uid://c01t78ey68jer"]
+
+[ext_resource type="Script" uid="uid://bo76ho2fjygyr" path="res://demo/actors/mouse.gd" id="1_mouse"]
+[ext_resource type="Script" uid="uid://bdagugdsyyn7l" path="res://addons/deformable_snow/scripts/snow_deformer.gd" id="2_deformer"]
+[ext_resource type="Script" uid="uid://cgrvvu3m15p4j" path="res://addons/deformable_snow/scripts/snow_footsteps.gd" id="3_footsteps"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_mouse"]
+radial_segments = 12
+rings = 6
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_mouse"]
+albedo_color = Color(0.35, 0.38, 0.43, 1)
+roughness = 0.8
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pink"]
+albedo_color = Color(0.9, 0.48, 0.55, 1)
+roughness = 0.8
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_tail"]
+radius = 0.04
+height = 0.5
+radial_segments = 8
+rings = 4
+
+[node name="Mouse" type="Node3D" unique_id=1179021947]
+script = ExtResource("1_mouse")
+
+[node name="Body" type="MeshInstance3D" parent="." unique_id=1224732122]
+transform = Transform3D(0.29, 0, 0, 0, 0.2, 0, 0, 0, 0.42, 0, 0.087499306, 0.02)
+mesh = SubResource("SphereMesh_mouse")
+surface_material_override/0 = SubResource("StandardMaterial3D_mouse")
+
+[node name="Head" type="MeshInstance3D" parent="." unique_id=1202326834]
+transform = Transform3D(0.23, 0, 0, 0, 0.2, 0, 0, 0, 0.24, 0, 0.1374993, -0.27)
+mesh = SubResource("SphereMesh_mouse")
+surface_material_override/0 = SubResource("StandardMaterial3D_mouse")
+
+[node name="LeftEar" type="MeshInstance3D" parent="." unique_id=489995467]
+transform = Transform3D(0.1, 0, 0, 0, 0.16, 0, 0, 0, 0.08, -0.15, 0.3074993, -0.31)
+mesh = SubResource("SphereMesh_mouse")
+surface_material_override/0 = SubResource("StandardMaterial3D_pink")
+
+[node name="RightEar" type="MeshInstance3D" parent="." unique_id=1701047314]
+transform = Transform3D(0.1, 0, 0, 0, 0.16, 0, 0, 0, 0.08, 0.15, 0.3074993, -0.31)
+mesh = SubResource("SphereMesh_mouse")
+surface_material_override/0 = SubResource("StandardMaterial3D_pink")
+
+[node name="Nose" type="MeshInstance3D" parent="." unique_id=1972431855]
+transform = Transform3D(0.06, 0, 0, 0, 0.05, 0, 0, 0, 0.06, 0, 0.1074993, -0.49)
+mesh = SubResource("SphereMesh_mouse")
+surface_material_override/0 = SubResource("StandardMaterial3D_pink")
+
+[node name="Tail" type="MeshInstance3D" parent="." unique_id=1803019490]
+transform = Transform3D(1, 0, 0, 0, -3.6199901e-06, -1, 0, 1, -3.6199901e-06, 0, 0.0074993, 0.37)
+mesh = SubResource("CapsuleMesh_tail")
+surface_material_override/0 = SubResource("StandardMaterial3D_pink")
+
+[node name="SnowDeformer" type="Node3D" parent="." unique_id=2019740102]
+script = ExtResource("2_deformer")
+stamp_mode = 1
+radius = 0.32
+puff_on_touchdown = false
+
+[node name="SnowFootsteps" type="Node3D" parent="." unique_id=561785976]
+script = ExtResource("3_footsteps")
+foot_radius = 0.025
+foot_aspect = 1.25
+spread = 0.038
+stride_min = 0.065
+stride_max = 0.11
+speed_for_max = 6.0
+active = false
+puff_on_touchdown = false

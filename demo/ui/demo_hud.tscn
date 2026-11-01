@@ -1,0 +1,813 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://demo/ui/demo_hud.gd" id="1_hud"]
+[ext_resource type="Script" path="res://demo/ui/touch_stick.gd" id="2_stick"]
+
+
+
+[node name="HUD" type="CanvasLayer"]
+script = ExtResource("1_hud")
+
+[node name="TouchStick" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("2_stick")
+
+[node name="TopControls" type="HBoxContainer" parent="."]
+offset_left = 12.0
+offset_top = 12.0
+theme_override_constants/separation = 8
+
+[node name="OptionsButton" type="Button" parent="TopControls"]
+custom_minimum_size = Vector2(116, 48)
+text = "Options"
+
+[node name="Reset" type="Button" parent="TopControls"]
+custom_minimum_size = Vector2(90, 48)
+text = "Reset"
+
+[node name="PopulationControls" type="VBoxContainer" parent="."]
+offset_left = 12.0
+offset_top = 68.0
+theme_override_constants/separation = 4
+
+[node name="PeopleRow" type="HBoxContainer" parent="PopulationControls"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Label" type="Label" parent="PopulationControls/PeopleRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(64, 40)
+vertical_alignment = 1
+text = "People"
+
+[node name="Remove" type="Button" parent="PopulationControls/PeopleRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(44, 40)
+text = "-"
+tooltip_text = "Remove one person"
+
+[node name="Count" type="Label" parent="PopulationControls/PeopleRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(28, 40)
+horizontal_alignment = 1
+vertical_alignment = 1
+text = "0"
+
+[node name="Add" type="Button" parent="PopulationControls/PeopleRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(44, 40)
+text = "+"
+tooltip_text = "Add one person"
+
+[node name="MiceRow" type="HBoxContainer" parent="PopulationControls"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Label" type="Label" parent="PopulationControls/MiceRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(64, 40)
+vertical_alignment = 1
+text = "Mice"
+
+[node name="Remove" type="Button" parent="PopulationControls/MiceRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(44, 40)
+text = "-"
+tooltip_text = "Remove one mouse"
+
+[node name="Count" type="Label" parent="PopulationControls/MiceRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(28, 40)
+horizontal_alignment = 1
+vertical_alignment = 1
+text = "0"
+
+[node name="Add" type="Button" parent="PopulationControls/MiceRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(44, 40)
+text = "+"
+tooltip_text = "Add one mouse"
+
+[node name="OptionsPanel" type="PanelContainer" parent="."]
+visible = false
+anchors_preset = 15
+anchor_left = 0.5
+anchor_top = 0.04
+anchor_right = 0.5
+anchor_bottom = 0.94
+offset_left = -180.0
+offset_right = 180.0
+grow_vertical = 2
+custom_minimum_size = Vector2(360, 0)
+
+[node name="ScrollContainer" type="ScrollContainer" parent="OptionsPanel"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="OptionsContent" type="VBoxContainer" parent="OptionsPanel/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 8
+
+[node name="Header" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Snow Options"
+
+[node name="QualityLabel" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent"]
+layout_mode = 2
+text = "Quality preset"
+
+[node name="QualityOption" type="OptionButton" parent="OptionsPanel/ScrollContainer/OptionsContent"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 40)
+
+[node name="QualityDescription" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+theme_override_font_sizes/font_size = 12
+text = "Choose a starting profile. Editing any setting switches to Custom without changing the built-in profiles."
+autowrap_mode = 3
+size_flags_horizontal = 3
+
+[node name="Tabs" type="TabContainer" parent="OptionsPanel/ScrollContainer/OptionsContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Surface" type="VBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="AreaSizeRow" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/AreaSizeRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Field size (m)"
+size_flags_horizontal = 3
+
+[node name="AreaSize" type="SpinBox" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/AreaSizeRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 40)
+min_value = 1.0
+max_value = 256.0
+step = 1.0
+value = 40.0
+
+[node name="AreaSizeDescription" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+theme_override_font_sizes/font_size = 12
+text = "Sets the square snow-field width and length in meters."
+autowrap_mode = 3
+size_flags_horizontal = 3
+
+[node name="MaxDepthRow" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/MaxDepthRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Maximum depth"
+size_flags_horizontal = 3
+
+[node name="MaxDepth" type="SpinBox" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/MaxDepthRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 40)
+min_value = 0.01
+max_value = 1.0
+step = 0.01
+value = 0.25
+
+[node name="MaxDepthDescription" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+theme_override_font_sizes/font_size = 12
+text = "Sets the deepest a fully pressed footprint can sink into the snow."
+autowrap_mode = 3
+size_flags_horizontal = 3
+
+[node name="BermStrengthRow" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/BermStrengthRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Berm strength"
+size_flags_horizontal = 3
+
+[node name="BermStrength" type="SpinBox" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/BermStrengthRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 40)
+min_value = 0.0
+max_value = 0.5
+step = 0.01
+value = 0.15
+
+[node name="BermStrengthDescription" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+theme_override_font_sizes/font_size = 12
+text = "Controls how much raised snow builds around a footprint; 0 disables berms."
+autowrap_mode = 3
+size_flags_horizontal = 3
+
+[node name="BermHeightRow" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/BermHeightRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Berm height"
+size_flags_horizontal = 3
+
+[node name="BermHeight" type="SpinBox" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/BermHeightRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 40)
+min_value = 0.0
+max_value = 0.5
+step = 0.01
+value = 0.08
+
+[node name="BermHeightDescription" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+theme_override_font_sizes/font_size = 12
+text = "Sets the height of a fully formed raised berm, in meters."
+autowrap_mode = 3
+size_flags_horizontal = 3
+
+[node name="MaxStampsRow" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/MaxStampsRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Stamps per frame"
+size_flags_horizontal = 3
+
+[node name="MaxStamps" type="SpinBox" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/MaxStampsRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 40)
+min_value = 1.0
+max_value = 512.0
+step = 1.0
+value = 64.0
+
+[node name="MaxStampsDescription" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+theme_override_font_sizes/font_size = 12
+text = "Limits how many footprint stamps are processed per frame. Higher values handle busy movement more smoothly."
+autowrap_mode = 3
+size_flags_horizontal = 3
+
+[node name="BermDecayRow" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/BermDecayRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Berm decay multiplier"
+size_flags_horizontal = 3
+
+[node name="BermDecay" type="SpinBox" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/BermDecayRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 40)
+min_value = 0.0
+max_value = 10.0
+step = 0.1
+value = 1.5
+
+[node name="BermDecayDescription" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+theme_override_font_sizes/font_size = 12
+text = "Controls how quickly raised berms smooth out compared with the footprint beneath them."
+autowrap_mode = 3
+size_flags_horizontal = 3
+
+[node name="RefillIntervalRow" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/RefillIntervalRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Refill interval (s)"
+size_flags_horizontal = 3
+
+[node name="RefillInterval" type="SpinBox" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/RefillIntervalRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 40)
+min_value = 0.05
+max_value = 5.0
+step = 0.05
+value = 0.25
+
+[node name="RefillIntervalDescription" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+theme_override_font_sizes/font_size = 12
+text = "Sets the time between trail-healing updates. Smaller intervals update more often."
+autowrap_mode = 3
+size_flags_horizontal = 3
+
+[node name="SnowfallPanel" type="VBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="SnowfallLabel" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/SnowfallPanel"]
+layout_mode = 2
+text = "Snowfall 30%"
+
+[node name="SnowfallSlider" type="HSlider" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/SnowfallPanel"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 40)
+min_value = 0.0
+max_value = 1.0
+step = 0.05
+value = 0.3
+
+[node name="SnowfallDescription" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+theme_override_font_sizes/font_size = 12
+text = "Controls falling-snow intensity and trail healing: 0% stops both; 100% is the maximum."
+autowrap_mode = 3
+size_flags_horizontal = 3
+
+[node name="SparkleRow" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/SparkleRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Sparkle intensity"
+size_flags_horizontal = 3
+
+[node name="Sparkle" type="SpinBox" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/SparkleRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 40)
+min_value = 0.0
+max_value = 3.0
+step = 0.1
+rounded = false
+allow_greater = false
+allow_lesser = false
+value = 1.0
+
+[node name="SparkleDescription" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+theme_override_font_sizes/font_size = 12
+text = "Controls the brightness of the snow surface sparkle; 0 disables it."
+autowrap_mode = 3
+size_flags_horizontal = 3
+
+[node name="RefillRateRow" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/RefillRateRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Trail refill rate"
+size_flags_horizontal = 3
+
+[node name="RefillRate" type="SpinBox" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface/RefillRateRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 40)
+min_value = 0.0
+max_value = 255.0
+step = 1.0
+value = 16.0
+
+[node name="RefillRateDescription" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Surface"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+theme_override_font_sizes/font_size = 12
+text = "Trail-healing speed at 100% snowfall, in 8-bit snow levels per second."
+autowrap_mode = 3
+size_flags_horizontal = 3
+
+
+[node name="Particles" type="VBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="FlakesRow" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles/FlakesRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Main flake maximum"
+size_flags_horizontal = 3
+
+[node name="Flakes" type="SpinBox" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles/FlakesRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 40)
+min_value = 1.0
+max_value = 10000.0
+step = 10.0
+value = 900.0
+
+[node name="FlakesDescription" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+theme_override_font_sizes/font_size = 12
+text = "Maximum main snowflake count at 100% snowfall. Higher counts use more CPU."
+autowrap_mode = 3
+size_flags_horizontal = 3
+
+[node name="NearFlakesRow" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles/NearFlakesRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Near-camera flakes"
+size_flags_horizontal = 3
+
+[node name="NearFlakes" type="SpinBox" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles/NearFlakesRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 40)
+min_value = 0.0
+max_value = 5000.0
+step = 10.0
+value = 120.0
+
+[node name="NearFlakesDescription" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+theme_override_font_sizes/font_size = 12
+text = "Maximum extra flakes near the camera at 100% snowfall; 0 disables this layer."
+autowrap_mode = 3
+size_flags_horizontal = 3
+
+[node name="FallHeightRow" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles/FallHeightRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Fall height"
+size_flags_horizontal = 3
+
+[node name="FallHeight" type="SpinBox" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles/FallHeightRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 40)
+min_value = 0.0
+max_value = 50.0
+step = 0.5
+value = 9.0
+
+[node name="FallHeightDescription" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+theme_override_font_sizes/font_size = 12
+text = "Sets the emitter height above the snow field, in meters."
+autowrap_mode = 3
+size_flags_horizontal = 3
+
+[node name="FollowTargetRow" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles/FollowTargetRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Flakes follow"
+size_flags_horizontal = 3
+
+[node name="FollowTarget" type="OptionButton" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles/FollowTargetRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 40)
+
+[node name="FollowTargetDescription" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+theme_override_font_sizes/font_size = 12
+text = "Chooses what the main falling-snow emitter follows."
+autowrap_mode = 3
+size_flags_horizontal = 3
+
+[node name="WindXRow" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles/WindXRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Wind X"
+size_flags_horizontal = 3
+
+[node name="WindX" type="SpinBox" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles/WindXRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 40)
+min_value = -10.0
+max_value = 10.0
+step = 0.1
+value = 0.3
+
+[node name="WindXDescription" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+theme_override_font_sizes/font_size = 12
+text = "Controls horizontal flake drift along the world X axis."
+autowrap_mode = 3
+size_flags_horizontal = 3
+
+[node name="WindZRow" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles/WindZRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Wind Z"
+size_flags_horizontal = 3
+
+[node name="WindZ" type="SpinBox" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles/WindZRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 40)
+min_value = -10.0
+max_value = 10.0
+step = 0.1
+value = 0.0
+
+[node name="WindZDescription" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+theme_override_font_sizes/font_size = 12
+text = "Controls horizontal flake drift along the world Z axis."
+autowrap_mode = 3
+size_flags_horizontal = 3
+
+[node name="PuffsEnabledRow" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles/PuffsEnabledRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Enable puffs"
+size_flags_horizontal = 3
+
+[node name="PuffsEnabled" type="CheckButton" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles/PuffsEnabledRow"]
+layout_mode = 2
+text = "On"
+
+[node name="PuffsEnabledDescription" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+theme_override_font_sizes/font_size = 12
+text = "Enables or disables snow puffs kicked up by moving deformers."
+autowrap_mode = 3
+size_flags_horizontal = 3
+
+[node name="PuffRow" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles/PuffRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Puff particles"
+size_flags_horizontal = 3
+
+[node name="Puff" type="SpinBox" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles/PuffRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 40)
+min_value = 1.0
+max_value = 64.0
+step = 1.0
+value = 8.0
+
+[node name="PuffDescription" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+theme_override_font_sizes/font_size = 12
+text = "Sets the number of snow particles emitted in each deformer puff."
+autowrap_mode = 3
+size_flags_horizontal = 3
+
+[node name="PuffIntervalRow" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles/PuffIntervalRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Puff interval (s)"
+size_flags_horizontal = 3
+
+[node name="PuffInterval" type="SpinBox" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles/PuffIntervalRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 40)
+min_value = 0.0
+max_value = 10.0
+step = 0.05
+value = 0.2
+
+[node name="PuffIntervalDescription" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Particles"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+theme_override_font_sizes/font_size = 12
+text = "Minimum time between puffs from the same deformer, in seconds."
+autowrap_mode = 3
+size_flags_horizontal = 3
+
+[node name="Graphics" type="VBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="ResolutionRow" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Graphics"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Graphics/ResolutionRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Map resolution"
+size_flags_horizontal = 3
+
+[node name="Resolution" type="SpinBox" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Graphics/ResolutionRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 40)
+min_value = 128.0
+max_value = 2048.0
+step = 128.0
+value = 512.0
+
+[node name="ResolutionDescription" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Graphics"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+theme_override_font_sizes/font_size = 12
+text = "Sets the deformation map resolution. Higher resolution preserves finer tracks but uses more memory."
+autowrap_mode = 3
+size_flags_horizontal = 3
+
+[node name="SubdivisionsRow" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Graphics"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Graphics/SubdivisionsRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Mesh subdivisions"
+size_flags_horizontal = 3
+
+[node name="Subdivisions" type="SpinBox" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Graphics/SubdivisionsRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 40)
+min_value = 1.0
+max_value = 512.0
+step = 1.0
+value = 127.0
+
+[node name="SubdivisionsDescription" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Graphics"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+theme_override_font_sizes/font_size = 12
+text = "Sets the snow mesh detail. Higher values improve displacement detail and increase rendering cost."
+autowrap_mode = 3
+size_flags_horizontal = 3
+
+[node name="ShadowsRow" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Graphics"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Graphics/ShadowsRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Real-time shadows"
+size_flags_horizontal = 3
+
+[node name="Shadows" type="CheckButton" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Graphics/ShadowsRow"]
+layout_mode = 2
+text = "On"
+
+[node name="ShadowsDescription" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Graphics"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+theme_override_font_sizes/font_size = 12
+text = "Enables real-time shadows from the sun on the snow."
+autowrap_mode = 3
+size_flags_horizontal = 3
+
+[node name="MSAARow" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Graphics"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Graphics/MSAARow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Anti-aliasing (MSAA)"
+size_flags_horizontal = 3
+
+[node name="MSAA" type="OptionButton" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Graphics/MSAARow"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 40)
+
+[node name="MSAADescription" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Graphics"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+theme_override_font_sizes/font_size = 12
+text = "Smooths polygon edges. Higher MSAA levels improve edge quality at additional GPU cost."
+autowrap_mode = 3
+size_flags_horizontal = 3
+
+[node name="WrappedDiffuseRow" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Graphics"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Graphics/WrappedDiffuseRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Wrapped diffuse lighting"
+size_flags_horizontal = 3
+
+[node name="WrappedDiffuse" type="CheckButton" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Graphics/WrappedDiffuseRow"]
+layout_mode = 2
+text = "On"
+
+[node name="WrappedDiffuseDescription" type="Label" parent="OptionsPanel/ScrollContainer/OptionsContent/Tabs/Graphics"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+theme_override_font_sizes/font_size = 12
+text = "Softens dark footprint bevels with cool-tinted wrapped lighting."
+autowrap_mode = 3
+size_flags_horizontal = 3
+
+[node name="FooterSpacer" type="Control" parent="OptionsPanel/ScrollContainer/OptionsContent"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Actions" type="HBoxContainer" parent="OptionsPanel/ScrollContainer/OptionsContent"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="CancelButton" type="Button" parent="OptionsPanel/ScrollContainer/OptionsContent/Actions"]
+layout_mode = 2
+size_flags_horizontal = 3
+custom_minimum_size = Vector2(0, 48)
+text = "Cancel"
+
+[node name="ConfirmButton" type="Button" parent="OptionsPanel/ScrollContainer/OptionsContent/Actions"]
+layout_mode = 2
+size_flags_horizontal = 3
+custom_minimum_size = Vector2(0, 48)
+text = "Confirm"
+
+[node name="FPS" type="Label" parent="."]
+offset_left = 12.0
+offset_top = 160.0
+theme_override_colors/font_outline_color = Color(0.08, 0.12, 0.22, 1)
+theme_override_constants/outline_size = 6
+
+[node name="Help" type="Label" parent="."]
+offset_left = 12.0
+offset_top = 184.0
+theme_override_colors/font_outline_color = Color(0.08, 0.12, 0.22, 1)
+theme_override_constants/outline_size = 6
+text = "Move: WASD / arrows / gamepad / touch stick    Jump: Space / gamepad A / button"
+
+[node name="Jump" type="Button" parent="."]
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -124.0
+offset_top = -76.0
+offset_right = -16.0
+offset_bottom = -16.0
+grow_horizontal = 0
+grow_vertical = 0
+custom_minimum_size = Vector2(108, 60)
+text = "Jump"

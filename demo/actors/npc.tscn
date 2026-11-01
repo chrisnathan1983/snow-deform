@@ -1,0 +1,45 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://demo/actors/npc.gd" id="1_npc"]
+[ext_resource type="Script" path="res://addons/deformable_snow/scripts/snow_footsteps.gd" id="2_footsteps"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_npc"]
+radius = 0.35
+height = 1.8
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_npc"]
+albedo_color = Color(0.2, 0.5, 0.9, 1)
+roughness = 0.8
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_nose"]
+albedo_color = Color(1, 0.7, 0.2, 1)
+roughness = 0.8
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_npc"]
+radius = 0.35
+height = 1.8
+radial_segments = 12
+rings = 4
+
+[sub_resource type="BoxMesh" id="BoxMesh_nose"]
+size = Vector3(0.2, 0.2, 0.3)
+
+[node name="NPC" type="CharacterBody3D"]
+script = ExtResource("1_npc")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(0, 0.9, 0)
+shape = SubResource("CapsuleShape3D_npc")
+
+[node name="Body" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.9, 0)
+mesh = SubResource("CapsuleMesh_npc")
+surface_material_override/0 = SubResource("StandardMaterial3D_npc")
+
+[node name="Nose" type="MeshInstance3D" parent="."]
+position = Vector3(0, 1.4, -0.38)
+mesh = SubResource("BoxMesh_nose")
+surface_material_override/0 = SubResource("StandardMaterial3D_nose")
+
+[node name="SnowFootsteps" type="Node3D" parent="."]
+script = ExtResource("2_footsteps")
