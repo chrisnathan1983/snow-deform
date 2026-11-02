@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="SnowWeatherSettings" load_steps=2 format=3]
+
+[ext_resource type="Script" uid="uid://bgsigxqdpprf7" path="res://addons/deformable_snow/scripts/settings/snow_weather_settings.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+flake_count = 2000
+near_flake_count = 280
+wind = Vector2(-2, 1)
+fall_height = 14.0
+emitter_area = Vector2(50, 50)
+snowfall_intensity = 1.0
+quality = 2

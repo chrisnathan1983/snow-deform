@@ -84,7 +84,7 @@ void fragment() {
 			slope += noise_vec * (bevel_noise_strength * edge_strength * slope_len);
 		}
 
-		NORMAL_MAP = normalize(vec3(-slope, 1.0)) * 0.5 + 0.5;
+		NORMAL_MAP = normalize(vec3(-slope.x, slope.y, 1.0)) * 0.5 + 0.5;
 		ALBEDO = mix(shadow_color, snow_color, smoothstep(0.0, 0.9, hc));
 		ROUGHNESS = mix(mix(0.50, 0.88, hc), 0.18, ice_glaze);
 	} else {

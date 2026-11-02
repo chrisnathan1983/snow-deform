@@ -1,0 +1,172 @@
+[gd_scene format=3 uid="uid://dcfw1g7ipqiqo"]
+
+[ext_resource type="Script" uid="uid://bm2dt855iutns" path="res://demos/classic/main.gd" id="1_main"]
+[ext_resource type="Script" uid="uid://3cab4qgnuplj" path="res://demos/classic/world/pine_forest.gd" id="2_forest"]
+[ext_resource type="Script" uid="uid://di5wn2d4q6734" path="res://demos/classic/world/demo_camera.gd" id="3_camera"]
+[ext_resource type="PackedScene" uid="uid://snqkfnjpqg3y" path="res://demos/classic/actors/player.tscn" id="4_player"]
+[ext_resource type="PackedScene" path="res://demos/classic/actors/npc.tscn" id="5_npc"]
+[ext_resource type="PackedScene" uid="uid://c1qxwd3hn6anl" path="res://demos/classic/actors/sled.tscn" id="6_sled"]
+[ext_resource type="PackedScene" path="res://demos/classic/ui/demo_hud.tscn" id="7_hud"]
+[ext_resource type="Script" uid="uid://c01n4wbhvbn0m" path="res://addons/deformable_snow/scripts/core/snow_field.gd" id="8_snow"]
+[ext_resource type="PackedScene" uid="uid://c01t78ey68jer" path="res://demos/classic/actors/mouse.tscn" id="12_mouse"]
+[ext_resource type="Script" uid="uid://deupmvloejyfn" path="res://addons/deformable_snow/scripts/core/snow_world_manager.gd" id="13_weather"]
+[ext_resource type="PackedScene" uid="uid://bhethw13gwt5e" path="res://demos/classic/actors/soccer_ball.tscn" id="14_ball"]
+
+[sub_resource type="Environment" id="Environment_main"]
+background_mode = 1
+background_color = Color(0.8, 0.87, 0.96, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.7, 0.78, 0.95, 1)
+ambient_light_energy = 0.55
+fog_enabled = true
+fog_light_color = Color(0.8, 0.87, 0.96, 1)
+fog_density = 0.012
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
+albedo_color = Color(0.62, 0.7, 0.84, 1)
+roughness = 0.8
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_floor"]
+material = SubResource("StandardMaterial3D_floor")
+size = Vector2(24, 24)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(24, 0.2, 24)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_snow_slab"]
+albedo_color = Color(0.9, 0.93, 0.98, 1)
+roughness = 0.65
+
+[sub_resource type="BoxMesh" id="BoxMesh_north_south_slab"]
+material = SubResource("StandardMaterial3D_snow_slab")
+size = Vector3(224, 0.2, 100)
+
+[sub_resource type="BoxMesh" id="BoxMesh_east_west_slab"]
+material = SubResource("StandardMaterial3D_snow_slab")
+size = Vector3(100, 0.2, 24)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_east_west_wall"]
+size = Vector3(1, 4, 28)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_north_south_wall"]
+size = Vector3(28, 4, 1)
+
+[node name="Main" type="Node3D" unique_id=1581635519]
+script = ExtResource("1_main")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=201175181]
+environment = SubResource("Environment_main")
+
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=417277038]
+transform = Transform3D(-0.81915206, -0.43938506, 0.36868784, 0, 0.64278764, 0.76604444, -0.57357645, 0.62750685, -0.5265408, 0, 0, 0)
+light_color = Color(1, 0.93, 0.82, 1)
+light_energy = 0.95
+directional_shadow_mode = 0
+directional_shadow_max_distance = 30.0
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=745397524]
+transform = Transform3D(1, 0, 0, 0, 0.64278764, 0.76604444, 0, -0.76604444, 0.64278764, 0, 0, 0)
+current = true
+fov = 60.0
+script = ExtResource("3_camera")
+target_path = NodePath("../Actors/Player")
+
+[node name="Ground" type="Node3D" parent="." unique_id=279432522]
+
+[node name="SnowBase" type="MeshInstance3D" parent="Ground" unique_id=1004685523]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.26, 0)
+mesh = SubResource("PlaneMesh_floor")
+
+[node name="SnowBaseCollision" type="StaticBody3D" parent="Ground" unique_id=770884559]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Ground/SnowBaseCollision" unique_id=456824830]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
+shape = SubResource("BoxShape3D_floor")
+
+[node name="NorthSnowSlab" type="MeshInstance3D" parent="Ground" unique_id=682804338]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, -62)
+mesh = SubResource("BoxMesh_north_south_slab")
+
+[node name="SouthSnowSlab" type="MeshInstance3D" parent="Ground" unique_id=669777709]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 62)
+mesh = SubResource("BoxMesh_north_south_slab")
+
+[node name="WestSnowSlab" type="MeshInstance3D" parent="Ground" unique_id=1307500633]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -62, -0.1, 0)
+mesh = SubResource("BoxMesh_east_west_slab")
+
+[node name="EastSnowSlab" type="MeshInstance3D" parent="Ground" unique_id=685004042]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 62, -0.1, 0)
+mesh = SubResource("BoxMesh_east_west_slab")
+
+[node name="BoundaryWalls" type="StaticBody3D" parent="." unique_id=1908777297]
+
+[node name="EastWall" type="CollisionShape3D" parent="BoundaryWalls" unique_id=509710666]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11.85, 2, 0)
+shape = SubResource("BoxShape3D_east_west_wall")
+
+[node name="WestWall" type="CollisionShape3D" parent="BoundaryWalls" unique_id=1857855844]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11.85, 2, 0)
+shape = SubResource("BoxShape3D_east_west_wall")
+
+[node name="SouthWall" type="CollisionShape3D" parent="BoundaryWalls" unique_id=398602338]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 11.85)
+shape = SubResource("BoxShape3D_north_south_wall")
+
+[node name="NorthWall" type="CollisionShape3D" parent="BoundaryWalls" unique_id=1465451879]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, -11.85)
+shape = SubResource("BoxShape3D_north_south_wall")
+
+[node name="Forest" type="Node3D" parent="." unique_id=1493270074]
+script = ExtResource("2_forest")
+
+[node name="Actors" type="Node3D" parent="." unique_id=908769467]
+
+[node name="Player" parent="Actors" unique_id=2115864717 instance=ExtResource("4_player")]
+
+[node name="NPCs" type="Node3D" parent="Actors" unique_id=1585499757]
+
+[node name="NPC1" parent="Actors/NPCs" unique_id=352663720 instance=ExtResource("5_npc")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 0, -7)
+speed = 2.0
+
+[node name="NPC2" parent="Actors/NPCs" unique_id=1121009944 instance=ExtResource("5_npc")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0, -7)
+speed = 2.4
+body_color = Color(0.3, 0.75, 0.4, 1)
+
+[node name="NPC3" parent="Actors/NPCs" unique_id=273619063 instance=ExtResource("5_npc")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0, -7)
+speed = 2.8
+body_color = Color(0.9, 0.75, 0.2, 1)
+
+[node name="NPC4" parent="Actors/NPCs" unique_id=1322578239 instance=ExtResource("5_npc")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0, -7)
+speed = 3.2
+body_color = Color(0.7, 0.4, 0.85, 1)
+
+[node name="Mouse" parent="Actors" unique_id=368922876 instance=ExtResource("12_mouse")]
+
+[node name="Sled" parent="Actors" unique_id=529600014 instance=ExtResource("6_sled")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.730018, 0, 0)
+orbit_speed = 0.1
+height = 0.2
+wobble_amplitude = 0.95
+wobble_cycles = 7.3
+
+[node name="SoccerBall" parent="Actors" unique_id=460798182 instance=ExtResource("14_ball")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 0.35, -3)
+
+[node name="SnowField" type="Node3D" parent="." unique_id=188116127 node_paths=PackedStringArray("sun", "world_manager")]
+script = ExtResource("8_snow")
+sun = NodePath("../Sun")
+world_manager = NodePath("../SnowWorldManager")
+initial_noise_enabled = true
+initial_noise_frequency = null
+initial_noise_height = 0.155
+quality = 2
+
+[node name="SnowWorldManager" type="Node3D" parent="." unique_id=1437319999]
+script = ExtResource("13_weather")
+
+[node name="HUD" parent="." unique_id=1561618672 instance=ExtResource("7_hud")]

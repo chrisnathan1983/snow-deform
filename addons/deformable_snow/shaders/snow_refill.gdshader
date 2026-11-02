@@ -3,6 +3,8 @@ render_mode blend_mix;
 
 uniform float recovery_alpha = 0.0;
 uniform float seed = 0.0;
+uniform sampler2D recovery_target : filter_linear, repeat_disable;
+uniform bool recovery_target_enabled = false;
 
 float hash12(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -12,7 +14,10 @@ float hash12(vec2 p) {
 
 void fragment() {
 	// Stochastically boost alpha above 0.51 on a fraction of pixels so 8-bit values
-	// within ±26 of 128 don't stall. Pixels already at 128 stay at 128 for any alpha.
+	// close to their target don't stall.
 	float dither_snap = step(hash12(FRAGCOORD.xy + seed), recovery_alpha * 0.75) * 0.52;
-	COLOR = vec4(vec3(128.0 / 255.0), max(recovery_alpha, dither_snap));
+	vec3 target = recovery_target_enabled
+		? texture(recovery_target, UV).rgb
+		: vec3(128.0 / 255.0);
+	COLOR = vec4(target, max(recovery_alpha, dither_snap));
 }

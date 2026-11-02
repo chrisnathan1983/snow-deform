@@ -25,8 +25,8 @@ friendly) and requires **Godot 4.3 or newer**.
 2. Add a `SnowFootsteps` under each walking character, with its origin at the
    feet and the character facing -Z. For sleds, wheels, or other objects, add
    one or more `SnowDeformer` nodes instead.
-3. Add one `SnowWeather` node to the scene and set its `follow_target` to the
-   player. Set the field's `sun` to the scene's `DirectionalLight3D`.
+3. Add one `SnowWorldManager` node to the scene and set its `follow_target` to
+   the player. Set the field's `sun` to the scene's `DirectionalLight3D`.
 
 The editor displays a flat preview of the field. A minimal runtime setup:
 
@@ -37,10 +37,11 @@ snow.quality = SnowField.recommended_quality()
 snow.sun = $Sun
 add_child(snow)
 
-var weather := SnowWeather.new()
-weather.follow_target = $Player
+var weather := SnowWorldManager.new()
 add_child(weather)
-weather.apply_quality_settings(snow.get_active_quality_settings(), snow.snowfall)
+snow.world_manager = weather
+weather.weather_settings = SnowWeatherSettings.new()
+weather.follow_target = $Player
 
 var runner := SnowDeformer.new()
 runner.radius = 0.5
@@ -61,33 +62,62 @@ position; `area_size` should be square.
 | `area_size` | `(40, 40)` | Width and depth in meters. Smaller areas give sharper prints at the same quality. The options menu edits this as a square field size. |
 | `material` | Empty | Optional `ShaderMaterial` using `shaders/snow.gdshader`. Each field duplicates the material. |
 | `sun` | Empty | Optional directional light that controls sparkle direction. |
+| `world_manager` | Empty | Optional `SnowWorldManager` for shared atmospheric snowfall. When assigned, the field registers with the manager; deformation and recovery remain per-field. |
 | `wrapped_diffuse_lighting` | `true` | Enables wrapped diffuse lighting with cool-tinted shadows on footprint bevels; disable to use standard diffuse lighting. |
 | `max_depth` | `0.25` | Sink depth in meters at full compression. Deformers above this height are ignored. |
+| `initial_noise_enabled` | `false` | Starts with a procedural bumpy surface instead of flat snow. |
+| `initial_noise` | Empty | Optional `FastNoiseLite` override. When empty, uses Cellular noise with Euclidean Squared distance, Distance return, jitter `0.9`, and no fractal. |
+| `initial_noise_invert` | `false` | Inverts the generated pattern to create mounds instead of dimples. |
+| `initial_noise_frequency` | `0.8` | Built-in cellular feature scale; lower values create larger dimples. |
+| `initial_noise_height` | `0.06` | Maximum starting height variation in meters. |
 | `quality` | Medium | Starting quality profile. Choose Low, Medium, High, or Custom. Quality changes preserve tracks unless map resolution, field size, maximum depth, or berm height changes. |
+| `low_surface_quality`, `medium_surface_quality`, `high_surface_quality`, `custom_surface_quality` | Empty | Optional `SnowFieldQualitySettings` profiles. When empty, the field converts the matching legacy profile below. |
 | `low_quality`, `medium_quality`, `high_quality` | Quality resources | Editable `SnowQualitySettings` resources used by each built-in profile. |
 | `custom_quality` | Medium-equivalent resource | Editable `SnowQualitySettings` resource used by the Custom profile. Each SnowField duplicates it at runtime. |
 | `auto_quality` | `false` | Selects Low on mobile, Medium on desktop browsers, and High elsewhere at startup. Overrides `quality`. |
 | `max_stamps_per_frame` | `64` | Maximum deformation stamps drawn per frame. Unfinished tracks continue on later frames. |
 | `berm_strength` | `0.15` | Strength of ridges beside tracks; set to `0` to disable berms. |
 | `berm_height` | `0.08` | Maximum berm height in meters. |
-| `snowfall` | `0.3` | Snowfall intensity from `0` to `1` for track healing; `0` stops healing. Atmospheric flakes are managed by SnowWeather. |
-| `refill_levels_per_sec` | `16.0` | Packed-height recovery speed at snowfall `1`. Height and slopes recover together. |
+| `recovery_intensity` | `0.3` | Surface recovery intensity from `0` to `1`; `0` stops trail healing. Independent of visual snowfall managed by SnowWorldManager or SnowWeather. |
+| `snowfall` | Alias | Backward-compatible read/write alias for `recovery_intensity`. |
+| `refill_levels_per_sec` | `16.0` | Packed-height recovery speed at recovery intensity `1`. Height and slopes recover together. |
 | `refill_interval` | `0.25` | Seconds between track-healing passes. |
 | `puffs_enabled` | `true` | Enables kicked-up puffs from deformers. |
 | `puff_min_interval` | `0.2` | Minimum seconds between puffs from one deformer. |
 
+To get distinct dropped-sphere dimples, enable `initial_noise_enabled`; the default
+pattern uses cellular Euclidean Squared distance with Distance return, jitter `0.9`,
+frequency `0.8`, and `0.06` m height variation. Toggle `initial_noise_invert` for
+mounds. Assign a `FastNoiseLite` resource to `initial_noise` to customize it. For
+smaller dimples nested inside larger ones, use FBM with two octaves. Height gradients
+are calculated into the deformation map and used for normal lighting; no separate
+normal-map texture is needed. Snowfall recovery restores deformed areas toward this
+starting pattern, keeping the dimples while tracks gradually refill.
+
 #### Quality resources
 
-Each profile is a `SnowQualitySettings` resource containing field and weather
-settings exposed in the demo menu. The Inspector displays them in collapsible
-Surface (field size, depth, berms, stamp budget, refill interval, trail refill
-speed, snowfall, and sparkle), Particles (wind, flake and puff settings, and
-follow target), and Graphics (map/mesh quality and wrapped diffuse lighting)
-groups. In-game, these groups are separate tabs; demo-only shadows and MSAA
-controls are independent of quality profiles. Each
-setting has a short description in the menu and Inspector. The default
-Low, Medium, High, and Custom resources are in `resources/quality_*.tres`;
-assign or edit these profiles on the SnowField in the Inspector. Node
+`SnowFieldQualitySettings` contains only per-surface settings: map resolution,
+mesh subdivisions, depth and berms, stamp budget, recovery, sparkle, puff
+budget, and wrapped lighting. `SnowWeatherSettings` contains world-level
+particle counts, wind, emitter dimensions, snowfall intensity, follow target
+path, and weather quality. Assign surface profiles on each SnowField and a
+weather profile on the SnowWorldManager; multiple fields can therefore use
+different surface quality while sharing one weather setup.
+
+The old `SnowQualitySettings` resource and `low_quality` / `medium_quality` /
+`high_quality` / `custom_quality` properties remain supported. If a new
+surface profile is empty, SnowField converts the matching legacy profile to
+surface settings. Existing `.tres` resources remain loadable. The combined
+dictionary methods also remain for compatibility; new code can use
+`get_surface_quality_settings()` and `apply_surface_quality_settings()`.
+
+The demo menu continues to support legacy combined profiles. Its Inspector
+groups show Surface (field size, depth, berms, stamp budget, recovery, and
+sparkle), Particles (wind, flake and puff settings, and follow target), and
+Graphics (map/mesh quality and wrapped diffuse lighting). Demo-only shadows
+and MSAA controls are independent of quality profiles. The existing Low,
+Medium, High, and Custom resources are in `resources/quality/`;
+assign or edit these legacy profiles on SnowField in the Inspector. Node
 references such as `material` and `sun`, and startup-only `auto_quality`,
 remain scene settings rather than menu values.
 The particle values below are maximum counts at 100% snowfall. The Medium and
@@ -100,9 +130,13 @@ no near-camera emitter.
 | Medium | 512 x 512 | 127 | 900 | 120 | 8 |
 | High | 1024 x 1024 | 191 | 2000 | 280 | 12 |
 
-The shared snowfall intensity scales weather particle counts from zero to each
-preset maximum. At 100%, each field's track recovery uses its configured
-`refill_levels_per_sec` (16 by default).
+`SnowWorldManager.snowfall_intensity` scales weather particle counts from zero
+to each preset maximum. Each field recovers trails independently using its
+`recovery_intensity` and `refill_levels_per_sec`; changing one does not change
+the manager's visual snowfall or another field's recovery. The legacy
+`SnowQualitySettings.snowfall` value initializes field recovery when applying a
+field profile, and initializes visual snowfall if that resource is also applied
+to a `SnowWorldManager`. The two can then be adjusted independently.
 Pits, berms, and their baked slopes recover together; snowfall does not change
 berm height or the puff rate.
 
@@ -110,16 +144,20 @@ berm height or the puff rate.
 
 - `SnowField.recommended_quality()` returns a recommended quality for the
   current platform.
-- `SnowQualitySettings` is a Resource containing the quality, surface,
-  particle, and render-option values.
+- `SnowFieldQualitySettings` contains surface-only settings;
+  `SnowWeatherSettings` contains shared world-weather settings.
+- `SnowQualitySettings` remains the legacy combined resource type.
 - `get_quality_settings(q)` returns the selected resource values as a
-  dictionary for convenience.
+  combined compatibility dictionary.
+- `get_surface_quality_settings(q)` returns a copy of the selected surface
+  resource; `apply_surface_quality_settings(settings)` applies surface-only
+  settings as the Custom quality.
 - `get_active_quality_settings()` returns a copy of the active quality settings.
 - `has_custom_quality_settings()` reports whether the active settings differ
   from the selected built-in preset.
 - `apply_quality_settings(settings)` applies values to the per-field duplicate
-  of `custom_quality`, without changing built-in presets or the source resource.
-  Supported keys correspond to the fields in `SnowQualitySettings`.
+  of the legacy `custom_quality`, without changing built-in presets or the
+  source resource. Supported keys correspond to the legacy combined resource.
   Applying custom settings marks the active quality as Custom, even if the
   values happen to match a preset.   Settings updates preserve existing tracks unless the field size, map resolution,
   maximum depth, or berm height changes; mesh subdivision changes rebuild the mesh
@@ -128,9 +166,9 @@ berm height or the puff rate.
   particle settings.
 - `quality_changed(q)` is emitted when the quality changes.
 
-Changing `quality` rebuilds the mesh and particle budgets. Existing tracks are
+Changing `quality` rebuilds the surface mesh and stamp/puff budgets. Existing tracks are
 preserved unless the map resolution or field size changes. Changes to other
-options, including mesh subdivisions, snowfall, lighting, and particle counts,
+options, including mesh subdivisions, recovery intensity, lighting, and particle counts,
 do not clear the simulation.
 
 ### SnowDeformer
@@ -162,6 +200,7 @@ feet stamp the snow; stride spacing grows with movement speed.
 |---|---:|---|
 | `foot_radius` | `0.17` | Radius of each footprint in meters. |
 | `foot_aspect` | `2.0` | Footprint shape ratio. |
+| `footprint_texture` | Empty | Optional texture with its top facing forward; its alpha defines the print silhouette, scaled to `foot_radius` and `foot_aspect`. Left and right prints are mirrored automatically. |
 | `spread` | `0.15` | Left/right distance from the character center in meters. |
 | `stride_min` | `0.14` | Half-stride at a slow walk, in meters. |
 | `stride_max` | `0.38` | Half-stride at full speed, in meters. |
@@ -172,26 +211,48 @@ does not advance its stride. Airborne state is not detected, so disable the
 `SnowFootsteps` node or its child deformers while airborne if prints should
 pause.
 
-### SnowWeather
-Shared atmospheric snowfall manager. Add one per scene to avoid duplicating
-flakes across multiple SnowFields. It owns the main emitter and camera-relative
-near flakes, and controls their intensity, wind, height, and follow target.
-`apply_quality_settings(settings, intensity)` applies particle counts, wind, and
-emitter height from a settings dictionary. Set `follow_target` independently.
+### SnowWorldManager
+Shared atmospheric snowfall manager. Add one per world to avoid duplicating
+flakes across multiple SnowFields. Its `Weather` child contains
+`MainSnowFall` and `NearCameraSnowFall`; its `Effects` child reserves a place
+for future shared effects. Both weather emitters reuse the `SnowFall` particle
+implementation.
+Assign it to each field's `world_manager` property. Fields register when entering
+the scene and unregister when removed; manager removal clears field assignments.
 SnowFields retain their own terrain recovery and deformation puffs.
+`SnowPuffs` remains attached to each SnowField because bursts are tied to that
+field's deformers and cooldowns. The manager's `Effects` child is an extension
+point only; it does not yet contain a shared puff pool.
 
 | Property | Meaning |
 |---|---|
-| `snowfall` | Shared flake intensity from `0` to `1`. |
+| `snowfall_intensity` | Shared flake intensity from `0` to `1`. |
 | `wind` | Horizontal flake drift acceleration in world X/Z. |
-| `fall_height` | Height of the main emitter above the weather node's Y position. |
-| `flakes`, `near_flakes` | Maximum particle counts for the main and camera-relative emitters. |
-| `follow_target` | Target for the main emitter; empty follows the active camera. |
+| `follow_target` | Target for the main emitter. |
+| `follow_camera` | Follow the active camera even when `follow_target` is set. |
+| `fall_height` | Height of the main emitter above the manager's Y position. |
+| `emitter_area` | Main emitter coverage width and depth in meters. |
+| `flake_count`, `near_flake_count` | Maximum particle counts for the main and camera-relative emitters. |
+| `weather_enabled` | Enables or pauses both weather emitters. |
+| `weather_settings` | Optional `SnowWeatherSettings` resource applied to this world's emitters. |
+
+`set_snowfall_intensity(value)`, `set_wind(value)`,
+`set_weather_enabled(enabled)`, and `set_follow_target(target)` update emitters
+only when their corresponding values change. `set_weather_preset(preset)`
+accepts a `SnowWeatherSettings` resource; legacy `SnowQualitySettings`
+resources are also accepted during migration.
+Ready-made resources are provided at `resources/weather/calm.tres`,
+`resources/weather/snowfall.tres`, and `resources/weather/blizzard.tres`; assign
+one to `weather_settings` or pass it to `set_weather_preset()`.
+
+### SnowWeather
+Legacy shared atmospheric snowfall manager, retained for existing scenes.
+`SnowWorldManager` is the recommended manager for new scenes.
 
 ### SnowFall
 Low-level falling-flake emitter implemented with `CPUParticles3D`. Use
-`SnowWeather` for scene-wide atmospheric snow; `SnowFall` can still be used
-directly when you only need a standalone emitter.
+`SnowWorldManager` (or legacy `SnowWeather`) for scene-wide atmospheric snow;
+`SnowFall` can still be used directly when you only need a standalone emitter.
 
 | Property | Default | Description |
 |---|---:|---|
@@ -278,7 +339,13 @@ its scale and strength with `bevel_noise_scale` and `bevel_noise_strength`.
 
 ## Files
 
-- `scripts/` contains the four public nodes and internal particle helpers.
+- `scripts/core/` contains `SnowWorldManager`, `SnowField`, and `SnowDeformer`.
+- `scripts/particles/` contains `SnowFall` and per-field `SnowPuffs`.
+- `scripts/effects/` contains `SnowFootsteps`.
+- `scripts/settings/` contains surface, weather, and legacy quality resources.
+- `scripts/utilities/` contains shared particle helpers.
+- `resources/quality/` contains Low, Medium, High, Custom, and Medium Custom profiles.
+- `resources/weather/` contains Calm, Snowfall, and Blizzard weather presets.
 - `shaders/` contains the snow surface, additive/subtractive stamp, and map
   refill shaders.
 - `icons/` contains the node icons.

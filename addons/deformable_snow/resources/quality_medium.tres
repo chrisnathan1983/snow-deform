@@ -1,8 +1,0 @@
-[gd_resource type="Resource" script_class="SnowQualitySettings" format=3 uid="uid://dtqedu8a2i8ar"]
-
-[ext_resource type="Script" uid="uid://t0klmxkahq1p" path="res://addons/deformable_snow/scripts/snow_quality_settings.gd" id="1"]
-
-[resource]
-script = ExtResource("1")
-snowfall = 1.0
-subdiv = 128

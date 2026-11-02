@@ -21,12 +21,26 @@ void fragment() {
 	float radius_px = max(COLOR.g * map_resolution, 0.5);
 	float aspect = stamp_data.x * 8.0;
 	float is_sliding = stamp_data.y;
+	float has_sprite = step(0.5, stamp_data.w);
 
 	vec2 pit_rad = vec2(radius_px * sqrt(aspect), radius_px / sqrt(aspect));
 	vec2 berm_rad = pit_rad * BERM_REACH;
 	vec2 berm_off = vec2(pit_rad.x * BERM_FORWARD * clamp(aspect - 1.0, 0.0, 1.0), 0.0);
 	vec2 outer_ext = max(pit_rad, abs(berm_off) + berm_rad);
 	vec2 pos_px = (UV - vec2(0.5)) * (2.0 * outer_ext);
+	float sprite_mask = 1.0;
+	if (has_sprite > 0.5) {
+		vec2 footprint_uv = pos_px / (2.0 * pit_rad) + vec2(0.5);
+		vec2 sprite_uv = vec2(footprint_uv.y, 1.0 - footprint_uv.x);
+		if (stamp_data.w > 1.5) {
+			sprite_uv.x = 1.0 - sprite_uv.x;
+		}
+		if (any(lessThan(sprite_uv, vec2(0.0))) || any(greaterThan(sprite_uv, vec2(1.0)))) {
+			sprite_mask = 0.0;
+		} else {
+			sprite_mask = texture(TEXTURE, sprite_uv).a;
+		}
+	}
 
 	// 1. Pit profile & exact analytical gradient (flat floor at center, smooth walls)
 	vec2 p_norm = pos_px / pit_rad;
@@ -60,7 +74,7 @@ void fragment() {
 	}
 
 	// Combine pit and berm based on region
-	float in_pit = step(r_pit2, 1.0);
+	float in_pit = smoothstep(1.0, 0.65, r_pit2);
 	float target_h = mix(berm_height_ratio * 0.5, -0.5 * pit_shape, in_pit);
 	vec2 local_grad = mix(berm_grad * (berm_height_ratio * berm_strength), pit_grad * 0.7, in_pit);
 	vec2 local_slope = local_grad * (2.5 * normal_strength);
@@ -71,9 +85,9 @@ void fragment() {
 	vec2 map_slope = vec2(c * local_slope.x - s * local_slope.y, s * local_slope.x + c * local_slope.y);
 
 	vec3 encoded = vec3(MAP_NEUTRAL) + vec3(target_h, map_slope / 16.0);
-	float pit_alpha = smoothstep(1.0, 0.65, r_pit2) * strength * 0.85;
+	float pit_alpha = smoothstep(1.0, 0.65, r_pit2) * strength * 0.85 * sprite_mask;
 	float berm_alpha = berm_shape * berm_strength * strength;
-	float alpha = max(pit_alpha, berm_alpha * (1.0 - in_pit));
+	float alpha = mix(berm_alpha, pit_alpha, in_pit);
 
 	COLOR = vec4(clamp(encoded, vec3(0.0), vec3(1.0)), clamp(alpha, 0.0, 1.0));
 }

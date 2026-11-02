@@ -8,4 +8,4 @@ First packaged release.
 - SnowDeformer, SnowFootsteps: anything can dent the snow; characters get
   alternating boot prints with speed-based stride.
 - SnowFall: falling flakes (usable standalone). Puffs: pooled kick-up bursts.
-- Demo project (`demo/`) with player, wandering NPCs, a sled, touch controls.
+- Demo project (`demos/classic/`) with player, wandering NPCs, a sled, and touch controls.
