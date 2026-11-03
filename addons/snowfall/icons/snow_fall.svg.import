@@ -10,7 +10,7 @@ metadata={
 
 [deps]
 
-source_file="res://addons/deformable_snow/icons/snow_fall.svg"
+source_file="res://addons/snowfall/icons/snow_fall.svg"
 dest_files=["res://.godot/imported/snow_fall.svg-7842a9854e0fbf2b06a474352d259460.ctex"]
 
 [params]
