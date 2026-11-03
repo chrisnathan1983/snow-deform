@@ -1,10 +1,10 @@
 # Deformable Snow - demo scene
 
-A self-contained playground for the `deformable_snow` addon. No external assets: everything is
+A self-contained playground for the `deformable_surface` addon. No external assets: everything is
 built from code and primitive meshes.
 
 ## Install
-1. Make sure the addon is at `res://addons/deformable_snow/`.
+1. Make sure the addon is at `res://addons/deformable_surface/`.
 2. Drag this `demos/procedural_playground` folder into your project's `res://demos/` folder.
 3. Project Settings -> Rendering -> Renderer: **Compatibility** (needed for Web / mobile).
 4. Open `res://demos/procedural_playground/snow_demo.tscn` and press **F6**
@@ -13,11 +13,11 @@ built from code and primitive meshes.
    `res://demos/procedural_playground/snow_demo_infinite.tscn`.
 
 Tested on Godot 4.4.1 and 4.6 (the scene works around the addon's preset-loading problem on 4.4
-by creating `SnowFieldQualitySettings` and `SnowWeatherSettings` profiles in code). Atmospheric
-flakes are managed by one `SnowWorldManager`; the SnowField keeps its own recovery and contact puffs.
+by creating `DeformableSurfaceSettings` and `SnowWeatherSettings` profiles in code). Atmospheric
+flakes are managed by one `SnowWorldManager`; the DeformableSurface keeps its own recovery and contact puffs.
 
 The repository also includes `res://demos/infinite_snow/infinite_snow.tscn`, a separate streaming-world
-example with nine recycled SnowFields and one shared SnowWorldManager. Run with WASD/arrows,
+example with nine recycled DeformableSurfaces and one shared SnowWorldManager. Run with WASD/arrows,
 hold Shift to run, press Space to jump, right-drag to look, use the mouse wheel to zoom, and
 press R to reset the currently loaded fields. Each surface has its own recovery profile; recycled
 tiles clear their deformation map when they are moved to a new world location.
@@ -35,7 +35,7 @@ tiles clear their deformation map when they are moved to a new world location.
 | Menu | Quality Low/Med/High at runtime, snowfall, wind, sun height, shadows, toggles, reset |
 
 The infinite variant keeps the same playground controls and actors but removes
-the fence and recycles a 3x3 grid of SnowFields around the player. Field
+the fence and recycles a 3x3 grid of DeformableSurfaces around the player. Field
 relocations are spread across frames to avoid a large reset spike when crossing
 a tile boundary.
 
@@ -52,9 +52,5 @@ a tile boundary.
 - Lower the **Sun height** for long shadows and strong sparkle.
 
 ## Notes
-- `APPLY_SEED_WORKAROUND` at the top of `snow_demo.gd`: the addon's refill shader has a `seed`
-  uniform that nothing updates, so tracks stop healing before they fully vanish. The demo sets it
-  every frame. Set the constant to `false` to see the unpatched behaviour; remove it once the
-  addon is fixed.
 - Web export: use the Compatibility renderer, disable thread support for widest phone
   compatibility, and serve over HTTPS (or localhost) so the browser allows the page to run.

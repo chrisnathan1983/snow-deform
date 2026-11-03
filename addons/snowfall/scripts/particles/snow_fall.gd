@@ -1,13 +1,11 @@
-@icon("res://addons/deformable_snow/icons/snow_fall.svg")
+@icon("res://addons/snowfall/icons/snow_fall.svg")
 class_name SnowFall
 extends CPUParticles3D
 ## Falling snowflakes: one box emitter above a target, simulated in world space.
-## Works on its own (no SnowField needed). Weather managers share emitters across fields.
+## Works on its own; a manager can group emitters for a world.
 ##
 ## Centers on `follow_target`, or on the active camera if that is empty
 ## (or if `follow_camera` is true).
-
-const SnowUtil = preload("../utilities/snow_util.gd")
 
 @export var area := Vector2(30.0, 30.0) : set = set_area  # emitter box width / depth (meters)
 @export var height := 9.0 : set = set_height             # emitter height above ground_y
@@ -22,6 +20,7 @@ var max_amount := 450
 var _intensity := 0.5
 var _enabled := true
 var _wind := Vector2.ZERO
+static var _dot_cache: GradientTexture2D
 
 
 func _ready() -> void:
@@ -40,7 +39,7 @@ func _ready() -> void:
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	mat.billboard_keep_scale = true
-	mat.albedo_texture = SnowUtil.soft_dot()
+	mat.albedo_texture = _soft_dot()
 	mat.albedo_color = flake_color
 	var quad := QuadMesh.new()
 	quad.size = Vector2(flake_size, flake_size)
@@ -144,3 +143,23 @@ func _update_emitter_bounds() -> void:
 	# Box is centered on the node, flakes fall `height` below it; pad for wind drift.
 	visibility_aabb = AABB(Vector3(-area.x * 0.5 - 8.0, -height - 2.0, -area.y * 0.5 - 8.0),
 			Vector3(area.x + 16.0, height + 4.0, area.y + 16.0))
+
+
+static func _soft_dot(size := 32) -> GradientTexture2D:
+	if size == 32 and _dot_cache != null:
+		return _dot_cache
+
+	var g := Gradient.new()
+	g.set_color(0, Color(1, 1, 1, 1.0))
+	g.set_color(1, Color(1, 1, 1, 0.0))
+	g.add_point(0.5, Color(1, 1, 1, 0.6))
+	var t := GradientTexture2D.new()
+	t.gradient = g
+	t.fill = GradientTexture2D.FILL_RADIAL
+	t.fill_from = Vector2(0.5, 0.5)
+	t.fill_to = Vector2(1.0, 0.5)
+	t.width = size
+	t.height = size
+	if size == 32:
+		_dot_cache = t
+	return t

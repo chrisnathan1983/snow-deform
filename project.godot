@@ -27,7 +27,7 @@ window/stretch/aspect="expand"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/deformable_snow/plugin.cfg")
+enabled=PackedStringArray("res://addons/deformable_surface/plugin.cfg")
 
 [input_devices]
 

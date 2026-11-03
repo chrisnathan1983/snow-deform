@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="DeformableSurfaceSettings" format=3]
+
+[ext_resource type="Script" uid="uid://cbdtvxxisq48g" path="res://addons/deformable_surface/scripts/deformable_surface_settings.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+recovery_intensity = 0.3
+sparkle = 1.5
+puff = 12
+res = 1024
+subdiv = 191

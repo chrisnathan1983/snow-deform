@@ -3,7 +3,7 @@ extends RigidBody3D
 const GROUND_CLEARANCE := 0.42
 const GROUND_NORMAL_MIN := 0.7
 
-@onready var _deformer: SnowDeformer = $SnowDeformer
+@onready var _deformer: Deformer = $Deformer
 
 
 func _physics_process(_delta: float) -> void:

@@ -2,7 +2,7 @@ extends Node3D
 ## Deformable Snow - demo scene.
 ##
 ## Everything is built from code and primitive meshes, so the only requirement is the
-## addon at res://addons/deformable_snow/ and the Compatibility renderer.
+## addon at res://addons/deformable_surface/ and the Compatibility renderer.
 ##
 ## Desktop: WASD/arrows move, Shift run, Space jump, drag = look, click = throw snowball,
 ##          wheel = zoom, M = menu, R = reset tracks, 1/2/3 = quality.
@@ -21,13 +21,8 @@ const HALF := FIELD_SIZE * 0.5
 const GROUND_Y := -0.3
 const QUALITY_NAMES := ["Low", "Medium", "High"]
 
-## The refill shader's `seed` uniform is never updated by the addon (v0.1.0), which makes tracks
-## stop healing before they fully disappear. Setting it here keeps the demo looking right.
-## Set to false to see the addon's unpatched behaviour.
-const APPLY_SEED_WORKAROUND := true
-
-var snow: SnowField
-var snow_fields: Array[SnowField] = []
+var snow: DeformableSurface
+var snow_fields: Array[DeformableSurface] = []
 var weather: SnowWorldManager
 var sun: DirectionalLight3D
 var env: Environment
@@ -122,22 +117,22 @@ func _build_environment() -> void:
 
 
 func _build_snow() -> void:
-    snow = SnowField.new()
-    snow.name = "SnowField"
+    snow = DeformableSurface.new()
+    snow.name = "DeformableSurface"
     # Profiles are created in code so the demo is independent of the addon's preset .tres files.
     snow.low_surface_quality = _make_profile(384, 64, 4, 0.3, 64)
     snow.medium_surface_quality = _make_profile(768, 128, 8, 1.0, 96)
     snow.high_surface_quality = _make_profile(1024, 192, 12, 1.5, 128)
     snow.sun = sun
-    _quality = SnowField.recommended_quality()
+    _quality = DeformableSurface.recommended_quality()
     snow.quality = _quality
     snow_fields.append(snow)
     add_child(snow)
 
 
 func _make_profile(res: int, subdiv: int, puff: int,
-        sparkle: float, stamps: int) -> SnowFieldQualitySettings:
-    var p := SnowFieldQualitySettings.new()
+        sparkle: float, stamps: int) -> DeformableSurfaceSettings:
+    var p := DeformableSurfaceSettings.new()
     p.area_size = FIELD_SIZE
     p.res = res
     p.subdiv = subdiv
@@ -215,8 +210,6 @@ func _build_actors() -> void:
     weather.weather_settings = _make_weather_profile(_quality)
     add_child(weather)
     weather.follow_target = player
-    for field in snow_fields:
-        field.world_manager = weather
 
     sled = DemoSled.new()
     add_child(sled)
@@ -305,13 +298,13 @@ func _apply_quality(q: int) -> void:
 func _make_weather_profile(q: int) -> SnowWeatherSettings:
     var profile := SnowWeatherSettings.new()
     match q:
-        SnowField.Quality.LOW:
+        DeformableSurface.Quality.LOW:
             profile.flake_count = 300
             profile.near_flake_count = 0
-        SnowField.Quality.MEDIUM:
+        DeformableSurface.Quality.MEDIUM:
             profile.flake_count = 900
             profile.near_flake_count = 120
-        SnowField.Quality.HIGH:
+        DeformableSurface.Quality.HIGH:
             profile.flake_count = 2000
             profile.near_flake_count = 280
     profile.wind = Vector2(_wind, _wind * 0.3)
@@ -424,12 +417,6 @@ func _throw_at(screen_pos: Vector2) -> void:
 # ================================================================ per-frame
 
 func _process(delta: float) -> void:
-    if APPLY_SEED_WORKAROUND:
-        for field in snow_fields:
-            var rm: Variant = field.get("_refill_material")
-            if rm is ShaderMaterial:
-                (rm as ShaderMaterial).set_shader_parameter("seed", _rng.randf() * 1000.0)
-
     var kb := Vector2(
         _key(KEY_D, KEY_RIGHT) - _key(KEY_A, KEY_LEFT),
         _key(KEY_S, KEY_DOWN) - _key(KEY_W, KEY_UP))
@@ -444,7 +431,7 @@ func _process(delta: float) -> void:
         _hud_t = 0.4
         ui.set_info("%d FPS  |  %s  |  map %d  |  %d deformers" % [
             Engine.get_frames_per_second(), QUALITY_NAMES[_quality],
-            int(snow.get_active_quality_settings().get("res", 0)), SnowDeformer.unassigned.size()])
+            int(snow.get_active_quality_settings().get("res", 0)), Deformer.unassigned.size()])
 
 
 func _key(a: Key, b: Key) -> float:

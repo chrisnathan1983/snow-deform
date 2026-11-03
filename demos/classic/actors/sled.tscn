@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://c1qxwd3hn6anl"]
 
-[ext_resource type="Script" uid="uid://bdagugdsyyn7l" path="res://addons/deformable_snow/scripts/core/snow_deformer.gd" id="1_deformer"]
+[ext_resource type="Script" uid="uid://bdagugdsyyn7l" path="res://addons/deformable_surface/scripts/deformers/deformer.gd" id="1_deformer"]
 [ext_resource type="Script" uid="uid://fu27oofsr43e" path="res://demos/classic/actors/sled.gd" id="2_sled"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_sled"]

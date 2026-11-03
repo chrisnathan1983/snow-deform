@@ -9,7 +9,7 @@ extends Node3D
 @export var pause_duration := Vector2(0.5, 1.5)
 
 var _target := Vector3.ZERO
-var _footsteps: SnowFootsteps
+var _footsteps: DeformerFootsteps
 var _time_until_pause := 0.0
 var _pause_time_left := 0.0
 var _wobble_time := 0.0
@@ -17,7 +17,7 @@ var _wobble_time := 0.0
 
 func _ready() -> void:
 	global_position.y = 0.0
-	_footsteps = $SnowFootsteps
+	_footsteps = $DeformerFootsteps
 	_footsteps.active = true
 	_time_until_pause = randf_range(time_between_pauses.x, time_between_pauses.y)
 	_pick_target()

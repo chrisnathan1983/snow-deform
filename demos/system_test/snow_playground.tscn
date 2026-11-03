@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://bv3oieyuk51yy"]
-
-[ext_resource type="Script" path="res://demos/system_test/snow_playground.gd" id="1_playground"]
-
-[node name="SnowPlayground" type="Node3D" unique_id=2023565910]
-script = ExtResource("1_playground")

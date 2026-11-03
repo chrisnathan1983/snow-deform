@@ -14,14 +14,14 @@ var bounce_speed := 7.5
 var half := 13.5
 var color := Color(0.9, 0.2, 0.2)
 
-var _deformer: SnowDeformer
+var _deformer: Deformer
 var _landed := false
 var _t := 0.0
 
 
 func _ready() -> void:
     Props.add_mesh(self, Props.sphere(radius, 12), color if kind == Kind.BOUNCER else Color(0.97, 0.98, 1.0))
-    _deformer = SnowDeformer.new()
+    _deformer = Deformer.new()
     _deformer.position = Vector3(0, -radius, 0)
     if kind == Kind.THROWN:
         _deformer.radius = 0.62

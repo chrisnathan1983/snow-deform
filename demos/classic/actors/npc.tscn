@@ -1,7 +1,7 @@
 [gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://demos/classic/actors/npc.gd" id="1_npc"]
-[ext_resource type="Script" path="res://addons/deformable_snow/scripts/effects/snow_footsteps.gd" id="2_footsteps"]
+[ext_resource type="Script" path="res://addons/deformable_surface/scripts/deformers/deformer_footsteps.gd" id="2_footsteps"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_npc"]
 radius = 0.35
@@ -41,5 +41,5 @@ position = Vector3(0, 1.4, -0.38)
 mesh = SubResource("BoxMesh_nose")
 surface_material_override/0 = SubResource("StandardMaterial3D_nose")
 
-[node name="SnowFootsteps" type="Node3D" parent="."]
+[node name="DeformerFootsteps" type="Node3D" parent="."]
 script = ExtResource("2_footsteps")

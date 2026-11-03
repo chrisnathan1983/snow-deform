@@ -1,5 +1,5 @@
 extends "res://demos/procedural_playground/snow_demo.gd"
-## Procedural playground variant with a recycled, fence-free SnowField grid.
+## Procedural playground variant with a recycled, fence-free DeformableSurface grid.
 
 const TILE_RADIUS := 1
 
@@ -9,17 +9,17 @@ var _pending_relocations: Array[Dictionary] = []
 
 
 func _build_snow() -> void:
-	_quality = SnowField.recommended_quality()
+	_quality = DeformableSurface.recommended_quality()
 	for z in range(-TILE_RADIUS, TILE_RADIUS + 1):
 		for x in range(-TILE_RADIUS, TILE_RADIUS + 1):
 			var tile := Vector2i(x, z)
-			var field := SnowField.new()
+			var field := DeformableSurface.new()
 			field.name = "SnowField_%d_%d" % [x, z]
 			field.low_surface_quality = _make_profile(192, 48, 4, 0.3, 64)
 			field.medium_surface_quality = _make_profile(256, 64, 8, 1.0, 96)
 			field.high_surface_quality = _make_profile(320, 80, 12, 1.5, 128)
 			field.sun = sun
-			field.quality = _quality
+			field.quality = _quality as DeformableSurface.Quality
 			field.position = Vector3(x * FIELD_SIZE, 0.0, z * FIELD_SIZE)
 			add_child(field)
 			snow_fields.append(field)
@@ -41,9 +41,6 @@ func _build_actors() -> void:
 	weather.weather_settings = _make_weather_profile(_quality)
 	add_child(weather)
 	weather.follow_target = player
-	for field in snow_fields:
-		field.world_manager = weather
-
 	sled = DemoSled.new()
 	add_child(sled)
 
@@ -113,7 +110,7 @@ func _recenter_fields() -> void:
 
 	if not _pending_relocations.is_empty():
 		var relocation: Dictionary = _pending_relocations.pop_front()
-		var field := relocation["field"] as SnowField
+		var field := relocation["field"] as DeformableSurface
 		var tile: Vector2i = relocation["tile"]
 		var old_tile := Vector2i(
 			roundi(field.position.x / FIELD_SIZE),
@@ -143,7 +140,7 @@ func _queue_recenter(center: Vector2i) -> void:
 	var available := snow_fields.duplicate()
 	for tile in wanted:
 		if _tiles.has(tile):
-			var field: SnowField = _tiles[tile]
+			var field: DeformableSurface = _tiles[tile]
 			next_tiles[tile] = field
 			available.erase(field)
 
@@ -151,7 +148,7 @@ func _queue_recenter(center: Vector2i) -> void:
 	for tile in wanted:
 		if next_tiles.has(tile):
 			continue
-		var field := available.pop_back() as SnowField
+		var field := available.pop_back() as DeformableSurface
 		_pending_relocations.append({"field": field, "tile": tile})
 
 	_center_tile = center

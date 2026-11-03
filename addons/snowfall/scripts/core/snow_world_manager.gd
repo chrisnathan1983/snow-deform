@@ -1,9 +1,8 @@
-@icon("res://addons/deformable_snow/icons/snow_fall.svg")
+@icon("res://addons/snowfall/icons/snow_fall.svg")
 class_name SnowWorldManager
 extends Node3D
-## Shared atmospheric snowfall for a world. SnowFields keep their own surfaces.
+## Shared atmospheric snowfall for a world.
 
-const SnowQualitySettingsScript = preload("../settings/snow_quality_settings.gd")
 const SnowWeatherSettingsScript = preload("../settings/snow_weather_settings.gd")
 
 @export_range(0.0, 1.0, 0.01) var snowfall_intensity := 0.3 : set = set_snowfall_intensity
@@ -24,7 +23,6 @@ var _near_camera_snow_fall: SnowFall
 var _weather_root: Node3D
 var _effects_root: Node3D
 var _last_ground_y := 0.0
-var _registered_fields: Array[Node3D] = []
 
 
 func _ready() -> void:
@@ -50,25 +48,6 @@ func _process(_delta: float) -> void:
 		_main_snow_fall.ground_y = ground_y
 	if is_instance_valid(_near_camera_snow_fall):
 		_near_camera_snow_fall.ground_y = ground_y
-
-
-func _exit_tree() -> void:
-	for field in _registered_fields.duplicate():
-		if is_instance_valid(field) and field.has_method("set_world_manager"):
-			field.call("set_world_manager", null)
-	_registered_fields.clear()
-
-
-func register_field(field: Node3D) -> void:
-	if not is_instance_valid(field):
-		return
-	if not _registered_fields.has(field):
-		_registered_fields.append(field)
-
-
-func unregister_field(field: Node3D) -> void:
-	if is_instance_valid(field):
-		_registered_fields.erase(field)
 
 
 func _create_main_emitter() -> SnowFall:
@@ -192,20 +171,12 @@ func set_near_flake_count(value: int) -> void:
 
 func set_weather_preset(preset: Resource) -> void:
 	if not is_instance_valid(preset):
-		push_error("SnowWorldManager: weather preset must be a SnowWeatherSettings or legacy SnowQualitySettings resource.")
+		push_error("SnowWorldManager: weather preset must be a SnowWeatherSettings resource.")
 		return
 	if preset is SnowWeatherSettingsScript:
 		set_weather_settings(preset as SnowWeatherSettingsScript)
 		return
-	if not (preset is SnowQualitySettingsScript):
-		push_error("SnowWorldManager: weather preset must be a SnowWeatherSettings or legacy SnowQualitySettings resource.")
-		return
-	var legacy_settings := preset as SnowQualitySettingsScript
-	set_snowfall_intensity(legacy_settings.snowfall)
-	set_wind(Vector2(legacy_settings.wind_x, legacy_settings.wind_z))
-	set_fall_height(legacy_settings.fall_height)
-	set_flake_count(legacy_settings.flakes)
-	set_near_flake_count(legacy_settings.near)
+	push_error("SnowWorldManager: weather preset must be a SnowWeatherSettings resource.")
 
 
 func set_weather_settings(settings: SnowWeatherSettingsScript) -> void:

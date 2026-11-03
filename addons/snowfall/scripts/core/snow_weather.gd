@@ -1,7 +1,7 @@
-@icon("res://addons/deformable_snow/icons/snow_fall.svg")
+@icon("res://addons/snowfall/icons/snow_fall.svg")
 class_name SnowWeather
 extends Node3D
-## Shared atmospheric snowfall. Keep one instance for the scene, separate from SnowFields.
+## Shared atmospheric snowfall. Keep one instance for the scene.
 
 @export_range(0.0, 1.0) var snowfall := 0.3 : set = set_snowfall
 @export var wind := Vector2(0.3, 0.0) : set = set_wind

@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://snqkfnjpqg3y"]
 
 [ext_resource type="Script" uid="uid://cdklgfu20g7xr" path="res://demos/classic/actors/player.gd" id="1_player"]
-[ext_resource type="Script" uid="uid://cgrvvu3m15p4j" path="res://addons/deformable_snow/scripts/effects/snow_footsteps.gd" id="2_footsteps"]
+[ext_resource type="Script" uid="uid://cgrvvu3m15p4j" path="res://addons/deformable_surface/scripts/deformers/deformer_footsteps.gd" id="2_footsteps"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_player"]
 radius = 0.35
@@ -41,5 +41,5 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4, -0.38)
 mesh = SubResource("BoxMesh_nose")
 surface_material_override/0 = SubResource("StandardMaterial3D_nose")
 
-[node name="SnowFootsteps" type="Node3D" parent="." unique_id=639125507]
+[node name="DeformerFootsteps" type="Node3D" parent="." unique_id=639125507]
 script = ExtResource("2_footsteps")

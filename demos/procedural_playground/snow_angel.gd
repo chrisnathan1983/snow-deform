@@ -2,7 +2,7 @@ extends Node3D
 ## A snow angel: presses a body + head into the snow, then sweeps arms and legs through the
 ## snow like a real one, leaving fan-shaped "wings" and a skirt.
 ##
-## It only uses SnowDeformer from the Deformable Snow addon, so you can copy this single file
+## It only uses Deformer from the Deformable Snow addon, so you can copy this single file
 ## into your own game.
 ##
 ## Usage:
@@ -46,7 +46,7 @@ var body_strength := 1.0
 var wing_strength := 0.7
 
 class Limb:
-    var node: SnowDeformer
+    var node: Deformer
     var side := 1.0
     var arm := true
 
@@ -133,8 +133,8 @@ func _add_limb(side: float, arm: bool) -> void:
     _limbs.append(l)
 
 
-func _deformer(radius: float, aspect: float, strength: float, active: bool) -> SnowDeformer:
-    var d := SnowDeformer.new()
+func _deformer(radius: float, aspect: float, strength: float, active: bool) -> Deformer:
+    var d := Deformer.new()
     d.radius = radius * size
     d.aspect = aspect
     d.strength = strength

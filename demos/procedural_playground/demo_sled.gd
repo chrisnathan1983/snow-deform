@@ -1,6 +1,6 @@
 extends Node3D
 ## A sled that glides along a figure-8, carving two parallel grooves with berms.
-## Demonstrates elongated SnowDeformers (aspect) and distance-based puffs.
+## Demonstrates elongated Deformers (aspect) and distance-based puffs.
 
 const Props := preload("demo_props.gd")
 
@@ -9,7 +9,7 @@ var rate := 0.45
 var running := true
 
 var _t := 0.0
-var _runners: Array[SnowDeformer] = []
+var _runners: Array[Deformer] = []
 
 
 func _ready() -> void:
@@ -22,7 +22,7 @@ func _ready() -> void:
         Props.add_mesh(self, Props.box(Vector3(0.07, 0.16, 0.2)), Color(0.35, 0.37, 0.42), Vector3(x, 0.2, -1.05), Vector3.ONE, Vector3(-30, 0, 0))
         Props.add_mesh(self, Props.box(Vector3(0.06, 0.14, 0.06)), wood, Vector3(x, 0.17, -0.5))
         Props.add_mesh(self, Props.box(Vector3(0.06, 0.14, 0.06)), wood, Vector3(x, 0.17, 0.5))
-        var d := SnowDeformer.new()
+        var d := Deformer.new()
         d.radius = 0.2
         d.aspect = 5.0
         d.strength = 0.9

@@ -3,8 +3,29 @@ extends Node3D
 
 const PERSON_SCENE := preload("res://demos/classic/actors/npc.tscn")
 const MOUSE_SCENE := preload("res://demos/classic/actors/mouse.tscn")
+const LOW_SURFACE_PROFILE: DeformableSurfaceSettings = preload(
+	"res://addons/deformable_surface/resources/quality/low_surface.tres"
+)
+const MEDIUM_SURFACE_PROFILE: DeformableSurfaceSettings = preload(
+	"res://addons/deformable_surface/resources/quality/medium_surface.tres"
+)
+const HIGH_SURFACE_PROFILE: DeformableSurfaceSettings = preload(
+	"res://addons/deformable_surface/resources/quality/high_surface.tres"
+)
+const CUSTOM_SURFACE_PROFILE: DeformableSurfaceSettings = preload(
+	"res://addons/deformable_surface/resources/quality/custom_surface.tres"
+)
+const CALM_WEATHER_PROFILE: SnowWeatherSettings = preload(
+	"res://addons/snowfall/resources/weather/calm.tres"
+)
+const SNOWFALL_WEATHER_PROFILE: SnowWeatherSettings = preload(
+	"res://addons/snowfall/resources/weather/snowfall.tres"
+)
+const BLIZZARD_WEATHER_PROFILE: SnowWeatherSettings = preload(
+	"res://addons/snowfall/resources/weather/blizzard.tres"
+)
 
-@onready var snow: SnowField = $SnowField
+@onready var snow: DeformableSurface = $DeformableSurface
 @onready var weather: SnowWorldManager = $SnowWorldManager
 @onready var player: Player = $Actors/Player
 @onready var npcs: Node3D = $Actors/NPCs
@@ -18,11 +39,20 @@ var _person_serial := 0
 var _mouse_serial := 1
 var _real_shadows := false
 var _msaa_mode := Viewport.MSAA_2X
+var _custom_quality_settings: Dictionary = {}
+@export_enum("Camera:0", "Player:1", "Sled:2") var follow_target_mode := 0
 
 
 func _ready() -> void:
-	var initial_settings := snow.get_active_quality_settings()
-	_apply_weather_settings(initial_settings, snow.snowfall)
+	snow.low_surface_quality = LOW_SURFACE_PROFILE
+	snow.medium_surface_quality = MEDIUM_SURFACE_PROFILE
+	snow.high_surface_quality = HIGH_SURFACE_PROFILE
+	snow.custom_surface_quality = CUSTOM_SURFACE_PROFILE
+	snow.set_quality(snow.quality)
+	_custom_quality_settings = _get_quality_settings(DeformableSurface.Quality.CUSTOM)
+	var initial_settings := _get_active_quality_settings()
+	snow.recovery_intensity = float(initial_settings["recovery_intensity"])
+	_apply_weather_settings(initial_settings, float(initial_settings["snowfall"]))
 	_apply_follow_target(initial_settings["follow_target_mode"])
 	snow.quality_changed.connect(_on_quality_changed)
 	_on_quality_changed(snow.quality)
@@ -44,18 +74,18 @@ func _ready() -> void:
 	hud.remove_mouse_pressed.connect(_remove_mouse)
 	player.touch_stick = hud.stick
 
-	player.add_child(BlobShadow.make(1.2, snow.quality != SnowField.Quality.HIGH))
+	player.add_child(BlobShadow.make(1.2, snow.quality != DeformableSurface.Quality.HIGH))
 	for npc in npcs.get_children():
-		npc.add_child(BlobShadow.make(1.2, snow.quality != SnowField.Quality.HIGH))
-	sled.add_child(BlobShadow.make(2.0, snow.quality != SnowField.Quality.HIGH))
+		npc.add_child(BlobShadow.make(1.2, snow.quality != DeformableSurface.Quality.HIGH))
+	sled.add_child(BlobShadow.make(2.0, snow.quality != DeformableSurface.Quality.HIGH))
 
 
-func _on_quality_changed(q: SnowField.Quality) -> void:
+func _on_quality_changed(q: DeformableSurface.Quality) -> void:
 	if not hud.options_panel.visible:
 		hud.set_current_options(
 			q,
-			snow.get_active_quality_settings(),
-			snow.snowfall,
+			_get_active_quality_settings(),
+			snow.recovery_intensity,
 			snow.has_custom_quality_settings(),
 			_real_shadows,
 			_msaa_mode,
@@ -72,7 +102,7 @@ func _apply_render_options() -> void:
 
 
 func _on_preset_selected(q: int) -> void:
-	hud.set_draft_preset(q, snow.get_quality_settings(q as SnowField.Quality))
+	hud.set_draft_preset(q, _get_quality_settings(q as DeformableSurface.Quality))
 
 
 func _apply_options(
@@ -84,7 +114,7 @@ func _apply_options(
 	msaa: int,
 	wrapped_diffuse_lighting: bool
 ) -> void:
-	var selected_quality := q as SnowField.Quality
+	var selected_quality := q as DeformableSurface.Quality
 	_real_shadows = shadows
 	_msaa_mode = msaa as Viewport.MSAA
 	if custom and selected_quality == snow.quality:
@@ -93,11 +123,50 @@ func _apply_options(
 		snow.quality = selected_quality
 		if custom:
 			snow.apply_quality_settings(settings)
-	snow.snowfall = snowfall
+	if custom:
+		_custom_quality_settings = settings.duplicate(true)
+	snow.recovery_intensity = snowfall
 	_apply_weather_settings(settings, snowfall)
 	snow.wrapped_diffuse_lighting = wrapped_diffuse_lighting
 	_apply_follow_target(settings["follow_target_mode"])
 	_apply_render_options()
+
+
+func _get_quality_settings(q: DeformableSurface.Quality) -> Dictionary:
+	var surface_settings := snow.get_surface_quality_settings(q)
+	if surface_settings == null:
+		push_error("Classic demo: surface quality profile is not assigned.")
+		return {}
+	var weather_profile: SnowWeatherSettings
+	match q:
+		DeformableSurface.Quality.LOW:
+			weather_profile = CALM_WEATHER_PROFILE
+		DeformableSurface.Quality.MEDIUM:
+			weather_profile = SNOWFALL_WEATHER_PROFILE
+		DeformableSurface.Quality.HIGH:
+			weather_profile = BLIZZARD_WEATHER_PROFILE
+		DeformableSurface.Quality.CUSTOM:
+			if not _custom_quality_settings.is_empty():
+				var current := _custom_quality_settings.duplicate(true)
+				current.merge(surface_settings.to_dictionary(), true)
+				return current
+			weather_profile = BLIZZARD_WEATHER_PROFILE
+		_:
+			push_error("Classic demo: invalid quality profile.")
+			return {}
+	var settings := weather_profile.to_dictionary()
+	settings.merge(surface_settings.to_dictionary(), true)
+	settings["follow_target_mode"] = follow_target_mode
+	settings["snowfall"] = weather_profile.snowfall_intensity
+	return settings
+
+
+func _get_active_quality_settings() -> Dictionary:
+	var settings := _get_quality_settings(snow.quality)
+	var snowfall := float(settings.get("snowfall", snow.recovery_intensity))
+	settings.merge(snow.get_active_quality_settings(), true)
+	settings["snowfall"] = snowfall
+	return settings
 
 
 func _apply_weather_settings(settings: Dictionary, intensity: float) -> void:
@@ -109,9 +178,12 @@ func _apply_weather_settings(settings: Dictionary, intensity: float) -> void:
 		float(settings.get("wind_z", weather.wind.y))
 	)
 	weather_settings.fall_height = float(settings.get("fall_height", weather.fall_height))
-	weather_settings.emitter_area = weather.emitter_area
+	var emitter_area: Variant = settings.get("emitter_area", weather.emitter_area)
+	if emitter_area is Vector2:
+		weather_settings.emitter_area = emitter_area
 	weather_settings.snowfall_intensity = intensity
 	weather_settings.follow_target_path = NodePath("../Actors/Player")
+	weather_settings.follow_camera = bool(settings.get("follow_camera", weather.follow_camera))
 	weather_settings.quality = snow.quality as SnowWeatherSettings.Quality
 	weather.weather_settings = weather_settings
 
@@ -136,7 +208,7 @@ func _add_person() -> void:
 	person.position = Vector3(randf_range(-9.0, 9.0), 0.0, randf_range(-9.0, 9.0))
 	person.speed = randf_range(2.0, 3.2)
 	npcs.add_child(person)
-	person.add_child(BlobShadow.make(1.2, snow.quality != SnowField.Quality.HIGH))
+	person.add_child(BlobShadow.make(1.2, snow.quality != DeformableSurface.Quality.HIGH))
 	_people.append(person)
 	hud.set_population_counts(_people.size(), _mice.size())
 

@@ -1,5 +1,5 @@
 extends Node3D
-## Demonstrates a shared weather manager over a recycled grid of SnowFields.
+## Demonstrates a shared weather manager over a recycled grid of DeformableSurfaces.
 
 const DemoCharacter := preload("res://demos/procedural_playground/demo_character.gd")
 
@@ -12,7 +12,7 @@ var _camera: Camera3D
 var _sun: DirectionalLight3D
 var _distant_ground: MeshInstance3D
 var _weather: SnowWorldManager
-var _fields: Array[SnowField] = []
+var _fields: Array[DeformableSurface] = []
 var _tiles: Dictionary = {}
 var _center_tile := Vector2i.ZERO
 var _yaw := 0.0
@@ -108,14 +108,13 @@ func _create_field_grid() -> void:
 	var recovery_levels := [0.0, 0.18, 0.4]
 	for z in range(-TILE_RADIUS, TILE_RADIUS + 1):
 		for x in range(-TILE_RADIUS, TILE_RADIUS + 1):
-			var field := SnowField.new()
+			var field := DeformableSurface.new()
 			field.name = "SnowField_%02d" % _fields.size()
 			field.sun = _sun
-			field.world_manager = _weather
 			field.initial_noise_enabled = false
-			field.quality = SnowField.Quality.MEDIUM
+			field.quality = DeformableSurface.Quality.MEDIUM
 
-			var profile := SnowFieldQualitySettings.new()
+			var profile := DeformableSurfaceSettings.new()
 			profile.area_size = TILE_SIZE
 			profile.res = 256
 			profile.subdiv = 64
@@ -185,14 +184,14 @@ func _recenter_fields() -> void:
 	var available := _fields.duplicate()
 	for tile in wanted:
 		if _tiles.has(tile):
-			var field: SnowField = _tiles[tile]
+			var field: DeformableSurface = _tiles[tile]
 			next_tiles[tile] = field
 			available.erase(field)
 
 	for tile in wanted:
 		if next_tiles.has(tile):
 			continue
-		var field := available.pop_back() as SnowField
+		var field := available.pop_back() as DeformableSurface
 		field.position = Vector3(tile.x * TILE_SIZE, 0.0, tile.y * TILE_SIZE)
 		field.reset_trails()
 		next_tiles[tile] = field

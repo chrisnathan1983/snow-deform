@@ -1,5 +1,5 @@
 extends Node3D
-## A simple primitive-mesh character that leaves footprints via SnowFootsteps.
+## A simple primitive-mesh character that leaves footprints via DeformerFootsteps.
 ## kind: "explorer" (player), "yeti", "penguin". Origin is at the feet, facing -Z.
 
 const Props := preload("demo_props.gd")
@@ -34,7 +34,7 @@ var obstacles: Array[Vector3] = []   # (x, radius, z)
 var on_ground := true
 var _vy := 0.0
 var _visual: Node3D
-var _foot: SnowFootsteps
+var _foot: DeformerFootsteps
 var _speed := 0.0
 var _bob := 0.0
 var _last_pos := Vector3.ZERO
@@ -77,7 +77,7 @@ func _ready() -> void:
             _roll_amp = 0.24
         _:
             _build_explorer()
-    _foot = SnowFootsteps.new()
+    _foot = DeformerFootsteps.new()
     _foot.foot_radius = foot_radius
     _foot.foot_aspect = foot_aspect
     _foot.spread = spread
@@ -85,8 +85,8 @@ func _ready() -> void:
     _foot.stride_max = stride_max
     add_child(_foot)
     for c in _foot.get_children():
-        if c is SnowDeformer:
-            (c as SnowDeformer).strength = strength
+        if c is Deformer:
+            (c as Deformer).strength = strength
     _last_pos = position
 
 
@@ -121,7 +121,7 @@ func _process_player(delta: float) -> void:
     position.z += vel.z * delta
     if move_input.length() > 0.08:
         _turn_towards(move_input, delta)
-    # Jumping / gravity. SnowFootsteps can't detect airborne state, so we pause it.
+    # Jumping / gravity. DeformerFootsteps can't detect airborne state, so we pause it.
     if not on_ground:
         _vy -= GRAVITY * delta
         position.y += _vy * delta

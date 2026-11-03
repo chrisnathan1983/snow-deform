@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://bhethw13gwt5e"]
 
-[ext_resource type="Script" uid="uid://bdagugdsyyn7l" path="res://addons/deformable_snow/scripts/core/snow_deformer.gd" id="1_deformer"]
+[ext_resource type="Script" uid="uid://bdagugdsyyn7l" path="res://addons/deformable_surface/scripts/deformers/deformer.gd" id="1_deformer"]
 [ext_resource type="Shader" uid="uid://6biw83eoj0xo" path="res://demos/classic/actors/soccer_ball.gdshader" id="2_ball_shader"]
 [ext_resource type="Script" uid="uid://cyxqpmcn3fr3q" path="res://demos/classic/actors/soccer_ball.gd" id="3_ball"]
 
@@ -33,7 +33,7 @@ mesh = SubResource("SphereMesh_ball")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1448143483]
 shape = SubResource("SphereShape3D_ball")
 
-[node name="SnowDeformer" type="Node3D" parent="." unique_id=2104729840]
+[node name="Deformer" type="Node3D" parent="." unique_id=2104729840]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.33, 0)
 script = ExtResource("1_deformer")
 radius = 0.19999999999999998
