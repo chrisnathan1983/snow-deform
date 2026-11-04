@@ -3,12 +3,23 @@
 ## 0.1.0 (unreleased)
 First packaged release.
 
+- Breaking: `DeformableSurfaceMaterialProfile` is now `DeformableSurfaceType` and `material_profile` is
+  `surface_type` (its label field is `type_name`). `area_size` moved from the quality resources to
+  `DeformableSurface.size`.
+- Breaking: quality is one resource. `DeformableSurfaceSettings` is now `DeformableSurfaceQuality`, and
+  `DeformableSurface.quality` takes it directly (`DeformableSurfaceQuality.low()` / `medium()` / `high()` /
+  `for_platform()`). Removed: the `Quality` enum, `auto_quality`, the four `*_surface_quality` slots,
+  `recommended_quality()`, and the dictionary methods (`get_quality_settings`, `get_surface_quality_settings`,
+  `apply_surface_quality_settings`, `get_active_quality_settings`, `has_custom_quality_settings`,
+  `apply_quality_settings`). The `custom_surface.tres` preset is gone; any resource you create is custom.
+  `quality_changed` now passes the quality resource.
+
 - DeformableSurface: persistent deformation map (SubViewport), berms, oriented prints,
   snowfall healing, sparkle shader, Low / Medium / High presets, editor preview.
 - Deformer, DeformerFootsteps: anything can dent the snow; characters get
   alternating boot prints with speed-based stride.
 - `DeformableSurface.contact(position, depth, surface_type, source, radius, puff)` signal on footfalls and
-  `stamp_at` impacts; material profiles gained a `surface_type` label.
+  `stamp_at` impacts; surface types gained a `type_name` label.
 - Demos share one player: the playground explorer (`demos/common/characters/*.tscn`, built on
   `DemoCharacter`). Classic uses it instead of its capsule body (walls and the soccer ball are
   handled by clamping and a proximity push rather than physics).
@@ -50,8 +61,8 @@ First packaged release.
   an optional `triplanar` mode, and roughness / glaze / specular / sparkle controls
   (`sparkle_strength` is a per-material multiplier on the quality-level sparkle).
 - Settings split in two: quality profiles (`DeformableSurfaceSettings`) stay technical
-  (resolution, subdivisions, budgets); the new `DeformableSurfaceMaterialProfile`
-  (`material_profile`) holds depth, berms, recovery, puffs, lighting and a default material.
+  (resolution, subdivisions, budgets); the new   `DeformableSurfaceType`
+    (`surface_type`) holds depth, berms, recovery, puffs, lighting and a default material.
   Presets: `resources/materials/*_profile.tres`.
 - SnowFall: falling flakes (usable standalone). Puffs: pooled kick-up bursts.
 - Demo project (`demos/classic/`) with player, wandering NPCs, a sled, and touch controls.

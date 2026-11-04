@@ -14,7 +14,7 @@ built from code and primitive meshes.
    `res://demos/procedural_playground/snow_demo_infinite.tscn`.
 
 Tested on Godot 4.4.1 and 4.6 (the scene works around the addon's preset-loading problem on 4.4
-by creating `DeformableSurfaceSettings` and `SnowWeatherSettings` profiles in code). Atmospheric
+by creating `DeformableSurfaceQuality` and `SnowWeatherSettings` profiles in code). Atmospheric
 flakes are managed by one `SnowWorldManager`; the DeformableSurface keeps its own recovery and contact puffs.
 
 The repository also includes `res://demos/infinite_snow/infinite_snow.tscn`, a separate streaming-world

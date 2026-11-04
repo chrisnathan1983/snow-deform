@@ -42,24 +42,22 @@ apply live:
   recovery, max depth, berm strength and height, puffs, wrapped lighting, reset tracks, and the
   technical settings (map resolution, mesh subdivisions, stamp budget, refill interval, puff
   budget and interval, sparkle; area size in the classic demo). Editing a technical setting
-  switches the quality to **Custom** without modifying a built-in preset.
+  switches the quality to **Custom** (it edits a copy, never an addon preset).
 - **Weather** (demos with a SnowWorldManager): snowfall, wind, flakes, near flakes, fall height.
 - **Graphics**: sun shadows and MSAA (Off, 2x, 4x), plus sun height in the playground.
 - **Scene**: demo-specific controls (classic: people, mice, weather follow target; playground:
   sled, balls, yeti, penguins, snowball storm; materials: textures, triplanar, brush, vehicle).
 
-The DeformableSurface's starting quality (including Custom) is selectable in its
-Inspector; the demo keeps automatic platform selection disabled. The addon
-uses `DeformableSurfaceSettings` for surface profiles. The classic demo's
-surface profiles use the deformable-snow addon resources, and its weather
+The DeformableSurface's `quality` is a `DeformableSurfaceQuality` resource; each demo assigns
+its own Low / Medium / High resources (the classic demo uses `DeformableSurfaceQuality.high()`),
+and the menu's Custom entry is any edited copy. The classic demo's weather
 profiles use the snowfall addon resources. Follow-target mode remains a
 classic-demo setting. Shadows and MSAA are demo render options, not
-quality-profile settings.
+quality settings.
 
 ## Quick start
 
-1. Add a **DeformableSurface** node at ground level. Set `area_size` in its quality
-   profile resources (`DeformableSurfaceSettings`; always square).
+1. Add a **DeformableSurface** node at ground level. Set its `size` (meters, always square).
    You'll see a flat preview in the editor.
 2. Under each character add a **DeformerFootsteps** node (origin at the feet,
    character facing -Z). For anything else (sleds, boxes, wheels) add a
@@ -72,10 +70,9 @@ quality-profile settings.
 In code:
 
 ```gdscript
-var snow_settings := DeformableSurfaceSettings.new()
-snow_settings.area_size = 24.0
 var snow := DeformableSurface.new()
-snow.apply_surface_quality_settings(snow_settings)   # selects the Custom profile
+snow.size = 24.0
+snow.quality = DeformableSurfaceQuality.for_platform()
 snow.sun = $Sun
 add_child(snow)
 
@@ -101,24 +98,23 @@ The snow surface. Keep it unrotated and unscaled; the surface is at its Y.
 
 | Property | Meaning |
 |---|---|
-| `material` | Optional `ShaderMaterial` using `shaders/deformable_surface.gdshader` (colors, sparkle). Duplicated per field. Overrides the material profile's material. |
-| `material_profile` | Optional `DeformableSurfaceMaterialProfile`: what the surface is made of (see below). Presets in `resources/materials/*_profile.tres`. |
+| `material` | Optional `ShaderMaterial` using `shaders/deformable_surface.gdshader` (colors, sparkle). Duplicated per field. Overrides the surface type's material. |
+| `size` | Width and depth in meters (square). Smaller = sharper prints for the same quality: pixel density is `res / size`. At Medium's default 512 px over 40 m (12.8 px/m) a footprint is only a few pixels wide, so use 10-20 m or a higher `res` for crisp prints. |
+| `surface_type` | Optional `DeformableSurfaceType`: what the surface is made of (see below). Presets in `resources/materials/*_profile.tres`. |
 | `sun` | Optional light the sparkle follows. |
-| `quality`, `auto_quality` | Starting Low / Medium / High profile and optional platform-based override. |
-| `low_surface_quality`, `medium_surface_quality`, `high_surface_quality`, `custom_surface_quality` | `DeformableSurfaceSettings` resources: technical quality presets. |
+| `quality` | A `DeformableSurfaceQuality` resource (technical settings below). Use `DeformableSurfaceQuality.low()`, `medium()`, `high()` or `for_platform()`, or your own. The node keeps its own copy; assign a changed resource again to apply it. Empty = Medium. |
 
-Technical settings live in `DeformableSurfaceSettings` (not on the node; the node copies them at startup and on quality changes):
+Technical settings live in `DeformableSurfaceQuality` (not on the node; the node copies them when assigned):
 
 | Setting | Meaning |
 |---|---|
-| `area_size` | Size in meters (square). Smaller = sharper prints for the same quality. Pixel density is `res / area_size`: at Medium's default 512 px over 40 m (12.8 px/m) a footprint is only a few pixels wide, so use 10-20 m or a higher `res` for crisp prints. |
 | `res`, `subdiv` | Deformation map resolution and mesh subdivisions. |
 | `max_stamps_per_frame` | Per-frame brush budget; unfinished trails resume next frame. |
 | `refill_interval` | Pass rate of the trail-healing refill. |
 | `puff`, `puff_min_interval` | Puff particle budget and per-deformer rate limit. |
 | `sparkle` | Quality scale for the material's `sparkle_strength`. |
 
-Material-specific settings live in `DeformableSurfaceMaterialProfile` (`material_profile`); without one, snow-like defaults apply:
+Material-specific settings live in `DeformableSurfaceType` (`surface_type`); without one, snow-like defaults apply:
 
 | Setting | Meaning |
 |---|---|
@@ -130,11 +126,9 @@ Material-specific settings live in `DeformableSurfaceMaterialProfile` (`material
 | `puffs_enabled` | Kick-up bursts. |
 | `wrapped_diffuse_lighting` | Wrapped diffuse lighting on footprint bevels. |
 
-`get_quality_settings(q)` and `get_active_quality_settings()` return both groups merged into one dictionary.
-Changing the material profile's depth or berm height clears existing trails.
-Methods and signals: `reset_trails()`, `DeformableSurface.recommended_quality()`,
-`quality_changed(q)`. Changing quality rebuilds the mesh but preserves trails
-unless the map resolution, field size, maximum depth, or berm height changes.
+Changing the surface type's depth or berm height clears existing trails.
+Methods and signals: `reset_trails()`, `quality_changed(q)`. Changing quality rebuilds the mesh but preserves trails
+unless the map resolution changes.
 Editing other options (such as snowfall, lighting, or particle counts) does not
 reset the simulation.
 `reset_trails()` explicitly clears the map.
@@ -193,7 +187,7 @@ sparkles disappear.
 - Deformers are processed only after a transform or stamp-property change;
   field-assigned deformers are isolated from unrelated DeformableSurfaces.
 - Map memory: 256² / 512² / 1024² RGB8 for Low / Medium / High.
-- For phones start on Low; consider MSAA off, no real shadows, and a small `area_size`.
+- For phones start on Low; consider MSAA off, no real shadows, and a small `size`.
 - Larger worlds: use a small DeformableSurface and move it with the player in whole-texel
   steps (not implemented yet).
 
@@ -218,7 +212,7 @@ addons/deformable_surface/
     deformers/        Deformer, DeformerFootsteps, and SurfacePuffs
     settings/         surface and legacy quality resources
   resources/
-    quality/          low, medium, high, custom profiles
+    quality/          low, medium, high presets
   shaders/            deformable_surface.gdshader, deformable_surface_refill.gdshader,
                       deformable_surface_stamp.gdshader
 addons/snowfall/

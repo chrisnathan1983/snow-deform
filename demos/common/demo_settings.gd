@@ -21,6 +21,9 @@ var sun: DirectionalLight3D
 var preset_handler: Callable
 var sun_handler: Callable
 var allow_area := false
+## Low / Medium / High resources behind the menu (the demo may supply its own); index 3 is Custom.
+var quality_presets: Array[DeformableSurfaceQuality] = []
+var quality_index := 1
 var _preset_name := ""
 
 
@@ -33,16 +36,20 @@ static func create(p_hud: DemoHud, p_fields: Array[DeformableSurface]) -> DemoSe
 	return s
 
 
+func _quality_of(f: DeformableSurface) -> DeformableSurfaceQuality:
+	return f.quality if f.quality != null else DeformableSurfaceQuality.medium()
+
+
 func add_surface_tab() -> void:
 	var tab := hud.add_tab("Surface")
 	var f := _primary()
 	if f == null:
 		return
-	var active := f.get_active_quality_settings()
+	var active := _quality_of(f)
 	var profile := _profile_of(f)
 	_preset_name = profile.resource_path.get_file().get_basename().trim_suffix("_profile")
 	hud.add_heading(tab, "Quality")
-	hud.add_option(tab, "surface.quality", "Preset", QUALITY_NAMES, int(f.quality))
+	hud.add_option(tab, "surface.quality", "Preset", QUALITY_NAMES, quality_index)
 	hud.add_option(tab, "surface.preset", "Material", PRESETS.map(func(n): return n.capitalize()),
 			_preset_index())
 	hud.add_heading(tab, "Material")
@@ -59,18 +66,15 @@ func add_surface_tab() -> void:
 	hud.add_button(tab, "surface.reset", "Reset tracks")
 	hud.add_heading(tab, "Technical (switches to Custom)")
 	hud.add_option(tab, "surface.res", "Map resolution", RESOLUTIONS,
-			_nearest(RESOLUTIONS, int(active.get("res", 768))))
-	hud.add_slider(tab, "surface.subdiv", "Mesh subdivisions", 16, 256, 8, float(active.get("subdiv", 128)))
+			_nearest(RESOLUTIONS, active.res))
+	hud.add_slider(tab, "surface.subdiv", "Mesh subdivisions", 16, 256, 8, active.subdiv)
 	if allow_area:
-		hud.add_slider(tab, "surface.area_size", "Area size (m)", 8, 80, 2, float(active.get("area_size", 32)))
-	hud.add_slider(tab, "surface.max_stamps", "Max stamps / frame", 8, 256, 8,
-			float(active.get("max_stamps_per_frame", 64)))
-	hud.add_slider(tab, "surface.refill_interval", "Refill interval (s)", 0.05, 1.0, 0.05,
-			float(active.get("refill_interval", 0.25)))
-	hud.add_slider(tab, "surface.puff_budget", "Puff budget", 1, 64, 1, float(active.get("puff", 8)))
-	hud.add_slider(tab, "surface.puff_interval", "Puff interval (s)", 0.0, 0.5, 0.01,
-			float(active.get("puff_min_interval", 0.0)))
-	hud.add_slider(tab, "surface.sparkle", "Sparkle", 0.0, 3.0, 0.1, float(active.get("sparkle", 1.0)))
+		hud.add_slider(tab, "surface.area_size", "Area size (m)", 8, 80, 2, f.size)
+	hud.add_slider(tab, "surface.max_stamps", "Max stamps / frame", 8, 256, 8, active.max_stamps_per_frame)
+	hud.add_slider(tab, "surface.refill_interval", "Refill interval (s)", 0.05, 1.0, 0.05, active.refill_interval)
+	hud.add_slider(tab, "surface.puff_budget", "Puff budget", 1, 64, 1, active.puff)
+	hud.add_slider(tab, "surface.puff_interval", "Puff interval (s)", 0.0, 0.5, 0.01, active.puff_min_interval)
+	hud.add_slider(tab, "surface.sparkle", "Sparkle", 0.0, 3.0, 0.1, active.sparkle)
 	f.quality_changed.connect(func(_q): _sync_surface())
 
 
@@ -115,7 +119,9 @@ func _on_changed(key: String, value: Variant) -> void:
 				f.reset_trails()
 		"surface.res": _edit_technical("res", RESOLUTIONS[int(value)])
 		"surface.subdiv": _edit_technical("subdiv", value)
-		"surface.area_size": _edit_technical("area_size", value)
+		"surface.area_size":
+			for f in fields:
+				f.size = float(value)
 		"surface.max_stamps": _edit_technical("max_stamps_per_frame", value)
 		"surface.refill_interval": _edit_technical("refill_interval", value)
 		"surface.puff_budget": _edit_technical("puff", value)
@@ -154,11 +160,13 @@ func _on_changed(key: String, value: Variant) -> void:
 
 
 func set_quality(index: int) -> void:
-	for f in fields:
-		if index == DeformableSurface.Quality.CUSTOM:
-			f.apply_quality_settings(f.get_active_quality_settings())
-		else:
-			f.quality = index as DeformableSurface.Quality
+	quality_index = index
+	if index < 3:
+		if quality_presets.is_empty():
+			quality_presets = [DeformableSurfaceQuality.low(), DeformableSurfaceQuality.medium(),
+					DeformableSurfaceQuality.high()]
+		for f in fields:
+			f.quality = quality_presets[index]
 	if weather and index < FLAKES.size():
 		weather.flake_count = FLAKES[index][0]
 		weather.near_flake_count = FLAKES[index][1]
@@ -174,32 +182,33 @@ func _set_preset(index: int) -> void:
 		preset_handler.call(preset)
 		_sync_surface()
 		return
-	var source := load(PRESET_DIR + preset + "_profile.tres") as DeformableSurfaceMaterialProfile
+	var source := load(PRESET_DIR + preset + "_profile.tres") as DeformableSurfaceType
 	if source == null:
 		return
 	for f in fields:
 		var previous := _profile_of(f)
-		var p := source.duplicate() as DeformableSurfaceMaterialProfile
+		var p := source.duplicate() as DeformableSurfaceType
 		p.recovery_intensity = previous.recovery_intensity
 		p.initial_noise_enabled = previous.initial_noise_enabled and p.initial_noise_enabled
-		f.material_profile = p
+		f.surface_type = p
 	_sync_surface()
 
 
-## Applies a material-profile property to every surface (on a duplicate, never the shared resource).
+## Applies a surface-type property to every surface (on a duplicate, never the shared resource).
 func edit_profile(prop: String, value: Variant) -> void:
 	for f in fields:
-		var p := _profile_of(f).duplicate() as DeformableSurfaceMaterialProfile
+		var p := _profile_of(f).duplicate() as DeformableSurfaceType
 		p.set(prop, value)
-		f.material_profile = p
+		f.surface_type = p
 
 
 func _edit_technical(key: String, value: Variant) -> void:
 	for f in fields:
-		var settings := f.get_active_quality_settings()
-		settings[key] = value
-		f.apply_quality_settings(settings)
-	hud.set_value("surface.quality", DeformableSurface.Quality.CUSTOM)
+		var q := _quality_of(f).duplicate() as DeformableSurfaceQuality
+		q.set(key, int(value) if q.get(key) is int else float(value))
+		f.quality = q
+	quality_index = 3
+	hud.set_value("surface.quality", quality_index)
 
 
 ## Pulls the surface's real values back into the controls after a preset or quality switch.
@@ -208,8 +217,8 @@ func _sync_surface() -> void:
 	if f == null or not hud.has_control("surface.quality"):
 		return
 	var p := _profile_of(f)
-	var active := f.get_active_quality_settings()
-	hud.set_value("surface.quality", int(f.quality))
+	var active := _quality_of(f)
+	hud.set_value("surface.quality", quality_index)
 	hud.set_value("surface.preset", _preset_index())
 	hud.set_value("surface.recovery", p.recovery_intensity)
 	hud.set_value("surface.max_depth", p.max_depth)
@@ -221,24 +230,24 @@ func _sync_surface() -> void:
 	hud.set_value("surface.mound_freq", p.initial_noise_mound_frequency)
 	hud.set_value("surface.puffs", p.puffs_enabled)
 	hud.set_value("surface.wrapped", p.wrapped_diffuse_lighting)
-	hud.set_value("surface.res", _nearest(RESOLUTIONS, int(active.get("res", 768))))
-	hud.set_value("surface.subdiv", float(active.get("subdiv", 128)))
-	hud.set_value("surface.area_size", float(active.get("area_size", 32)))
-	hud.set_value("surface.max_stamps", float(active.get("max_stamps_per_frame", 64)))
-	hud.set_value("surface.refill_interval", float(active.get("refill_interval", 0.25)))
-	hud.set_value("surface.puff_budget", float(active.get("puff", 8)))
-	hud.set_value("surface.puff_interval", float(active.get("puff_min_interval", 0.0)))
-	hud.set_value("surface.sparkle", float(active.get("sparkle", 1.0)))
+	hud.set_value("surface.res", _nearest(RESOLUTIONS, active.res))
+	hud.set_value("surface.subdiv", float(active.subdiv))
+	hud.set_value("surface.area_size", f.size)
+	hud.set_value("surface.max_stamps", float(active.max_stamps_per_frame))
+	hud.set_value("surface.refill_interval", active.refill_interval)
+	hud.set_value("surface.puff_budget", float(active.puff))
+	hud.set_value("surface.puff_interval", active.puff_min_interval)
+	hud.set_value("surface.sparkle", active.sparkle)
 
 
 func _primary() -> DeformableSurface:
 	return fields[0] if not fields.is_empty() else null
 
 
-func _profile_of(f: DeformableSurface) -> DeformableSurfaceMaterialProfile:
-	if f.material_profile != null:
-		return f.material_profile
-	return DeformableSurfaceMaterialProfile.new()
+func _profile_of(f: DeformableSurface) -> DeformableSurfaceType:
+	if f.surface_type != null:
+		return f.surface_type
+	return DeformableSurfaceType.new()
 
 
 func _preset_index() -> int:

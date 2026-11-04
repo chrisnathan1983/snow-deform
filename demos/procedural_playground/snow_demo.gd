@@ -42,6 +42,7 @@ var _yeti: Node3D
 var _snowangel: Snowangel
 
 var _quality := 1
+var _quality_presets: Array[DeformableSurfaceQuality] = []
 var _snowfall := 0.4
 var _wind := 0.3
 var _sun_height := 30.0
@@ -118,20 +119,24 @@ func _build_environment() -> void:
 func _build_snow() -> void:
     snow = DeformableSurface.new()
     snow.name = "DeformableSurface"
-    # Profiles are created in code so the demo is independent of the addon's preset .tres files.
-    snow.low_surface_quality = _make_profile(384, 64, 4, 0.3, 64)
-    snow.medium_surface_quality = _make_profile(768, 128, 8, 1.0, 96)
-    snow.high_surface_quality = _make_profile(1024, 192, 12, 1.5, 128)
-    snow.material_profile = _make_material_profile()
+    _quality_presets = _make_quality_presets()
+    _quality = DeformableSurfaceQuality.platform_tier()
+    snow.quality = _quality_presets[_quality]
+    snow.size = FIELD_SIZE
+    snow.surface_type = _make_surface_type()
     snow.sun = sun
-    _quality = DeformableSurface.recommended_quality()
-    snow.quality = _quality
     snow_fields.append(snow)
     add_child(snow)
 
 
-func _make_material_profile() -> DeformableSurfaceMaterialProfile:
-    var m := DeformableSurfaceMaterialProfile.new()
+## Low / Medium / High, created in code so the demo is independent of the addon's presets.
+func _make_quality_presets() -> Array[DeformableSurfaceQuality]:
+    return [_make_profile(384, 64, 4, 0.3, 64), _make_profile(768, 128, 8, 1.0, 96),
+            _make_profile(1024, 192, 12, 1.5, 128)]
+
+
+func _make_surface_type() -> DeformableSurfaceType:
+    var m := DeformableSurfaceType.new()
     m.recovery_intensity = _snowfall
     m.max_depth = 0.4
     m.berm_strength = 0.2
@@ -141,9 +146,8 @@ func _make_material_profile() -> DeformableSurfaceMaterialProfile:
 
 
 func _make_profile(res: int, subdiv: int, puff: int,
-        sparkle: float, stamps: int) -> DeformableSurfaceSettings:
-    var p := DeformableSurfaceSettings.new()
-    p.area_size = FIELD_SIZE
+        sparkle: float, stamps: int) -> DeformableSurfaceQuality:
+    var p := DeformableSurfaceQuality.new()
     p.res = res
     p.subdiv = subdiv
     p.puff = puff
@@ -271,6 +275,7 @@ func _build_ui() -> void:
     add_child(ui)
     ui.set_title("Snow Lab")
     settings = DemoSettings.create(ui, snow_fields)
+    settings.quality_presets = _quality_presets
     settings.sun_handler = _set_sun
     settings.add_surface_tab()
     settings.add_weather_tab(weather)
@@ -300,13 +305,13 @@ func _build_ui() -> void:
 func _make_weather_profile(q: int) -> SnowWeatherSettings:
     var profile := SnowWeatherSettings.new()
     match q:
-        DeformableSurface.Quality.LOW:
+        0:
             profile.flake_count = 300
             profile.near_flake_count = 0
-        DeformableSurface.Quality.MEDIUM:
+        1:
             profile.flake_count = 900
             profile.near_flake_count = 120
-        DeformableSurface.Quality.HIGH:
+        2:
             profile.flake_count = 2000
             profile.near_flake_count = 280
     profile.wind = Vector2(_wind, _wind * 0.3)
@@ -422,8 +427,8 @@ func _process(delta: float) -> void:
     if _hud_t <= 0.0:
         _hud_t = 0.4
         ui.set_info("%d FPS  |  %s  |  map %d  |  %d deformers" % [
-            Engine.get_frames_per_second(), DemoSettings.QUALITY_NAMES[int(snow.quality)],
-            int(snow.get_active_quality_settings().get("res", 0)), Deformer.unassigned.size()])
+            Engine.get_frames_per_second(), DemoSettings.QUALITY_NAMES[settings.quality_index],
+            snow.quality.res, Deformer.unassigned.size()])
 
 
 func _key(a: Key, b: Key) -> float:

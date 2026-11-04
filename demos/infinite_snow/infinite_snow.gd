@@ -13,6 +13,7 @@ var _sun: DirectionalLight3D
 var _distant_ground: MeshInstance3D
 var _weather: SnowWorldManager
 var _fields: Array[DeformableSurface] = []
+var _quality_presets: Array[DeformableSurfaceQuality] = []
 var _tiles: Dictionary = {}
 var _center_tile := Vector2i.ZERO
 var _yaw := 0.0
@@ -110,29 +111,21 @@ func _build_world() -> void:
 
 
 func _create_field_grid() -> void:
+	_quality_presets = _make_quality_presets()
 	var recovery_levels := [0.0, 0.18, 0.4]
 	for z in range(-TILE_RADIUS, TILE_RADIUS + 1):
 		for x in range(-TILE_RADIUS, TILE_RADIUS + 1):
 			var field := DeformableSurface.new()
 			field.name = "SnowField_%02d" % _fields.size()
+			field.size = TILE_SIZE
 			field.sun = _sun
-			field.quality = DeformableSurface.Quality.MEDIUM
+			field.quality = _quality_presets[1]
 
-			var profile := DeformableSurfaceSettings.new()
-			profile.area_size = TILE_SIZE
-			profile.res = 256
-			profile.subdiv = 64
-			profile.puff = 8
-			profile.max_stamps_per_frame = 64
-			field.medium_surface_quality = profile
-			field.low_surface_quality = _scaled(profile, 192, 48, 4)
-			field.high_surface_quality = _scaled(profile, 320, 80, 12)
-
-			var material_profile := DeformableSurfaceMaterialProfile.new()
-			material_profile.recovery_intensity = recovery_levels[posmod(x + z, recovery_levels.size())]
-			material_profile.refill_levels_per_sec = 16.0
-			material_profile.initial_noise_enabled = false
-			field.material_profile = material_profile
+			var surface_type := DeformableSurfaceType.new()
+			surface_type.recovery_intensity = recovery_levels[posmod(x + z, recovery_levels.size())]
+			surface_type.refill_levels_per_sec = 16.0
+			surface_type.initial_noise_enabled = false
+			field.surface_type = surface_type
 
 			var tile := Vector2i(x, z)
 			field.position = Vector3(tile.x * TILE_SIZE, 0.0, tile.y * TILE_SIZE)
@@ -141,8 +134,15 @@ func _create_field_grid() -> void:
 			_tiles[tile] = field
 
 
-func _scaled(base: DeformableSurfaceSettings, res: int, subdiv: int, puff: int) -> DeformableSurfaceSettings:
-	var p := base.duplicate() as DeformableSurfaceSettings
+func _make_quality_presets() -> Array[DeformableSurfaceQuality]:
+	var medium := DeformableSurfaceQuality.new()
+	medium.res = 256
+	medium.subdiv = 64
+	return [_scaled(medium, 192, 48, 4), medium, _scaled(medium, 320, 80, 12)]
+
+
+func _scaled(base: DeformableSurfaceQuality, res: int, subdiv: int, puff: int) -> DeformableSurfaceQuality:
+	var p := base.duplicate() as DeformableSurfaceQuality
 	p.res = res
 	p.subdiv = subdiv
 	p.puff = puff
@@ -154,6 +154,7 @@ func _build_hud() -> void:
 	add_child(_hud)
 	_hud.set_title("Infinite Snow")
 	_settings = DemoSettings.create(_hud, _fields)
+	_settings.quality_presets = _quality_presets
 	_settings.add_surface_tab()
 	_settings.add_weather_tab(_weather)
 	_settings.add_graphics_tab(_sun)

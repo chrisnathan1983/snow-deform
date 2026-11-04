@@ -3,18 +3,6 @@ extends Node3D
 
 const PERSON_SCENE := preload("res://demos/classic/actors/npc.tscn")
 const MOUSE_SCENE := preload("res://demos/classic/actors/mouse.tscn")
-const LOW_SURFACE_PROFILE: DeformableSurfaceSettings = preload(
-	"res://addons/deformable_surface/resources/quality/low_surface.tres"
-)
-const MEDIUM_SURFACE_PROFILE: DeformableSurfaceSettings = preload(
-	"res://addons/deformable_surface/resources/quality/medium_surface.tres"
-)
-const HIGH_SURFACE_PROFILE: DeformableSurfaceSettings = preload(
-	"res://addons/deformable_surface/resources/quality/high_surface.tres"
-)
-const CUSTOM_SURFACE_PROFILE: DeformableSurfaceSettings = preload(
-	"res://addons/deformable_surface/resources/quality/custom_surface.tres"
-)
 const WEATHER_PROFILES: Array[SnowWeatherSettings] = [
 	preload("res://addons/snowfall/resources/weather/calm.tres"),
 	preload("res://addons/snowfall/resources/weather/snowfall.tres"),
@@ -46,13 +34,9 @@ var _run_button := false
 
 func _ready() -> void:
 	DemoNav.attach(self)
-	snow.low_surface_quality = LOW_SURFACE_PROFILE
-	snow.medium_surface_quality = MEDIUM_SURFACE_PROFILE
-	snow.high_surface_quality = HIGH_SURFACE_PROFILE
-	snow.custom_surface_quality = CUSTOM_SURFACE_PROFILE
-	snow.set_quality(snow.quality)
+	snow.quality = DeformableSurfaceQuality.high()
 
-	var weather_profile := WEATHER_PROFILES[clampi(int(snow.quality), 0, 2)].duplicate() as SnowWeatherSettings
+	var weather_profile := WEATHER_PROFILES[2].duplicate() as SnowWeatherSettings
 	weather_profile.follow_target_path = NodePath("../Actors/Player")
 	weather.weather_settings = weather_profile
 	_apply_follow_target(follow_target_mode)
@@ -68,7 +52,7 @@ func _ready() -> void:
 	hud.set_value("surface.recovery", weather.snowfall_intensity)
 
 	for body in [player, sled] + npcs.get_children():
-		body.add_child(BlobShadow.make(2.0 if body == sled else 1.2, snow.quality != DeformableSurface.Quality.HIGH))
+		body.add_child(BlobShadow.make(2.0 if body == sled else 1.2, settings.quality_index != 2))
 	_apply_blob_shadows()
 
 
@@ -77,6 +61,7 @@ func _build_hud() -> void:
 	add_child(hud)
 	hud.set_title("Classic")
 	settings = DemoSettings.create(hud, [snow] as Array[DeformableSurface])
+	settings.quality_index = 2
 	settings.allow_area = true
 	settings.add_surface_tab()
 	settings.add_weather_tab(weather)
@@ -117,7 +102,7 @@ func _process(delta: float) -> void:
 	if _hud_t <= 0.0:
 		_hud_t = 0.4
 		hud.set_info("%d FPS  |  %s  |  %d people  |  %d mice" % [
-			Engine.get_frames_per_second(), DemoSettings.QUALITY_NAMES[int(snow.quality)],
+			Engine.get_frames_per_second(), DemoSettings.QUALITY_NAMES[settings.quality_index],
 			_people.size(), _mice.size()])
 
 
@@ -187,7 +172,7 @@ func _add_person() -> void:
 	person.position = Vector3(randf_range(-9.0, 9.0), 0.0, randf_range(-9.0, 9.0))
 	person.speed = randf_range(2.0, 3.2)
 	npcs.add_child(person)
-	person.add_child(BlobShadow.make(1.2, snow.quality != DeformableSurface.Quality.HIGH))
+	person.add_child(BlobShadow.make(1.2, settings.quality_index != 2))
 	_apply_blob_shadows()
 	_people.append(person)
 

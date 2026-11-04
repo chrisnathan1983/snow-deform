@@ -5,7 +5,7 @@ extends Node3D
 ## Deformable surface. Drop it in a scene, then add Deformer or
 ## DeformerFootsteps nodes under anything that should leave marks.
 ##
-## Requirements: area_size must be square; keep the node unrotated and unscaled.
+## Requirements: keep the node unrotated and unscaled; the area is square (`size`).
 ## The surface sits at this node's Y position.
 ##
 ## How it works: a hidden 2D SubViewport stores a deformation map (R = combined
@@ -14,17 +14,16 @@ extends Node3D
 ## in one texture fetch. The viewport only renders when something changed.
 ## Everything runs on the Compatibility renderer (WebGL2).
 
-signal quality_changed(q: Quality)
+signal quality_changed(q: DeformableSurfaceQuality)
 ## Emitted when a stamp starts touching the surface: a Deformer touchdown (footfall) or a
 ## `stamp_at` call. `depth` is the nominal signed depth in meters (positive = pressed down,
-## negative = raised, 0 = smoothed). `surface_type` comes from the material profile.
+## negative = raised, 0 = smoothed). `type_name` is the surface type's `type_name`.
 ## `source` is the Deformer, or null for `stamp_at`. `radius` is the stamp radius in meters.
 ## Touchdown puffs are spawned from this same event.
-signal contact(position: Vector3, depth: float, surface_type: StringName, source: Node, radius: float, puff: bool)
+signal contact(position: Vector3, depth: float, type_name: StringName, source: Node, radius: float, puff: bool)
 
 static var instances: Array[DeformableSurface] = []
 
-enum Quality { LOW, MEDIUM, HIGH, CUSTOM }
 ## How a stamp changes the surface: CARVE presses it down (with berms), RAISE builds it up
 ## (snow accumulation, piles), SMOOTH flattens it toward neutral (a plow, erasing prints).
 enum StampMode { CARVE, RAISE, SMOOTH }
@@ -33,77 +32,62 @@ const SurfacePuffs = preload("deformers/deformer_particles.gd")
 const SURFACE_SHADER: Shader = preload("../shaders/deformable_surface.gdshader")
 const REFILL_SHADER: Shader = preload("../shaders/deformable_surface_refill.gdshader")
 const STAMP_SHADER: Shader = preload("../shaders/deformable_surface_stamp.gdshader")
-const LOW_SURFACE_QUALITY_DEFAULT = preload("../resources/quality/low_surface.tres")
-const MEDIUM_SURFACE_QUALITY_DEFAULT = preload("../resources/quality/medium_surface.tres")
-const HIGH_SURFACE_QUALITY_DEFAULT = preload("../resources/quality/high_surface.tres")
-const CUSTOM_SURFACE_QUALITY_DEFAULT = preload("../resources/quality/custom_surface.tres")
 const BERM_REACH := 2.0     # berm ring radius, in brush radii
 const BERM_FORWARD := 0.3   # elongated prints push their berm ahead by this fraction
 const MAP_NEUTRAL := 128.0 / 255.0
 const STAMP_CAPACITY := 512
 
 @export_group("Surface")
-## World size of the surface, in meters (centered on this node). Always square; set through
-## the quality profile's `area_size`, which overwrites this value at startup.
-var area_size := Vector2(40, 40) : set = set_area_size
+## World size of the surface, in meters: a square centered on this node. Changing it at
+## runtime rebuilds the mesh and clears the trails.
+@export_range(1.0, 256.0, 1.0, "or_greater") var size := 40.0 : set = set_size
+## Square extent derived from `size`; kept as a Vector2 for the stamp math.
+var area_size := Vector2(40, 40)
 ## Optional. A ShaderMaterial using shaders/deformable_surface.gdshader, to customize colors and
 ## sparkle. If empty, a default is created. Each DeformableSurface duplicates it, so one
 ## resource can be shared. Assign before the node enters the tree.
 @export var material: ShaderMaterial : set = set_material
 ## Optional. What the surface is made of: depth, berms, healing, puffs, lighting and a default
-## material. Without one, built-in snow-like defaults are used. Quality profiles only control
+## look. Without one, built-in snow-like defaults are used. Quality profiles only control
 ## resolution, mesh density, budgets and the sparkle quality scale.
-@export var material_profile: DeformableSurfaceMaterialProfile : set = set_material_profile
+@export var surface_type: DeformableSurfaceType : set = set_surface_type
 ## Optional. The sun: the sparkle shader follows its direction.
 @export var sun: DirectionalLight3D
-## Enables wrapped diffuse lighting with cool-tinted shadows on footprint bevels.
-var wrapped_diffuse_lighting := true : set = set_wrapped_diffuse_lighting
-## How deep a fully-pressed surface sinks, in meters.
-var max_depth := 0.4
+# The values below come from the surface type. The node keeps one private snapshot of it
+# (`_mp`), so there is a single copy to read and nothing to keep in sync by hand.
 
-# Starting surface: copied from the material profile.
-var initial_noise_enabled := true
-var initial_noise: FastNoiseLite
-var initial_noise_invert := false
-var initial_noise_frequency := 0.8
-var initial_noise_height := 0.2
-var initial_noise_detail := 0.6
-var initial_noise_detail_scale := 0.25
-var initial_noise_mound_height := 0.3
-var initial_noise_mound_frequency := 0.1
+## Enables wrapped diffuse lighting with cool-tinted shadows on footprint bevels.
+var wrapped_diffuse_lighting: bool:
+	get:
+		return _values().wrapped_diffuse_lighting
+	set(enabled):
+		set_wrapped_diffuse_lighting(enabled)
+## How deep a fully-pressed surface sinks, in meters.
+var max_depth: float:
+	get:
+		return _values().max_depth
+## 0 = trails stay forever. 1 = trails heal quickly. Assigning it at runtime overrides the
+## surface type's value until the type is replaced.
+var recovery_intensity: float:
+	get:
+		return _values().recovery_intensity
+	set(value):
+		set_recovery_intensity(value)
 
 @export_group("Quality")
-## Initial quality profile. auto_quality overrides this when enabled.
-@export var quality: Quality = Quality.MEDIUM : set = set_quality
-## Surface quality profiles. Each node starts with its own copy of the addon presets, so
-## editing them in the Inspector never modifies the shared files in the addon.
-@export var low_surface_quality: DeformableSurfaceSettings = LOW_SURFACE_QUALITY_DEFAULT.duplicate()
-@export var medium_surface_quality: DeformableSurfaceSettings = MEDIUM_SURFACE_QUALITY_DEFAULT.duplicate()
-@export var high_surface_quality: DeformableSurfaceSettings = HIGH_SURFACE_QUALITY_DEFAULT.duplicate()
-@export var custom_surface_quality: DeformableSurfaceSettings = CUSTOM_SURFACE_QUALITY_DEFAULT.duplicate()
-## If true, picks Low on mobile / mobile browsers, Medium on desktop browsers and
-## High elsewhere when the scene starts (overrides `quality`).
-@export var auto_quality := false
+## Resolution, mesh density and budgets (a DeformableSurfaceQuality: use `low()`, `medium()`,
+## `high()` or `for_platform()`, or your own). The node keeps its own copy, so assign a changed
+## resource again to apply edits. Empty = the Medium preset.
+@export var quality: DeformableSurfaceQuality : set = set_quality
 
 var max_stamps_per_frame := 64
 
-var berm_strength := 0.15   # 0 disables berms
-var berm_height := 0.08                       # meters at full berm
-
-## 0 = trails stay forever. 1 = trails heal quickly. Not exported: the quality profile
-## sets it (DeformableSurfaceSettings.recovery_intensity); assigning it at runtime overrides it
-## until the next quality change.
-var recovery_intensity := 0.3 : set = set_recovery_intensity
-## Recovery speed parameter at recovery_intensity = 1; height and slopes heal together.
-var refill_levels_per_sec := 16.0
 var refill_interval := 0.25   # seconds between refill passes
-
-var puffs_enabled := true
 var puff_min_interval := 0.2    # per deformer, seconds
 
-var _active_quality_settings: DeformableSurfaceSettings
-var _active_quality_custom := false
-var _default_material_profile: DeformableSurfaceMaterialProfile
+var _active_quality_settings: DeformableSurfaceQuality
+var _default_surface_type: DeformableSurfaceType
+var _mp: DeformableSurfaceType   # clamped snapshot of the effective surface type
 
 var _runtime := false          # true once running in the game (not the editor)
 var _mat: ShaderMaterial       # our private copy of the material
@@ -112,7 +96,6 @@ var _bg: Control
 var _initial_map_texture: Texture2D
 var _initial_noise_cache: ImageTexture
 var _initial_noise_cache_key: Array = []
-var _applying_profile := false
 var _refill: ColorRect
 var _refill_material: ShaderMaterial
 var _mesh: MeshInstance3D
@@ -142,16 +125,6 @@ var _sun_dir := Vector3.ZERO
 var _puffs: SurfacePuffs
 
 
-## A sensible default for the current platform.
-static func recommended_quality() -> Quality:
-	if OS.has_feature("web"):
-		var mobile = JavaScriptBridge.eval("/Android|iPhone|iPad/i.test(navigator.userAgent)")
-		return Quality.LOW if mobile else Quality.MEDIUM
-	if OS.has_feature("mobile"):
-		return Quality.LOW
-	return Quality.HIGH
-
-
 func _enter_tree() -> void:
 	if Engine.is_editor_hint():
 		return
@@ -171,16 +144,10 @@ func _ready() -> void:
 	if not contact.is_connected(_on_contact_puff):
 		contact.connect(_on_contact_puff)
 	_adopt_material()
-	if auto_quality:
-		quality = recommended_quality()
-	if custom_surface_quality == null:
-		push_error("DeformableSurface: custom surface quality profile is not assigned.")
-		return
-	custom_surface_quality = custom_surface_quality.duplicate(true) as DeformableSurfaceSettings
-	if not _set_active_quality_profile(quality):
+	if not _set_active_quality(quality):
 		return
 	_apply_profile_values(_active_quality_settings)
-	_apply_material_profile_values()
+	_apply_surface_type_values()
 
 	_make_brushes()
 
@@ -213,7 +180,7 @@ func _ready() -> void:
 	_runtime = true
 	_configure_quality(null)
 	_clear_map()
-	quality_changed.emit(quality)
+	quality_changed.emit(_active_quality_settings)
 
 
 func _exit_tree() -> void:
@@ -238,227 +205,59 @@ func _mark_deformer_dirty(deformer: Deformer) -> void:
 
 # ------------------------------------------------------------------ public API
 
-## Reconfiguring quality preserves trails unless their encoding scale changes.
-func set_quality(q: Quality) -> void:
-	if q < Quality.LOW or q > Quality.CUSTOM:
-		push_error("DeformableSurface: invalid quality preset.")
-		return
-
-	var profile := _quality_profile(q)
-	if profile == null:
-		push_error("DeformableSurface: quality profile is not assigned.")
-		return
-	var quality_changed_now := q != quality
-	var settings_changed: bool = (
-		_active_quality_custom != (q == Quality.CUSTOM)
-		or _active_quality_settings == null
-		or _active_quality_settings.to_dictionary() != profile.to_dictionary()
-	)
-	var previous := _active_quality_settings
-	var map_resolution_changed: bool = (
-		previous == null
-		or previous.res != profile.res
-	)
-	var height_encoding_changed: bool = (
-		previous == null
-		or not is_equal_approx(previous.area_size, profile.area_size)
-	)
+## Assigns a quality (the node keeps a clamped copy). Reconfiguring preserves trails unless the
+## map resolution changes.
+func set_quality(q: DeformableSurfaceQuality) -> void:
 	quality = q
-	if settings_changed:
-		_active_quality_settings = profile.duplicate(true) as DeformableSurfaceSettings
-	_active_quality_custom = q == Quality.CUSTOM
-	_apply_profile_values(profile)
-	if _runtime and (quality_changed_now or settings_changed):
-		_configure_quality(previous)
-		if map_resolution_changed or height_encoding_changed:
-			_clear_map()
-		if quality_changed_now:
-			quality_changed.emit(quality)
-
-
-## Flat dictionary of a quality preset's technical settings plus the current material
-## profile's values (used by settings UIs).
-func get_quality_settings(q: Quality) -> Dictionary:
-	if q < Quality.LOW or q > Quality.CUSTOM:
-		push_error("DeformableSurface: invalid quality preset.")
-		return {}
-	var profile := _quality_profile(q)
-	if profile == null:
-		push_error("DeformableSurface: quality profile is not assigned.")
-		return {}
-	var settings := profile.to_dictionary()
-	settings.merge(_effective_material_profile().to_dictionary(), true)
-	return settings
-
-
-func get_surface_quality_settings(q: Quality) -> DeformableSurfaceSettings:
-	if q < Quality.LOW or q > Quality.CUSTOM:
-		push_error("DeformableSurface: invalid quality preset.")
-		return null
-	var profile := _quality_profile(q)
-	if profile == null:
-		push_error("DeformableSurface: surface quality profile is not assigned.")
-		return null
-	return profile.duplicate(true) as DeformableSurfaceSettings
-
-
-func apply_surface_quality_settings(settings: DeformableSurfaceSettings) -> void:
-	if settings == null:
-		push_error("DeformableSurface: surface quality settings are not assigned.")
+	if not _runtime:
 		return
-	custom_surface_quality = settings.duplicate(true) as DeformableSurfaceSettings
-	set_quality(Quality.CUSTOM)
-
-
-func get_active_quality_settings() -> Dictionary:
-	if _active_quality_settings == null:
-		return {}
-	var settings := _active_quality_settings.to_dictionary()
-	settings["area_size"] = area_size.x
-	settings["max_depth"] = max_depth
-	settings["berm_strength"] = berm_strength
-	settings["berm_height"] = berm_height
-	settings["max_stamps_per_frame"] = max_stamps_per_frame
-	settings["recovery_intensity"] = recovery_intensity
-	settings["refill_levels_per_sec"] = refill_levels_per_sec
-	settings["refill_interval"] = refill_interval
-	settings["puffs_enabled"] = puffs_enabled
-	settings["puff_min_interval"] = puff_min_interval
-	settings["wrapped_diffuse_lighting"] = wrapped_diffuse_lighting
-	return settings
-
-
-func has_custom_quality_settings() -> bool:
-	return _active_quality_custom
-
-
-func apply_quality_settings(settings: Dictionary) -> void:
-	if custom_surface_quality == null:
-		push_error("DeformableSurface: custom surface quality profile is not assigned.")
+	var previous := _active_quality_settings
+	if not _set_active_quality(q):
 		return
-	var required := ["res", "subdiv", "sparkle", "puff"]
-	for key in required:
-		if not settings.has(key):
-			push_error("DeformableSurface: custom quality settings are missing '%s'." % key)
-			return
-	for key in [
-		"res", "subdiv", "sparkle", "puff", "area_size", "max_depth",
-		"berm_strength", "berm_height", "max_stamps_per_frame",
-		"recovery_intensity", "refill_levels_per_sec", "refill_interval",
-		"puff_min_interval",
-	]:
-		if not settings.has(key):
-			continue
-		var type := typeof(settings[key])
-		if type != TYPE_INT and type != TYPE_FLOAT:
-			push_error("DeformableSurface: custom quality setting '%s' must be numeric." % key)
-			return
-	for key in ["puffs_enabled", "wrapped_diffuse_lighting"]:
-		if settings.has(key) and typeof(settings[key]) != TYPE_BOOL:
-			push_error("DeformableSurface: custom quality setting '%s' must be a boolean." % key)
-			return
-
-	var updated := custom_surface_quality.duplicate(true) as DeformableSurfaceSettings
-	if updated == null:
-		push_error("DeformableSurface: custom surface quality profile could not be duplicated.")
+	if previous != null and previous.to_dictionary() == _active_quality_settings.to_dictionary():
 		return
-	updated.res = clampi(roundi(float(settings["res"])), 128, 2048)
-	updated.subdiv = clampi(roundi(float(settings["subdiv"])), 1, 512)
-	updated.sparkle = clampf(float(settings["sparkle"]), 0.0, 3.0)
-	updated.puff = clampi(roundi(float(settings["puff"])), 1, 64)
-	updated.area_size = maxf(float(settings.get("area_size", updated.area_size)), 1.0)
-	updated.max_stamps_per_frame = maxi(roundi(float(settings.get(
-		"max_stamps_per_frame", updated.max_stamps_per_frame
-	))), 1)
-	updated.refill_interval = maxf(float(settings.get("refill_interval", updated.refill_interval)), 0.05)
-	updated.puff_min_interval = maxf(
-		float(settings.get("puff_min_interval", updated.puff_min_interval)),
-		0.0
-	)
-	custom_surface_quality = updated
-	set_quality(Quality.CUSTOM)
-
-	var current := _effective_material_profile()
-	var updated_material := current.duplicate() as DeformableSurfaceMaterialProfile
-	updated_material.max_depth = maxf(float(settings.get("max_depth", current.max_depth)), 0.01)
-	updated_material.berm_strength = clampf(float(settings.get("berm_strength", current.berm_strength)), 0.0, 0.5)
-	updated_material.berm_height = maxf(float(settings.get("berm_height", current.berm_height)), 0.0)
-	updated_material.recovery_intensity = clampf(
-		float(settings.get("recovery_intensity", current.recovery_intensity)), 0.0, 1.0
-	)
-	updated_material.refill_levels_per_sec = maxf(float(settings.get(
-		"refill_levels_per_sec", current.refill_levels_per_sec
-	)), 0.0)
-	updated_material.puffs_enabled = bool(settings.get("puffs_enabled", current.puffs_enabled))
-	updated_material.wrapped_diffuse_lighting = bool(
-		settings.get("wrapped_diffuse_lighting", current.wrapped_diffuse_lighting)
-	)
-	if updated_material.to_dictionary() != current.to_dictionary():
-		set_material_profile(updated_material)
+	_apply_profile_values(_active_quality_settings)
+	_configure_quality(previous)
+	if previous == null or previous.res != _active_quality_settings.res:
+		_clear_map()
+	quality_changed.emit(_active_quality_settings)
 
 
-func _quality_profile(q: Quality) -> DeformableSurfaceSettings:
-	var surface_profile: DeformableSurfaceSettings
-	match q:
-		Quality.LOW:
-			surface_profile = low_surface_quality
-		Quality.MEDIUM:
-			surface_profile = medium_surface_quality
-		Quality.HIGH:
-			surface_profile = high_surface_quality
-		Quality.CUSTOM:
-			surface_profile = custom_surface_quality
-		_:
-			return null
-	return surface_profile
-
-
-func _set_active_quality_profile(q: Quality) -> bool:
-	var profile := _quality_profile(q)
-	if profile == null:
-		push_error("DeformableSurface: quality profile is not assigned.")
+## Takes a clamped private copy of `q` (Medium when null).
+func _set_active_quality(q: DeformableSurfaceQuality) -> bool:
+	var source := q if q != null else DeformableSurfaceQuality.medium()
+	if source == null:
+		push_error("DeformableSurface: quality preset could not be loaded.")
 		return false
-	_active_quality_settings = profile.duplicate(true) as DeformableSurfaceSettings
-	_active_quality_custom = q == Quality.CUSTOM
+	_active_quality_settings = source.duplicate() as DeformableSurfaceQuality
+	_active_quality_settings.clamp_values()
 	return true
 
 
-func _apply_profile_values(profile: DeformableSurfaceSettings) -> void:
-	_applying_profile = true
-	area_size = Vector2.ONE * maxf(profile.area_size, 1.0)
-	_applying_profile = false
-	max_stamps_per_frame = maxi(profile.max_stamps_per_frame, 1)
-	refill_interval = maxf(profile.refill_interval, 0.05)
-	puff_min_interval = maxf(profile.puff_min_interval, 0.0)
+func _apply_profile_values(profile: DeformableSurfaceQuality) -> void:
+	max_stamps_per_frame = profile.max_stamps_per_frame
+	refill_interval = profile.refill_interval
+	puff_min_interval = profile.puff_min_interval
 
 
-## The assigned material profile, or the built-in defaults (snow-like) when none is set.
-func _effective_material_profile() -> DeformableSurfaceMaterialProfile:
-	if material_profile != null:
-		return material_profile
-	if _default_material_profile == null:
-		_default_material_profile = DeformableSurfaceMaterialProfile.new()
-	return _default_material_profile
+## The assigned surface type, or the built-in defaults (snow-like) when none is set.
+func _effective_surface_type() -> DeformableSurfaceType:
+	if surface_type != null:
+		return surface_type
+	if _default_surface_type == null:
+		_default_surface_type = DeformableSurfaceType.new()
+	return _default_surface_type
 
 
-func _apply_material_profile_values() -> void:
-	var p := _effective_material_profile()
-	max_depth = maxf(p.max_depth, 0.01)
-	berm_strength = clampf(p.berm_strength, 0.0, 0.5)
-	berm_height = maxf(p.berm_height, 0.0)
-	recovery_intensity = clampf(p.recovery_intensity, 0.0, 1.0)
-	refill_levels_per_sec = maxf(p.refill_levels_per_sec, 0.0)
-	puffs_enabled = p.puffs_enabled
-	wrapped_diffuse_lighting = p.wrapped_diffuse_lighting
-	initial_noise_enabled = p.initial_noise_enabled
-	initial_noise = p.initial_noise
-	initial_noise_invert = p.initial_noise_invert
-	initial_noise_frequency = p.initial_noise_frequency
-	initial_noise_height = p.initial_noise_height
-	initial_noise_detail = p.initial_noise_detail
-	initial_noise_detail_scale = p.initial_noise_detail_scale
-	initial_noise_mound_height = p.initial_noise_mound_height
-	initial_noise_mound_frequency = p.initial_noise_mound_frequency
+## The node's view of the surface type: the snapshot once running, else the type itself.
+func _values() -> DeformableSurfaceType:
+	return _mp if _mp != null else _effective_surface_type()
+
+
+func _apply_surface_type_values() -> void:
+	_mp = _effective_surface_type().duplicate() as DeformableSurfaceType
+	_mp.clamp_values()
+
 
 ## Stamps drawn this frame, out of `max_stamps_per_frame` (for performance readouts).
 func get_stamps_used() -> int:
@@ -563,7 +362,7 @@ func _emit_contact(world_pos: Vector3, strength: float, mode: int, source: Node,
 	elif mode == StampMode.SMOOTH:
 		depth = 0.0
 		puff = false
-	contact.emit(world_pos, depth, _effective_material_profile().surface_type, source, radius, puff)
+	contact.emit(world_pos, depth, _effective_surface_type().type_name, source, radius, puff)
 
 
 func _on_contact_puff(world_pos: Vector3, _depth: float, _surface_type: StringName,
@@ -590,26 +389,28 @@ func _flush_pending_stamps(res: Vector2, px_per_m: float) -> void:
 
 
 func set_recovery_intensity(value: float) -> void:
-	recovery_intensity = clampf(value, 0.0, 1.0)
+	if _mp != null:
+		_mp.recovery_intensity = clampf(value, 0.0, 1.0)
 
 
 func set_wrapped_diffuse_lighting(enabled: bool) -> void:
-	if wrapped_diffuse_lighting == enabled:
+	if _mp == null or _mp.wrapped_diffuse_lighting == enabled:
 		return
-	wrapped_diffuse_lighting = enabled
+	_mp.wrapped_diffuse_lighting = enabled
 	if _mat:
 		_mat.set_shader_parameter("wrapped_diffuse_lighting", enabled)
 
 
-func set_area_size(v: Vector2) -> void:
-	var new_size := v.max(Vector2(1.0, 1.0))
-	if area_size.is_equal_approx(new_size):
+func set_size(v: float) -> void:
+	size = maxf(v, 1.0)
+	var new_area := Vector2.ONE * size
+	if area_size.is_equal_approx(new_area):
 		return
-	area_size = new_size
+	area_size = new_area
 	if Engine.is_editor_hint():
 		_refresh_preview()
 		update_configuration_warnings()
-	elif _runtime and not _applying_profile:
+	elif _runtime:
 		_configure_mesh()
 		_clear_map()
 
@@ -629,8 +430,6 @@ func set_material(m: ShaderMaterial) -> void:
 
 func _get_configuration_warnings() -> PackedStringArray:
 	var w := PackedStringArray()
-	if absf(area_size.x - area_size.y) > 0.01:
-		w.append("area_size should be square.")
 	if not global_basis.is_equal_approx(Basis.IDENTITY):
 		w.append("Keep the DeformableSurface unrotated and unscaled (also its parents).")
 	return w
@@ -659,7 +458,7 @@ func _refresh_preview() -> void:
 	var img := Image.create(1, 1, false, Image.FORMAT_RGB8)
 	img.fill(Color(MAP_NEUTRAL, MAP_NEUTRAL, MAP_NEUTRAL))
 	m.set_shader_parameter("deform_map", ImageTexture.create_from_image(img))
-	m.set_shader_parameter("wrapped_diffuse_lighting", _effective_material_profile().wrapped_diffuse_lighting)
+	m.set_shader_parameter("wrapped_diffuse_lighting", _effective_surface_type().wrapped_diffuse_lighting)
 
 
 # ------------------------------------------------------------------ setup
@@ -676,25 +475,25 @@ func _adopt_material() -> void:
 func _source_material() -> ShaderMaterial:
 	if material != null:
 		return material
-	if material_profile != null:
-		return material_profile.material
+	if surface_type != null:
+		return surface_type.material
 	return null
 
 
-func set_material_profile(p: DeformableSurfaceMaterialProfile) -> void:
-	if material_profile == p:
+func set_surface_type(p: DeformableSurfaceType) -> void:
+	if surface_type == p:
 		return
 	var previous_source := _source_material()
 	var previous_depth := max_depth
-	var previous_berm_height := berm_height
+	var previous_berm_height := _values().berm_height
 	var previous_noise_key := _starting_surface_key()
-	material_profile = p
+	surface_type = p
 	if Engine.is_editor_hint():
 		_refresh_preview()
 		return
 	if not _runtime:
 		return
-	_apply_material_profile_values()
+	_apply_surface_type_values()
 	if _source_material() != previous_source:
 		_adopt_material()
 	_configure_material()
@@ -702,13 +501,13 @@ func set_material_profile(p: DeformableSurfaceMaterialProfile) -> void:
 	_configure_particles()
 	_sun_dir = Vector3.ZERO   # force the sun direction to be re-applied
 	if not is_equal_approx(previous_depth, max_depth) \
-			or not is_equal_approx(previous_berm_height, berm_height) \
+			or not is_equal_approx(previous_berm_height, _mp.berm_height) \
 			or previous_noise_key != _starting_surface_key():
 		_clear_map()
 
 
 func _starting_surface_key() -> Array:
-	return [initial_noise_enabled, _initial_noise_key(512)]
+	return [_values().initial_noise_enabled, _initial_noise_key(512)]
 
 
 func _make_refill_rect(shader: Shader) -> ColorRect:
@@ -743,7 +542,7 @@ func _make_brushes() -> void:
 	_stamp_multimesh.visible_instance_count = 0
 
 ## Applies the quality preset: map size, mesh density, shader params, particle counts.
-func _configure_quality(previous: DeformableSurfaceSettings) -> void:
+func _configure_quality(previous: DeformableSurfaceQuality) -> void:
 	var current := _active_quality_settings
 	var map_changed := previous == null or previous.res != current.res
 	if map_changed:
@@ -792,7 +591,7 @@ func _configure_material() -> void:
 
 
 func _configure_particles() -> void:
-	if not puffs_enabled:
+	if not _mp.puffs_enabled:
 		if is_instance_valid(_puffs):
 			_puffs.queue_free()
 			_puffs = null
@@ -804,7 +603,7 @@ func _configure_particles() -> void:
 
 ## Puffs follow the surface: profile texture/ramp, else the surface color fading out.
 func _apply_puff_look() -> void:
-	var p := _effective_material_profile()
+	var p := _effective_surface_type()
 	var texture := p.puff_texture
 	if texture == null and _mat != null:
 		var albedo_texture: Variant = _mat.get_shader_parameter("albedo_texture")
@@ -846,8 +645,8 @@ func _configure_stamp_capacity() -> void:
 
 
 func _configure_stamp_material(stamp_material: ShaderMaterial) -> void:
-	stamp_material.set_shader_parameter("berm_strength", berm_strength)
-	stamp_material.set_shader_parameter("berm_height_ratio", berm_height / maxf(max_depth, 0.01))
+	stamp_material.set_shader_parameter("berm_strength", _mp.berm_strength)
+	stamp_material.set_shader_parameter("berm_height_ratio", _mp.berm_height / maxf(max_depth, 0.01))
 	stamp_material.set_shader_parameter("map_resolution", float(_vp.size.x))
 
 
@@ -855,7 +654,7 @@ func _configure_stamp_material(stamp_material: ShaderMaterial) -> void:
 func _clear_map() -> void:
 	if is_instance_valid(_bg):
 		_bg.queue_free()
-	if initial_noise_enabled:
+	if _mp.initial_noise_enabled:
 		_initial_map_texture = _get_initial_noise_texture()
 		var background := TextureRect.new()
 		background.texture = _initial_map_texture
@@ -871,7 +670,7 @@ func _clear_map() -> void:
 		background.size = Vector2(_vp.size)
 		_bg = background
 	_refill_material.set_shader_parameter("recovery_target", _initial_map_texture)
-	_refill_material.set_shader_parameter("recovery_target_enabled", initial_noise_enabled)
+	_refill_material.set_shader_parameter("recovery_target_enabled", _mp.initial_noise_enabled)
 	_vp.add_child(_bg)
 	_vp.move_child(_bg, 0)
 	_prime_frames = 3
@@ -885,17 +684,18 @@ func _clear_map() -> void:
 
 
 func _initial_noise_key(resolution: int) -> Array:
+	var p := _values()
 	var noise_key: Array = [null]
-	if initial_noise != null:
+	if p.initial_noise != null:
 		noise_key = [
-			initial_noise, initial_noise.seed, initial_noise.frequency,
-			initial_noise.noise_type, initial_noise.fractal_type,
+			p.initial_noise, p.initial_noise.seed, p.initial_noise.frequency,
+			p.initial_noise.noise_type, p.initial_noise.fractal_type,
 		]
 	return [
-		resolution, area_size, max_depth, initial_noise_invert,
-		initial_noise_frequency, initial_noise_height, noise_key,
-		initial_noise_detail, initial_noise_detail_scale,
-		initial_noise_mound_height, initial_noise_mound_frequency,
+		resolution, area_size, p.max_depth, p.initial_noise_invert,
+		p.initial_noise_frequency, p.initial_noise_height, noise_key,
+		p.initial_noise_detail, p.initial_noise_detail_scale,
+		p.initial_noise_mound_height, p.initial_noise_mound_frequency,
 	]
 
 
@@ -909,38 +709,39 @@ func _get_initial_noise_texture() -> Texture2D:
 
 
 func _make_initial_noise_image() -> Image:
+	var p := _values()
 	var resolution := mini(_vp.size.x, 512)
 	var pixel_count := resolution * resolution
-	var noise := initial_noise
+	var noise := p.initial_noise
 	if noise == null:
 		noise = FastNoiseLite.new()
 		noise.noise_type = FastNoiseLite.TYPE_CELLULAR
-		noise.frequency = maxf(initial_noise_frequency, 0.01)
+		noise.frequency = maxf(p.initial_noise_frequency, 0.01)
 		noise.fractal_type = FastNoiseLite.FRACTAL_NONE
 		noise.cellular_distance_function = FastNoiseLite.DISTANCE_EUCLIDEAN_SQUARED
 		noise.cellular_return_type = FastNoiseLite.RETURN_DISTANCE
 		noise.cellular_jitter = 0.9
 
 	# Second octave: a finer copy of the same noise with its own seed so the two don't line up.
-	var detail := clampf(initial_noise_detail, 0.0, 1.0)
+	var detail := clampf(p.initial_noise_detail, 0.0, 1.0)
 	var fine_noise: FastNoiseLite = null
 	if detail > 0.0:
 		fine_noise = noise.duplicate() as FastNoiseLite
 		fine_noise.seed = noise.seed + 1013
-		fine_noise.frequency = noise.frequency * maxf(initial_noise_detail_scale, 0.05)
+		fine_noise.frequency = noise.frequency * maxf(p.initial_noise_detail_scale, 0.05)
 	# Mounds only rise above the base surface, leaving flat ground between piles/dunes.
 	# A stamp carves down to a fixed floor, so these are the places that can be dug deepest.
-	var mound_height := clampf(initial_noise_mound_height, 0.0, max_depth)
+	var mound_height := clampf(p.initial_noise_mound_height, 0.0, max_depth)
 	var mound_noise: FastNoiseLite = null
 	if mound_height > 0.0:
 		mound_noise = FastNoiseLite.new()
 		mound_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
 		mound_noise.seed = noise.seed + 7919
-		mound_noise.frequency = maxf(initial_noise_mound_frequency, 0.005)
+		mound_noise.frequency = maxf(p.initial_noise_mound_frequency, 0.005)
 	var heights := PackedFloat32Array()
 	heights.resize(pixel_count)
 	var image := Image.create(resolution, resolution, false, Image.FORMAT_RGB8)
-	var height_amplitude := clampf(initial_noise_height, 0.0, max_depth)
+	var height_amplitude := clampf(p.initial_noise_height, 0.0, max_depth)
 	var pixel_world_size_x := area_size.x / float(resolution - 1)
 	var pixel_world_size_z := area_size.y / float(resolution - 1)
 	for y in resolution:
@@ -951,12 +752,15 @@ func _make_initial_noise_image() -> Image:
 			if fine_noise != null:
 				# Normalized so the combined height still peaks at initial_noise_height.
 				noise_value = (noise_value + detail * fine_noise.get_noise_2d(world_x, world_z)) / (1.0 + detail)
-			if initial_noise_invert:
+			if p.initial_noise_invert:
 				noise_value = -noise_value
-			var height := noise_value * height_amplitude
+			# The noise multiplies the surface level (base + hills) instead of being added to it:
+			# flat ground is unchanged (amplitude * noise) and hills carry proportionally bigger texture.
+			var surface_level := height_amplitude
 			if mound_noise != null:
 				var mound := smoothstep(-0.1, 0.6, mound_noise.get_noise_2d(world_x, world_z))
-				height = minf(height + mound * mound_height, max_depth)
+				surface_level += mound * mound_height
+			var height := minf(surface_level * (1.0 + noise_value) - height_amplitude, max_depth)
 			heights[y * resolution + x] = height
 
 	for y in resolution:
@@ -1125,8 +929,8 @@ func _process(delta: float) -> void:
 		_refill_idle += delta
 	var refill_now := false
 	var refill_dt := 0.0
-	var heal_rate := 4.0 * recovery_intensity * refill_levels_per_sec / 255.0
-	if heal_rate > 0.0001 and recovery_intensity > 0.001 and _prime_frames == 0 \
+	var heal_rate := 4.0 * _mp.recovery_intensity * _mp.refill_levels_per_sec / 255.0
+	if heal_rate > 0.0001 and _mp.recovery_intensity > 0.001 and _prime_frames == 0 \
 			and _refill_idle < 5.5 / heal_rate:
 		_refill_timer += delta
 		if _refill_timer >= refill_interval:
@@ -1150,7 +954,7 @@ func _run_refill(now: bool, dt: float) -> void:
 		_refill.visible = now
 	if not now:
 		return
-	var levels := recovery_intensity * refill_levels_per_sec * dt
+	var levels := _mp.recovery_intensity * _mp.refill_levels_per_sec * dt
 	var recovery_alpha := 1.0 - exp(-4.0 * levels / 255.0)
 	_refill_material.set_shader_parameter("recovery_alpha", recovery_alpha)
 	_refill_material.set_shader_parameter("seed", randf() * 1000.0)
@@ -1161,7 +965,7 @@ func _try_puff(d: Deformer, _id: int, push: Vector3) -> void:
 
 ## Spawns a puff at a contact. Deformer sources are rate-limited by puff_min_interval.
 func _spawn_puff(world_pos: Vector3, radius: float, push: Vector3, source: Node) -> void:
-	if not puffs_enabled:
+	if not _mp.puffs_enabled:
 		return
 	var puff_start := Time.get_ticks_usec()
 	var now := Time.get_ticks_msec() * 0.001

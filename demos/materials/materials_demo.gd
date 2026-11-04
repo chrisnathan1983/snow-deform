@@ -7,6 +7,7 @@ const PRESETS := ["snow", "sand", "mud", "dirt", "ash"]
 const AREA := 24.0
 
 var _surface: DeformableSurface
+var _quality_presets: Array[DeformableSurfaceQuality] = []
 var _deformer: Deformer
 var _camera: Camera3D
 var _sun: DirectionalLight3D
@@ -58,17 +59,15 @@ func _build_world() -> void:
 
 	_surface = DeformableSurface.new()
 	_surface.sun = _sun
-	_surface.quality = DeformableSurface.Quality.MEDIUM
-	var profile := DeformableSurfaceSettings.new()
-	profile.area_size = AREA
+	_surface.size = AREA
+	var profile := DeformableSurfaceQuality.new()
 	profile.res = 1024
 	profile.subdiv = 192
-	var material_profile := DeformableSurfaceMaterialProfile.new()
-	material_profile.recovery_intensity = 0.0
-	_surface.material_profile = material_profile
-	_surface.medium_surface_quality = profile
-	_surface.low_surface_quality = _scaled(profile, 512, 96)
-	_surface.high_surface_quality = _scaled(profile, 1536, 256)
+	_quality_presets = [_scaled(profile, 512, 96), profile, _scaled(profile, 1536, 256)]
+	_surface.quality = profile
+	var surface_type := DeformableSurfaceType.new()
+	surface_type.recovery_intensity = 0.0
+	_surface.surface_type = surface_type
 	add_child(_surface)
 
 	_deformer = Deformer.new()
@@ -97,8 +96,8 @@ func _build_world() -> void:
 	_update_camera()
 
 
-func _scaled(base: DeformableSurfaceSettings, res: int, subdiv: int) -> DeformableSurfaceSettings:
-	var p := base.duplicate() as DeformableSurfaceSettings
+func _scaled(base: DeformableSurfaceQuality, res: int, subdiv: int) -> DeformableSurfaceQuality:
+	var p := base.duplicate() as DeformableSurfaceQuality
 	p.res = res
 	p.subdiv = subdiv
 	return p
@@ -133,10 +132,10 @@ func _build_textures() -> void:
 
 func _apply_preset(preset: String) -> void:
 	_preset = preset
-	var profile := load(PRESET_DIR + preset + "_profile.tres") as DeformableSurfaceMaterialProfile
+	var profile := load(PRESET_DIR + preset + "_profile.tres") as DeformableSurfaceType
 	_material = profile.material.duplicate() as ShaderMaterial
-	# Each preset starts with its own noise (carried by the profile).
-	_surface.material_profile = profile
+	# Each preset starts with its own noise (carried by the surface type).
+	_surface.surface_type = profile
 	_push_material()
 
 
@@ -169,6 +168,7 @@ func _build_ui() -> void:
 	var fields: Array[DeformableSurface] = [_surface]
 	var settings := DemoSettings.create(_hud, fields)
 	settings.preset_handler = _apply_preset
+	settings.quality_presets = _quality_presets
 	settings.add_surface_tab()
 	settings.add_graphics_tab(_sun)
 

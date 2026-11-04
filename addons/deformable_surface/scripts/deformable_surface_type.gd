@@ -1,12 +1,12 @@
 @tool
-class_name DeformableSurfaceMaterialProfile
+class_name DeformableSurfaceType
 extends Resource
 ## What the surface is made of: how deep it sinks, how it piles up, how it heals and how it
 ## looks. Independent of quality (map resolution, mesh density, budgets), which lives in
-## DeformableSurfaceSettings.
+## DeformableSurfaceQuality.
 
 ## Label reported by DeformableSurface.contact (e.g. for footstep audio): "snow", "sand", ...
-@export var surface_type: StringName = &"snow"
+@export var type_name: StringName = &"snow"
 
 ## Optional look (colors, textures, roughness, sparkle). Used when DeformableSurface.material is empty.
 @export var material: ShaderMaterial
@@ -58,17 +58,47 @@ extends Resource
 @export var wrapped_diffuse_lighting := true
 
 
+## Every exported value by name, so new properties never need to be listed by hand.
 func to_dictionary() -> Dictionary:
-	return {
-		"max_depth": max_depth,
-		"berm_strength": berm_strength,
-		"berm_height": berm_height,
-		"recovery_intensity": recovery_intensity,
-		"refill_levels_per_sec": refill_levels_per_sec,
-		"puffs_enabled": puffs_enabled,
-		"puff_texture": puff_texture,
-		"puff_color_ramp": puff_color_ramp,
-		"puff_velocity_min": puff_velocity_min,
-		"puff_velocity_max": puff_velocity_max,
-		"wrapped_diffuse_lighting": wrapped_diffuse_lighting,
-	}
+	var values := {}
+	for prop in _property_names():
+		values[prop] = get(prop)
+	return values
+
+
+## Sets each property present in `values`, then clamps. Returns an error message, or "" if fine.
+func apply_dictionary(values: Dictionary) -> String:
+	for prop in _property_names():
+		if not values.has(prop):
+			continue
+		var value: Variant = values[prop]
+		match typeof(get(prop)):
+			TYPE_FLOAT:
+				if typeof(value) != TYPE_INT and typeof(value) != TYPE_FLOAT:
+					return "'%s' must be numeric." % prop
+				value = float(value)
+			TYPE_BOOL:
+				if typeof(value) != TYPE_BOOL:
+					return "'%s' must be a boolean." % prop
+			TYPE_STRING_NAME:
+				value = StringName(value)
+		set(prop, value)
+	clamp_values()
+	return ""
+
+
+func clamp_values() -> void:
+	max_depth = maxf(max_depth, 0.01)
+	berm_strength = clampf(berm_strength, 0.0, 0.5)
+	berm_height = maxf(berm_height, 0.0)
+	recovery_intensity = clampf(recovery_intensity, 0.0, 1.0)
+	refill_levels_per_sec = maxf(refill_levels_per_sec, 0.0)
+
+
+func _property_names() -> PackedStringArray:
+	var names := PackedStringArray()
+	for info in (get_script() as Script).get_script_property_list():
+		if (int(info["usage"]) & PROPERTY_USAGE_SCRIPT_VARIABLE) != 0:
+			names.append(info["name"])
+	return names
+

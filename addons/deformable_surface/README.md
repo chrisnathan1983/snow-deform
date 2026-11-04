@@ -19,8 +19,7 @@ friendly) and requires **Godot 4.3 or newer**.
 
 ## Quick start
 
-1. Add a `DeformableSurface` at ground level. Set `area_size` in the Low/Medium/High/Custom
-   quality profile resources (`DeformableSurfaceSettings`) to a size that covers
+1. Add a `DeformableSurface` at ground level. Set its `size` (meters) to cover
    the area where tracks should appear. It is always square.
 2. Add a `DeformerFootsteps` under each walking character, with its origin at the
    feet and the character facing -Z. For sleds, wheels, or other objects, add
@@ -30,12 +29,12 @@ friendly) and requires **Godot 4.3 or newer**.
 The editor displays a flat preview of the field. A minimal runtime setup:
 
 ```gdscript
-var settings := DeformableSurfaceSettings.new()
-settings.area_size = 24.0
-settings.res = 512
-settings.subdiv = 127
+var quality := DeformableSurfaceQuality.new()
+quality.res = 512
+quality.subdiv = 127
 var surface := DeformableSurface.new()
-surface.apply_surface_quality_settings(settings)   # selects the Custom profile
+surface.size = 24.0
+surface.quality = quality   # or DeformableSurfaceQuality.for_platform()
 surface.sun = $Sun
 add_child(surface)
 
@@ -51,33 +50,31 @@ $Sled.add_child(runner)
 
 The surface and controller for deformation, track recovery, and puffs. Keep the
 field and its parents unrotated and unscaled. The surface is at the field's Y
-position; the field is always square (`area_size` is a single float in the profile).
+position; the field is always square (`size` is a single float on the node).
 
 | Property | Default | Description |
 |---|---:|---|
-| `material` | Empty | Optional `ShaderMaterial` using `shaders/deformable_surface.gdshader`. Each field duplicates the material. Overrides the material profile's material. |
-| `material_profile` | Empty | Optional `DeformableSurfaceMaterialProfile` describing what the surface is made of: depth, berms, recovery, puffs, lighting, default material. Ready-made `snow`, `sand`, `mud`, `dirt` and `ash` profiles are in `resources/materials/`. Without one, snow-like defaults apply. |
+| `material` | Empty | Optional `ShaderMaterial` using `shaders/deformable_surface.gdshader`. Each field duplicates the material. Overrides the surface type's material. |
+| `size` | `40.0` | Width and depth in meters. Smaller areas give sharper prints at the same quality (density is `res / size`). Changing it at runtime rebuilds the mesh and clears tracks. |
+| `surface_type` | Empty | Optional `DeformableSurfaceType` describing what the surface is made of: depth, berms, recovery, puffs, lighting, default material. Ready-made `snow`, `sand`, `mud`, `dirt` and `ash` profiles are in `resources/materials/`. Without one, snow-like defaults apply. |
 | `sun` | Empty | Optional directional light that controls sparkle direction. |
-| `quality` | Medium | Starting quality profile. Choose Low, Medium, High, or Custom. Quality changes preserve tracks unless map resolution, field size, maximum depth, or berm height changes. |
-| `low_surface_quality`, `medium_surface_quality`, `high_surface_quality`, `custom_surface_quality` | Quality resources | Editable `DeformableSurfaceSettings` profiles used by each quality level. Each node starts with its own copy of the addon presets, so Inspector edits don't change the addon's `.tres` files; assign your own saved resource to share one across nodes. Each DeformableSurface also duplicates the selected profile at runtime. |
-| `auto_quality` | `false` | Selects Low on mobile, Medium on desktop browsers, and High elsewhere at startup. Overrides `quality`. |
+| `quality` | Medium | A `DeformableSurfaceQuality` resource: resolution, mesh density and budgets. Use `DeformableSurfaceQuality.low()`, `medium()`, `high()` or `for_platform()`, or your own saved resource. The node keeps its own clamped copy, so assigning one resource to many nodes is safe; to change a value at runtime, edit a duplicate and assign it again. Changes preserve tracks unless the map resolution changes. |
 
-The following technical settings live in the `DeformableSurfaceSettings` profile for the active quality level; the runtime node copies them at startup and on quality changes, so set them in the profile resources (or via `apply_surface_quality_settings()`), not on the node.
+The following technical settings live in `DeformableSurfaceQuality`; the node copies them when the resource is assigned.
 
 | Setting | Default | Description |
 |---|---:|---|
-| `area_size` | `40.0` | Width and depth in meters. Smaller areas give sharper prints at the same quality. The options menu edits this as a square field size. |
 | `res`, `subdiv` | `512`, `127` | Deformation map resolution and mesh subdivisions. |
 | `max_stamps_per_frame` | `64` | Maximum deformation stamps drawn per frame. Unfinished tracks continue on later frames. |
 | `refill_interval` | `0.25` | Seconds between track-healing passes. |
 | `puff`, `puff_min_interval` | `8`, `0.2` | Puff particle budget and minimum seconds between puffs from one deformer. |
 | `sparkle` | `1.0` | Quality scale applied on top of the material's `sparkle_strength`. |
 
-The following material settings live in a `DeformableSurfaceMaterialProfile` (`material_profile`). Without one, these defaults apply. They may also be assigned on the node at runtime (for example `recovery_intensity`), but replacing the material profile restores the profile's values.
+The following material settings live in a `DeformableSurfaceType` (`surface_type`). Without one, these defaults apply. The node reads them from a private snapshot of the profile, so edit a copy of the type and assign it rather than changing the shared resource in place. The node exposes `max_depth` (read-only) and `recovery_intensity` and `wrapped_diffuse_lighting` (assignable at runtime); replacing the surface type restores the type's values. `DeformableSurfaceType.to_dictionary()`, `apply_dictionary()` and `clamp_values()` are generated from the exported properties, so every property above is covered under its own name.
 
 | Setting | Default | Description |
 |---|---:|---|
-| `surface_type` | `snow` | Label reported by the `contact` signal (for example footstep audio). |
+| `type_name` | `snow` | Label reported by the `contact` signal (for example footstep audio). |
 | `material` | Empty | Default `ShaderMaterial` used when the node's `material` is empty. |
 | `max_depth` | `0.4` | Sink depth in meters at full compression (range 0.01 to 1). Deformers above this height are ignored. |
 | `berm_strength` | `0.15` | Strength of ridges beside tracks; set to `0` to disable berms. |
@@ -96,17 +93,17 @@ The following material settings live in a `DeformableSurfaceMaterialProfile` (`m
 | `initial_noise_height` | `0.2` | Maximum starting height variation in meters (up to 0.5), covering the base noise and its second octave. |
 | `initial_noise_detail` | `0.6` | Second octave: the same noise again, with its own seed, weighted against the main noise (`0` = off). Total height still peaks at `initial_noise_height`. |
 | `initial_noise_detail_scale` | `0.25` | Frequency multiplier of the second octave (0.1 to 8). Below `1` makes broad hills; above `1` adds fine grain. |
-| `initial_noise_mound_height` | `0.3` | Height in meters of raised piles and dunes added on top of the starting surface (`0` = none). Capped by `max_depth`. Digging into a mound goes deeper than on flat ground. |
+| `initial_noise_mound_height` | `0.3` | Height in meters of raised piles and dunes (`0` = none). The noise multiplies the surface level, so mounds carry proportionally stronger texture. Capped by `max_depth`. Digging into a mound goes deeper than on flat ground. |
 | `initial_noise_mound_frequency` | `0.1` | Mound size: lower values make larger, more widely spaced dunes (0.02 to 1). |
 
 The ready-made profiles override depth and starting height: snow `0.5` / `0.25` (max depth / noise height) with `0.4` mounds, mud `0.35` / `0.08` / `0.1`, ash `0.3` / `0.1` / `0.2`, sand `0.2` / `0.1` / `0.18`, dirt `0.1` / `0.025` / `0.04`.
 
-**Print size vs. resolution:** the map is `res` pixels across `area_size` meters. At the default
+**Print size vs. resolution:** the map is `res` pixels across `size` meters. At the default
 Medium profile (512 px over 40 m, about 12.8 px/m) a footprint is only a few pixels wide, and
-Low (256 px) is about half that. For crisp prints, lower `area_size` to what the player can
-actually reach (for example 10-20 m) or raise `res`; pixel density is `res / area_size`.
+Low (256 px) is about half that. For crisp prints, lower `size` to what the player can
+actually reach (for example 10-20 m) or raise `res`; pixel density is `res / size`.
 
-The starting surface is part of the material profile. To get distinct dropped-sphere dimples (the snow look), keep `initial_noise_enabled` on (the default) and leave `initial_noise` empty; the default
+The starting surface is part of the surface type. To get distinct dropped-sphere dimples (the snow look), keep `initial_noise_enabled` on (the default) and leave `initial_noise` empty; the default
 pattern uses cellular Euclidean Squared distance with Distance return, jitter `0.9`,
 frequency `0.8`, and `0.2` m height variation. A second octave of the same noise (a
 low `initial_noise_detail_scale` gives broad hills, a high one fine grain) is layered on
@@ -120,42 +117,23 @@ starting pattern, keeping the dimples while tracks gradually refill.
 
 #### Quality resources
 
-`DeformableSurfaceSettings` contains technical per-surface settings: map resolution, mesh
+`DeformableSurfaceQuality` contains technical per-surface settings: map resolution, mesh
 subdivisions, stamp and puff budgets, refill cadence, and the sparkle quality scale.
-`DeformableSurfaceMaterialProfile` contains what the surface is made of: depth, berms,
+`DeformableSurfaceType` contains what the surface is made of: depth, berms,
 recovery, puffs, lighting and the default material.
 
-The classic demo uses the `DeformableSurfaceSettings` resources here together
-with weather presets from the weather addon. The surface addon uses only
-`DeformableSurfaceSettings` for surface profiles.
-
-The existing Low, Medium, High, and Custom resources are in
-`resources/quality/`; assign or edit these profiles on DeformableSurface in the
-Inspector. Node references such as `material` and `sun`, and startup-only
-`auto_quality`, remain scene settings rather than menu values.
+The Low, Medium and High presets are resources in `resources/quality/`, also available as
+`DeformableSurfaceQuality.low()`, `medium()` and `high()` (each returns a fresh copy), with
+`for_platform()` picking one for the current device (`platform_tier()` returns 0, 1 or 2).
+There is no Custom preset: any `DeformableSurfaceQuality` you create is a custom quality. A
+settings menu edits a duplicate and assigns it to `quality`. Node references such as `material`
+and `sun` remain scene settings rather than menu values.
 Pits, berms, and their baked slopes recover together; recovery does not change
 berm height or the puff rate.
 
 **Methods and signal**
 
-- `DeformableSurface.recommended_quality()` returns a recommended quality for the
-  current platform.
-- `DeformableSurfaceSettings` contains technical settings.
-- `get_quality_settings(q)` returns the selected quality profile merged with the
-  current material profile as one dictionary.
-- `get_surface_quality_settings(q)` returns a copy of the selected surface
-  resource; `apply_surface_quality_settings(settings)` applies surface-only
-  settings as the Custom quality.
-- `get_active_quality_settings()` returns a copy of the active quality settings.
-- `has_custom_quality_settings()` reports whether the active settings differ
-  from the selected built-in preset.
-- `apply_quality_settings(settings)` applies technical values to the per-field duplicate
-  of the custom surface profile and material values to a copy of the material profile,
-  without changing built-in presets or source resources. It accepts a dictionary.
-  Applying custom settings marks the active quality as Custom, even if the
-  values happen to match a preset. Settings updates preserve existing tracks
-  unless the field size, map resolution, maximum depth, or berm height changes;
-  mesh subdivision changes rebuild the mesh without clearing tracks.
+- `quality_changed(q)` is emitted (with the node's copy of the quality) when the quality changes.
 - `reset_trails()` clears deformation without changing the mesh, material, or
   particle settings.
 - `get_stamps_used()` returns the stamps drawn this frame, for performance readouts.
@@ -170,13 +148,12 @@ berm height or the puff rate.
   and respect `max_stamps_per_frame`; positions outside the field are ignored.
 - `StampMode`: `CARVE` presses down, `RAISE` piles up (snow accumulation, digging
   spoil; height is capped at about `max_depth`), `SMOOTH` levels toward flat (a snow plow / erase).
-- `contact(position, depth, surface_type, source, radius, puff)` is emitted when a `Deformer` touches
+- `contact(position, depth, type_name, source, radius, puff)` is emitted when a `Deformer` touches
   down (each footfall) or a `stamp_at` lands. Use it for footstep audio and gameplay.
   `depth` is the nominal signed depth in meters (positive = pressed down, negative = raised,
-  `0` = smoothed), `surface_type` is the material profile's `surface_type` (`snow`, `sand`,
+  `0` = smoothed), `type_name` is the surface type's `type_name` (`snow`, `sand`,
   `mud`, `dirt`, `ash` for the presets, or your own), and `source` is the `Deformer`
   (`null` for `stamp_at`); `radius` is the stamp radius in meters. `puff` says whether this contact wants a puff; the surface's own puff emitter is just a listener on this signal. Continuous trail stamps while moving don't re-emit.
-- `quality_changed(q)` is emitted when the quality changes.
 
 Changing `quality` rebuilds the surface mesh and stamp/puff budgets. Existing tracks are
 preserved unless the map resolution or field size changes. Changes to other
@@ -304,10 +281,10 @@ its scale and strength with `bevel_noise_scale` and `bevel_noise_strength`.
 ## Performance and limitations
 
 - Start with Low quality on phones. Consider disabling MSAA and real-time
-  shadows, and keep `area_size` as small as practical.
+  shadows, and keep `size` as small as practical.
 - The deformation map uses approximately 256², 512², or 1024² RGB8 texels for
   Low, Medium, and High respectively.
-- `area_size` should be square. Keep the field and its parents unrotated and
+- The field is always square (`size`). Keep the field and its parents unrotated and
   unscaled; otherwise prints may stretch or map incorrectly.
 - Surface depth is not available on the CPU; reading it back would stall rendering.
   Add visual sinking separately if characters need to appear to sink.
@@ -322,10 +299,10 @@ its scale and strength with `bevel_noise_scale` and `bevel_noise_strength`.
 - `scripts/deformers/deformer_footsteps.gd` defines `DeformerFootsteps`.
 - `scripts/deformers/deformer_tracks.gd` defines `DeformerTracks`.
 - `scripts/deformers/deformer_particles.gd` contains the per-field surface-puff pool.
-- `scripts/deformable_surface_settings.gd` contains surface quality settings.
-- `scripts/deformable_surface_material_profile.gd` defines `DeformableSurfaceMaterialProfile`.
-- `resources/quality/` contains Low, Medium, High, and Custom profiles.
-- `resources/materials/` contains the snow, sand, mud, dirt and ash material profiles and their materials.
+- `scripts/deformable_surface_quality.gd` defines `DeformableSurfaceQuality`.
+- `scripts/deformable_surface_type.gd` defines `DeformableSurfaceType`.
+- `resources/quality/` contains the Low, Medium and High quality presets.
+- `resources/materials/` contains the snow, sand, mud, dirt and ash surface types and their materials.
 - `shaders/` contains the surface, additive/subtractive stamp, and map
   refill shaders.
 - `icons/` contains the node icons.
