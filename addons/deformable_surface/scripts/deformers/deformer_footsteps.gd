@@ -5,6 +5,9 @@ extends Node3D
 ## Needs a DeformableSurface in the scene.
 ## Two alternating feet stamp footprints as the character moves.
 
+## Which DeformableSurface the footprints affect. Leave empty to affect every DeformableSurface.
+@export var field: DeformableSurface : set = set_field
+@export_range(0.0, 1.0) var strength := 1.0 : set = set_strength
 @export var foot_radius := 0.17
 @export var foot_aspect := 2.0
 @export var spread := 0.15       # left/right offset from center
@@ -28,6 +31,8 @@ var _planted_basis: Array[Basis] = [Basis.IDENTITY, Basis.IDENTITY]
 func _ready() -> void:
 	for i in 2:
 		var d := Deformer.new()
+		d.field = field
+		d.strength = strength
 		d.radius = foot_radius
 		d.aspect = foot_aspect
 		d.puff_on_touchdown = puff_on_touchdown
@@ -37,6 +42,18 @@ func _ready() -> void:
 		_feet.append(d)
 
 	_prev = global_position
+
+
+func set_field(value: DeformableSurface) -> void:
+	field = value
+	for foot in _feet:
+		foot.field = value
+
+
+func set_strength(value: float) -> void:
+	strength = clampf(value, 0.0, 1.0)
+	for foot in _feet:
+		foot.strength = strength
 
 
 func set_footprint_texture(value: Texture2D) -> void:

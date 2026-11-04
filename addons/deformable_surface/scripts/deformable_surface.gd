@@ -35,12 +35,19 @@ const STAMP_SHADER: Shader = preload("../shaders/deformable_surface_stamp.gdshad
 const BERM_REACH := 2.0     # berm ring radius, in brush radii
 const BERM_FORWARD := 0.3   # elongated prints push their berm ahead by this fraction
 const MAP_NEUTRAL := 128.0 / 255.0
+const STAMP_MIN_RADIUS_PX := 0.5
+const STAMP_MAX_ASPECT := 8.0
 const STAMP_CAPACITY := 512
 
 @export_group("Surface")
 ## World size of the surface, in meters: a square centered on this node. Changing it at
 ## runtime rebuilds the mesh and clears the trails.
 @export_range(1.0, 256.0, 1.0, "or_greater") var size := 40.0 : set = set_size
+## On: draws the built-in flat snow plane. Off: only the deformation map is maintained, for your
+## own terrain or foliage shaders (see get_deform_texture() and get_deform_area_transform()).
+## Off also stops deformers being culled or weakened by their height above this node, so
+## they work on hills; use Deformer `active` to control contact.
+@export var render_mesh := true : set = set_render_mesh
 ## Square extent derived from `size`; kept as a Vector2 for the stamp math.
 var area_size := Vector2(40, 40)
 ## Optional. A ShaderMaterial using shaders/deformable_surface.gdshader, to customize colors and
@@ -127,6 +134,7 @@ var _puffs: SurfacePuffs
 
 func _enter_tree() -> void:
 	if Engine.is_editor_hint():
+		set_notify_transform(true)
 		return
 	if not instances.has(self):
 		instances.append(self)
@@ -134,6 +142,11 @@ func _enter_tree() -> void:
 		_register_deformer(deformer)
 	for deformer in Deformer.assigned.get(get_instance_id(), []):
 		_register_deformer(deformer)
+
+
+func _notification(what: int) -> void:
+	if Engine.is_editor_hint() and what == NOTIFICATION_TRANSFORM_CHANGED:
+		update_configuration_warnings()
 
 
 func _ready() -> void:
@@ -172,10 +185,8 @@ func _ready() -> void:
 		"used": 0,
 	})
 
-	_mesh = MeshInstance3D.new()
-	_mesh.extra_cull_margin = 2.0   # vertices get displaced away from the flat AABB
-	_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(_mesh)
+	if render_mesh:
+		_create_runtime_mesh()
 
 	_runtime = true
 	_configure_quality(null)
@@ -186,6 +197,13 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	instances.erase(self)
 	_dirty_deformers.clear()
+
+
+func _create_runtime_mesh() -> void:
+	_mesh = MeshInstance3D.new()
+	_mesh.extra_cull_margin = 2.0   # vertices get displaced away from the flat AABB
+	_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_mesh)
 
 
 func _register_deformer(deformer: Deformer) -> void:
@@ -401,6 +419,34 @@ func set_wrapped_diffuse_lighting(enabled: bool) -> void:
 		_mat.set_shader_parameter("wrapped_diffuse_lighting", enabled)
 
 
+func set_render_mesh(value: bool) -> void:
+	if render_mesh == value:
+		return
+	render_mesh = value
+	if Engine.is_editor_hint():
+		_refresh_preview()
+	elif _runtime:
+		if render_mesh:
+			_create_runtime_mesh()
+			_configure_mesh()
+			_configure_material()
+		elif is_instance_valid(_mesh):
+			_mesh.queue_free()
+			_mesh = null
+
+
+## The live deformation map (R = height, G/B = X/Z slopes), or null before the surface is ready.
+## Bind it in your own shader and decode it with deformable_surface.gdshaderinc.
+func get_deform_texture() -> Texture2D:
+	return _vp.get_texture() if _vp != null else null
+
+
+## (center_x, center_z, 1 / size_x, 1 / size_z) in world space, for deform_world_to_uv().
+func get_deform_area_transform() -> Vector4:
+	var gp := global_position
+	return Vector4(gp.x, gp.z, 1.0 / area_size.x, 1.0 / area_size.y)
+
+
 func set_size(v: float) -> void:
 	size = maxf(v, 1.0)
 	var new_area := Vector2.ONE * size
@@ -411,7 +457,8 @@ func set_size(v: float) -> void:
 		_refresh_preview()
 		update_configuration_warnings()
 	elif _runtime:
-		_configure_mesh()
+		if is_instance_valid(_mesh):
+			_configure_mesh()
 		_clear_map()
 
 
@@ -447,6 +494,7 @@ func _refresh_preview() -> void:
 		add_child(_mesh)   # no owner set: not saved with the scene, hidden from the dock
 	var plane := PlaneMesh.new()
 	plane.size = area_size
+	_mesh.visible = render_mesh
 	_mesh.mesh = plane
 	var m: ShaderMaterial
 	var source := _source_material()
@@ -548,11 +596,11 @@ func _configure_quality(previous: DeformableSurfaceQuality) -> void:
 	if map_changed:
 		_configure_deformation_map()
 
-	var plane := _mesh.mesh as PlaneMesh
-	if (plane == null
+	var plane := _mesh.mesh as PlaneMesh if is_instance_valid(_mesh) else null
+	if (is_instance_valid(_mesh) and (plane == null
 			or not plane.size.is_equal_approx(area_size)
 			or plane.subdivide_width != current.subdiv
-			or plane.subdivide_depth != current.subdiv):
+			or plane.subdivide_depth != current.subdiv)):
 		_configure_mesh()
 
 	if (previous == null
@@ -583,7 +631,8 @@ func _configure_mesh() -> void:
 
 
 func _configure_material() -> void:
-	_mesh.material_override = _mat
+	if is_instance_valid(_mesh):
+		_mesh.material_override = _mat
 	_mat.set_shader_parameter("deform_map", _vp.get_texture())
 	_mat.set_shader_parameter("max_depth", max_depth)
 	_mat.set_shader_parameter("sparkle_intensity", _active_quality_settings.sparkle)
@@ -601,14 +650,10 @@ func _configure_particles() -> void:
 		_apply_puff_look()
 
 
-## Puffs follow the surface: profile texture/ramp, else the surface color fading out.
+## Puffs follow the surface type: its texture/ramp, else a soft dot in the surface color fading out.
 func _apply_puff_look() -> void:
 	var p := _effective_surface_type()
 	var texture := p.puff_texture
-	if texture == null and _mat != null:
-		var albedo_texture: Variant = _mat.get_shader_parameter("albedo_texture")
-		if albedo_texture is Texture2D:
-			texture = albedo_texture
 	var ramp := p.puff_color_ramp
 	if ramp == null:
 		var surface_color := Color(0.9, 0.93, 0.98)
@@ -847,11 +892,11 @@ func _process(delta: float) -> void:
 			_dirty_deformers.erase(id)
 			continue
 		var local := to_local(d.global_position)
-		if local.y > max_depth or absf(local.x) > area_size.x * 0.5 or absf(local.z) > area_size.y * 0.5:
+		if (render_mesh and local.y > max_depth) or absf(local.x) > area_size.x * 0.5 or absf(local.z) > area_size.y * 0.5:
 			_last.erase(id)
 			_dirty_deformers.erase(id)
 			continue
-		var depth_ratio := clampf(1.0 - (local.y / max_depth), 0.1, 1.0)
+		var depth_ratio := clampf(1.0 - (local.y / max_depth), 0.1, 1.0) if render_mesh else 1.0
 		var effective_strength := d.strength * depth_ratio
 		var pos := (Vector2(local.x, local.z) / area_size + Vector2(0.5, 0.5)) * res
 		var r_px := maxf(d.radius, 0.01) * px_per_m
@@ -979,7 +1024,8 @@ func _spawn_puff(world_pos: Vector3, radius: float, push: Vector3, source: Node)
 		_puffs.set_amount(_active_quality_settings.puff)
 		add_child(_puffs)
 		_apply_puff_look()
-	_puffs.burst(Vector3(world_pos.x, global_position.y, world_pos.z), radius, push)
+	var puff_y := global_position.y if render_mesh else world_pos.y
+	_puffs.burst(Vector3(world_pos.x, puff_y, world_pos.z), radius, push)
 	_cost_puffs_us += Time.get_ticks_usec() - puff_start
 
 
@@ -1005,10 +1051,13 @@ func _stamp(
 	if int(batch["used"]) >= multimesh.instance_count:
 		return false
 
-	var len_r := r_px * sqrt(aspect)
-	var wid_r := r_px / sqrt(aspect)
+	# Match the shader's radius floor and keep the packed aspect within its 0..1 range.
+	var stamp_radius_px := maxf(r_px, STAMP_MIN_RADIUS_PX)
+	var stamp_aspect := clampf(aspect, 0.001, STAMP_MAX_ASPECT)
+	var len_r := stamp_radius_px * sqrt(stamp_aspect)
+	var wid_r := stamp_radius_px / sqrt(stamp_aspect)
 	var berm_radius := Vector2(len_r, wid_r) * BERM_REACH
-	var berm_offset_x := len_r * BERM_FORWARD * clampf(aspect - 1.0, 0.0, 1.0)
+	var berm_offset_x := len_r * BERM_FORWARD * clampf(stamp_aspect - 1.0, 0.0, 1.0)
 	var outer_half_extent := Vector2(
 		maxf(len_r, absf(berm_offset_x) + berm_radius.x),
 		maxf(wid_r, berm_radius.y)
@@ -1024,12 +1073,12 @@ func _stamp(
 	)
 	multimesh.set_instance_color(
 		instance,
-		Color(strength, r_px / float(_vp.size.x), float(mode) * 0.25, fposmod(phase, 1.0))
+		Color(strength, stamp_radius_px / float(_vp.size.x), float(mode) * 0.25, fposmod(phase, 1.0))
 	)
 	multimesh.set_instance_custom_data(
 		instance,
 		Color(
-			aspect / 8.0,
+			stamp_aspect / STAMP_MAX_ASPECT,
 			3.0 if capsule else (2.0 if track else (1.0 if sliding else 0.0)),
 			wrapf(heading, -PI, PI) / TAU + 0.5,
 			(2.0 if flip_x else 1.0) if stamp_texture != null else 0.0

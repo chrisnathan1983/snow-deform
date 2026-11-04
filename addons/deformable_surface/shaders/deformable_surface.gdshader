@@ -1,5 +1,7 @@
 shader_type spatial;
 
+#include "res://addons/deformable_surface/shaders/deformable_surface.gdshaderinc"
+
 // Deformation map: R = combined height (0.5 = flat, lower = pit, higher = berm)
 //                  G/B = encoded X/Z height gradients.
 uniform sampler2D deform_map : filter_linear, repeat_disable;
@@ -43,9 +45,6 @@ uniform float sparkle_fade_end = 45.0;
 varying vec3 world_pos;
 varying vec3 world_normal;
 
-const float MAP_NEUTRAL = 128.0 / 255.0;
-const float SLOPE_RANGE = 16.0;
-
 float hash12(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
 	p3 += dot(p3, p3.yzx + 33.33);
@@ -69,17 +68,12 @@ vec2 world_noise(vec2 p) {
 	return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
 
-// Height in "depth units" (1.0 = max_depth): negative = pressed, positive = berm.
-float height_n(float encoded_height) {
-	return (encoded_height - MAP_NEUTRAL) * 2.0;
-}
-
 float sample_vertex_height(vec2 uv) {
 	return textureLod(deform_map, uv, 0.0).r;
 }
 
 void vertex() {
-	float height = height_n(sample_vertex_height(UV));
+	float height = deform_height_n(sample_vertex_height(UV));
 	vec3 base_world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	float dy = height * max_depth;
 	VERTEX.y += dy;
@@ -127,11 +121,11 @@ vec3 sample_material(vec2 uv, out vec2 nxy) {
 
 void fragment() {
 	vec3 map_sample = texture(deform_map, UV).rgb;
-	float height = height_n(map_sample.r);
+	float height = deform_height_n(map_sample.r);
 	float pit_depth = clamp(-height, 0.0, 1.0);
 	float hc = 1.0 - pit_depth;
 	float ice_glaze = smoothstep(0.75, 0.98, pit_depth) * glaze_amount;
-	vec2 slope = (map_sample.gb - vec2(MAP_NEUTRAL)) * SLOPE_RANGE * (normal_strength / 10.0);
+	vec2 slope = deform_decode_slope(map_sample.gb) * (normal_strength / 10.0);
 
 	vec2 detail_n;
 	vec3 tex_col = sample_material(UV, detail_n) * albedo_tint;

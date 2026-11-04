@@ -18,6 +18,11 @@ const DEMOS := [
 		"scene": "res://demos/materials/materials_demo.tscn",
 	},
 	{
+		"title": "Custom Terrain & Grass",
+		"description": "Hilly terrain and grass with their own shaders, driven by a surface with render_mesh off.",
+		"scene": "res://demos/custom_terrain/custom_terrain_demo.tscn",
+	},
+	{
 		"title": "Procedural Snow Playground",
 		"description": "A self-contained playground with actors, props, and quality controls.",
 		"scene": "res://demos/procedural_playground/snow_demo.tscn",
@@ -80,7 +85,7 @@ func _build_interface() -> void:
 	for demo in DEMOS:
 		var button := Button.new()
 		button.text = "%s\n%s" % [demo["title"], demo["description"]]
-		button.custom_minimum_size = Vector2(620.0, 74.0)
+		button.custom_minimum_size = Vector2(620.0, 62.0)
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		button.add_theme_font_size_override("font_size", 17)
 		button.pressed.connect(_launch_demo.bind(demo["scene"]))

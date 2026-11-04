@@ -22,7 +22,9 @@ Requires **Godot 4.3 or newer**.
 
 Run the project to open the demo launcher, or run `demos/launcher.tscn`
 directly. The `demos/` folder contains the launcher and one folder per demo:
-`classic/`, `infinite_snow/`, and `procedural_playground/`.
+`classic/`, `infinite_snow/`, `materials/`, `custom_terrain/`, and `procedural_playground/`.
+The custom terrain demo (`demos/custom_terrain/custom_terrain_demo.tscn`) turns off `render_mesh`
+and drives a hilly terrain and bending grass from the deformation map (see "Custom terrain and foliage").
 The infinite snow example (`demos/infinite_snow/infinite_snow.tscn`) recycles
 a 3x3 grid of independent DeformableSurfaces around the player while one
 SnowWorldManager supplies shared weather.
@@ -101,6 +103,7 @@ The snow surface. Keep it unrotated and unscaled; the surface is at its Y.
 | `material` | Optional `ShaderMaterial` using `shaders/deformable_surface.gdshader` (colors, sparkle). Duplicated per field. Overrides the surface type's material. |
 | `size` | Width and depth in meters (square). Smaller = sharper prints for the same quality: pixel density is `res / size`. At Medium's default 512 px over 40 m (12.8 px/m) a footprint is only a few pixels wide, so use 10-20 m or a higher `res` for crisp prints. |
 | `surface_type` | Optional `DeformableSurfaceType`: what the surface is made of (see below). Presets in `resources/materials/*_profile.tres`. |
+| `render_mesh` | On (default): draws the built-in flat plane. Off: only the deformation map is kept, and deformers are no longer culled or weakened by their height above the node, so it works as a deformation server for hills (see "Custom terrain and foliage"). |
 | `sun` | Optional light the sparkle follows. |
 | `quality` | A `DeformableSurfaceQuality` resource (technical settings below). Use `DeformableSurfaceQuality.low()`, `medium()`, `high()` or `for_platform()`, or your own. The node keeps its own copy; assign a changed resource again to apply it. Empty = Medium. |
 
@@ -178,6 +181,21 @@ Create a ShaderMaterial in the inspector, pick `shaders/deformable_surface.gdsha
 Keep snow albedo slightly below pure white, or lighting clips to a flat sheet and
 sparkles disappear.
 
+## Custom terrain and foliage
+Set `render_mesh` to false, then feed your own shaders from the map. Each frame:
+
+```gdscript
+var mat: ShaderMaterial = terrain.material_override
+mat.set_shader_parameter("deform_map", surface.get_deform_texture())
+mat.set_shader_parameter("deform_area", surface.get_deform_area_transform())
+mat.set_shader_parameter("deform_max_depth", surface.max_depth)
+```
+
+In the shader, `#include "res://addons/deformable_surface/shaders/deformable_surface.gdshaderinc"`
+and use `sample_deformation_height()` in `vertex()` to displace terrain, or `sample_deformation()`
+(height, pit depth, slope) to blend color, roughness and normals. The slope points away from the
+middle of a footprint, so grass shaders can also use it as a bend direction.
+
 ## Performance notes
 - The deformation map renders **only when something changed** (or every
   `refill_interval` while it is snowing).
@@ -227,6 +245,7 @@ demos/
   launcher.tscn       start screen for all demos
   common/             shared demo code: DemoHud + DemoSettings + DemoTheme (one HUD), DemoNav (back-to-launcher button + Esc), TouchSticks, props, character
   materials/          material preset showcase, brush modes and vehicle tracks
+  custom_terrain/     render_mesh = false: hilly terrain and grass with their own shaders on the deformation map
   classic/            world scene, actors, and scenery
   infinite_snow/      recycled grid of independent DeformableSurfaces
   procedural_playground/ finite and infinite playground scenes

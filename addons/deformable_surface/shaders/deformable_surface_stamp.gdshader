@@ -20,6 +20,25 @@ void vertex() {
 	stamp_phase = COLOR.a;
 }
 
+// Alpha of the stamp sprite at a footprint-space pixel offset (0 outside the texture).
+float sprite_alpha(sampler2D tex, vec2 p, vec2 pit_rad, float is_segment, float flag, float phase) {
+	vec2 footprint_uv = p / (2.0 * pit_rad) + vec2(0.5);
+	vec2 sprite_uv = vec2(footprint_uv.y, 1.0 - footprint_uv.x);
+	if (is_segment > 0.5) {
+		// One tile is as long as the track is wide times the texture's height/width ratio.
+		vec2 tex_size = vec2(textureSize(tex, 0));
+		float tile_px = 2.0 * pit_rad.y * tex_size.y / tex_size.x;
+		sprite_uv.y = 1.0 - fract(phase + p.x / tile_px);
+	}
+	if (flag > 1.5) {
+		sprite_uv.x = 1.0 - sprite_uv.x;
+	}
+	if (any(lessThan(sprite_uv, vec2(0.0))) || any(greaterThan(sprite_uv, vec2(1.0)))) {
+		return 0.0;
+	}
+	return texture(tex, sprite_uv).a;
+}
+
 void fragment() {
 	float strength = stamp_params.x;
 	float radius_px = max(stamp_params.y * map_resolution, 0.5);
@@ -56,22 +75,26 @@ void fragment() {
 		cap_q = vec2(max(abs(pos_px.x) - pit_rad.x, 0.0), pos_px.y);
 	}
 	float sprite_mask = 1.0;
+	vec2 sprite_grad = vec2(0.0);
+	float sprite_cover = 1.0;
 	if (has_sprite > 0.5) {
-		vec2 footprint_uv = pos_px / (2.0 * pit_rad) + vec2(0.5);
-		vec2 sprite_uv = vec2(footprint_uv.y, 1.0 - footprint_uv.x);
-		if (is_segment > 0.5) {
-			// One tile is as long as the track is wide times the texture's height/width ratio.
-			vec2 tex_size = vec2(textureSize(TEXTURE, 0));
-			float tile_px = 2.0 * pit_rad.y * tex_size.y / tex_size.x;
-			sprite_uv.y = 1.0 - fract(stamp_phase + pos_px.x / tile_px);
-		}
-		if (stamp_data.w > 1.5) {
-			sprite_uv.x = 1.0 - sprite_uv.x;
-		}
-		if (any(lessThan(sprite_uv, vec2(0.0))) || any(greaterThan(sprite_uv, vec2(1.0)))) {
-			sprite_mask = 0.0;
-		} else {
-			sprite_mask = texture(TEXTURE, sprite_uv).a;
+		sprite_mask = sprite_alpha(TEXTURE, pos_px, pit_rad, is_segment, stamp_data.w, stamp_phase);
+		// Alpha gradient (central differences) shapes the pit walls to the sprite outline.
+		float eps = max(0.04 * pit_rad.y, 1.0);
+		sprite_grad = vec2(
+			sprite_alpha(TEXTURE, pos_px + vec2(eps, 0.0), pit_rad, is_segment, stamp_data.w, stamp_phase)
+				- sprite_alpha(TEXTURE, pos_px - vec2(eps, 0.0), pit_rad, is_segment, stamp_data.w, stamp_phase),
+			sprite_alpha(TEXTURE, pos_px + vec2(0.0, eps), pit_rad, is_segment, stamp_data.w, stamp_phase)
+				- sprite_alpha(TEXTURE, pos_px - vec2(0.0, eps), pit_rad, is_segment, stamp_data.w, stamp_phase)
+		) / (2.0 * eps);
+		if (mode < 0.5) {
+			// Dilated alpha: the berm only exists near the sprite's footprint, not as a full oval.
+			sprite_cover = sprite_mask;
+			for (int i = 0; i < 8; i++) {
+				float a = float(i) * 0.78539816339;
+				vec2 o = vec2(cos(a), sin(a)) * pit_rad * 0.4;
+				sprite_cover = max(sprite_cover, sprite_alpha(TEXTURE, pos_px + o, pit_rad, is_segment, stamp_data.w, stamp_phase));
+			}
 		}
 	}
 
@@ -90,6 +113,10 @@ void fragment() {
 	vec2 pit_grad = (-4.0 * pit_mask) * (p_norm / pit_rad);
 	if (is_capsule > 0.5) {
 		pit_grad = (-4.0 * pit_mask) * vec2(cap_q.x * sign(pos_px.x), cap_q.y) / (pit_rad.y * pit_rad.y);
+	}
+	if (has_sprite > 0.5) {
+		// Height is pit_shape * sprite_mask, so differentiate the product.
+		pit_grad = pit_grad * sprite_mask + pit_shape * sprite_grad;
 	}
 
 	// 2. Berm profile & analytical gradient
@@ -116,11 +143,11 @@ void fragment() {
 		} else if (is_capsule > 0.5) {
 			trail_mask = smoothstep(-0.3 * pit_rad.y, 0.1 * pit_rad.y, pos_px.x + pit_rad.x);
 		}
-		berm_shape *= trail_mask;
+		berm_shape *= trail_mask * sprite_cover;
 
 		// Approximate radial derivative of berm ring
 		float d_berm_dr = (step(0.35, r_berm) * step(r_berm, 0.65) * 3.33 - step(0.65, r_berm) * step(r_berm, 1.0) * 2.85) * trail_mask;
-		berm_grad = (r_berm > 0.001) ? (b_norm / (r_berm * berm_rad)) * d_berm_dr : vec2(0.0);
+		berm_grad = (r_berm > 0.001) ? (b_norm / (r_berm * berm_rad)) * d_berm_dr * sprite_cover : vec2(0.0);
 		if (is_capsule > 0.5) {
 			berm_grad = (r_berm > 0.001) ? (b_norm / (r_berm * berm_rad.y)) * d_berm_dr : vec2(0.0);
 			berm_grad.x *= sign(pos_px.x);
@@ -129,9 +156,9 @@ void fragment() {
 
 	// Combine pit and berm based on region
 	float in_pit = 1.0 - smoothstep(0.65, 1.0, r_pit2);
-	float target_h = mix(berm_height_ratio * 0.5, -0.5 * pit_shape, in_pit);
-	// Slopes encode +dh/dx like the berm and baked-noise slopes; the pit height is -pit_shape.
-	vec2 local_grad = mix(berm_grad * (berm_height_ratio * berm_strength), -pit_grad * 0.7, in_pit);
+	float target_h = mix(berm_height_ratio * 0.5, -0.5 * pit_shape * strength, in_pit);
+	// Slopes encode +dh/dx like the berm and baked-noise slopes; strength scales the pit gradient.
+	vec2 local_grad = mix(berm_grad * (berm_height_ratio * berm_strength), -pit_grad * (0.7 * strength), in_pit);
 	vec2 local_slope = local_grad * (2.5 * normal_strength);
 
 	float heading = (stamp_data.z - 0.5) * 6.28318530718;
@@ -140,9 +167,8 @@ void fragment() {
 	vec2 map_slope = vec2(c * local_slope.x - s * local_slope.y, s * local_slope.x + c * local_slope.y);
 
 	vec3 encoded = vec3(MAP_NEUTRAL) + vec3(target_h, map_slope / 16.0);
-	// A capsule is laid once per move, so it takes full strength instead of the 0.85 that
-	// repeated overlapping stamps converge on; this keeps its depth even from frame to frame.
-	float pit_alpha = in_pit * strength * mix(0.85, 1.0, is_capsule) * sprite_mask;
+	// Keep coverage high; strength controls pit depth rather than blend accumulation.
+	float pit_alpha = in_pit * mix(0.85, 1.0, is_capsule) * sprite_mask;
 	float berm_alpha = berm_shape * berm_strength * strength;
 	float alpha = mix(berm_alpha, pit_alpha, in_pit);
 

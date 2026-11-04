@@ -36,7 +36,6 @@ var _registered_field_id := 0
 
 func _enter_tree() -> void:
 	set_notify_transform(true)
-	set_notify_local_transform(true)
 	_register()
 	_mark_changed()
 
@@ -46,7 +45,7 @@ func _exit_tree() -> void:
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_TRANSFORM_CHANGED or what == NOTIFICATION_LOCAL_TRANSFORM_CHANGED:
+	if what == NOTIFICATION_TRANSFORM_CHANGED:
 		_mark_changed()
 
 
