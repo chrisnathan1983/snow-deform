@@ -32,27 +32,22 @@ controls, and quality settings as the original playground.
 Move with WASD, arrow keys, a gamepad stick, or the on-screen touch stick.
 Jump with Space, gamepad A, or the on-screen **Jump** button. The player can
 move in the air; footprints pause while airborne and resume on landing.
-The demo world, DeformableSurface, HUD instance, player, NPC placements, and sled are
-authored in `demos/classic/main.tscn`; HUD controls are in
-`demos/classic/ui/demo_hud.tscn`, and
-forest layout settings are available on the Forest node.
-Open **Options** in the demo to choose Low / Medium / High and adjust map
-resolution, mesh subdivisions, sparkle, flake counts, puff particles, snowfall,
-real-time shadows, MSAA (Disabled, 2x, or 4x), and wrapped diffuse lighting.
-The in-game options menu uses **Surface**, **Particles**, and
-**Graphics** tabs. Surface controls cover field size, depth, berms, stamp
-budget, refill interval, trail refill speed, snowfall, and sparkle
-intensity; particle controls cover wind, flakes, puffs, and their follow target.
-Each setting has an in-menu description, and quality resources expose
-collapsible groups with Inspector descriptions. Quality presets choose snow
-settings; demo shadows and MSAA remain independent render options. Values can
-then be adjusted independently.
-Editing a setting changes the selection to
-**Custom** without modifying a built-in preset, and each change applies
-immediately. **Cancel**
-restores the settings that were active when the menu opened; **Confirm** keeps
-the changes. Escape also cancels. The rest of the HUD is hidden while the
-options menu is open.
+The demo world, DeformableSurface, player, NPC placements, and sled are
+authored in `demos/classic/main.tscn`; forest layout settings are available on the Forest node.
+Every demo shares one HUD (`demos/common/demo_hud.gd`) and one theme: press **Menu** (or **M**)
+to open a tabbed settings panel. The standard tabs come from `demos/common/demo_settings.gd` and
+apply live:
+
+- **Surface**: Low / Medium / High / Custom quality, material preset (snow, sand, mud, dirt, ash),
+  recovery, max depth, berm strength and height, puffs, wrapped lighting, reset tracks, and the
+  technical settings (map resolution, mesh subdivisions, stamp budget, refill interval, puff
+  budget and interval, sparkle; area size in the classic demo). Editing a technical setting
+  switches the quality to **Custom** without modifying a built-in preset.
+- **Weather** (demos with a SnowWorldManager): snowfall, wind, flakes, near flakes, fall height.
+- **Graphics**: sun shadows and MSAA (Off, 2x, 4x), plus sun height in the playground.
+- **Scene**: demo-specific controls (classic: people, mice, weather follow target; playground:
+  sled, balls, yeti, penguins, snowball storm; materials: textures, triplanar, brush, vehicle).
+
 The DeformableSurface's starting quality (including Custom) is selectable in its
 Inspector; the demo keeps automatic platform selection disabled. The addon
 uses `DeformableSurfaceSettings` for surface profiles. The classic demo's
@@ -106,23 +101,37 @@ The snow surface. Keep it unrotated and unscaled; the surface is at its Y.
 
 | Property | Meaning |
 |---|---|
-| `material` | Optional ShaderMaterial using `shaders/deformable_surface.gdshader` (colors, sparkle). Duplicated per field. |
+| `material` | Optional `ShaderMaterial` using `shaders/deformable_surface.gdshader` (colors, sparkle). Duplicated per field. Overrides the material profile's material. |
+| `material_profile` | Optional `DeformableSurfaceMaterialProfile`: what the surface is made of (see below). Presets in `resources/materials/*_profile.tres`. |
 | `sun` | Optional light the sparkle follows. |
 | `quality`, `auto_quality` | Starting Low / Medium / High profile and optional platform-based override. |
-| `low_surface_quality`, `medium_surface_quality`, `high_surface_quality`, `custom_surface_quality` | `DeformableSurfaceSettings` resources for the surface quality presets. |
+| `low_surface_quality`, `medium_surface_quality`, `high_surface_quality`, `custom_surface_quality` | `DeformableSurfaceSettings` resources: technical quality presets. |
 
-These per-profile settings live in `DeformableSurfaceSettings` (not on the node; the node copies them at startup and on quality changes):
+Technical settings live in `DeformableSurfaceSettings` (not on the node; the node copies them at startup and on quality changes):
 
 | Setting | Meaning |
 |---|---|
 | `area_size` | Size in meters (square). Smaller = sharper prints for the same quality. Pixel density is `res / area_size`: at Medium's default 512 px over 40 m (12.8 px/m) a footprint is only a few pixels wide, so use 10-20 m or a higher `res` for crisp prints. |
-| `max_depth` | How deep fully pressed snow sinks (m); deformers above this height don't stamp. |
+| `res`, `subdiv` | Deformation map resolution and mesh subdivisions. |
 | `max_stamps_per_frame` | Per-frame brush budget; unfinished trails resume next frame. |
+| `refill_interval` | Pass rate of the trail-healing refill. |
+| `puff`, `puff_min_interval` | Puff particle budget and per-deformer rate limit. |
+| `sparkle` | Quality scale for the material's `sparkle_strength`. |
+
+Material-specific settings live in `DeformableSurfaceMaterialProfile` (`material_profile`); without one, snow-like defaults apply:
+
+| Setting | Meaning |
+|---|---|
+| `material` | Default look (`ShaderMaterial`) used when the node's `material` is empty. |
+| `max_depth` | How deep fully pressed material sinks (m); deformers above this height don't stamp. |
 | `berm_strength`, `berm_height` | Ridges beside prints (0 strength disables). |
 | `recovery_intensity` | 0..1 (default 0.3). Controls trail healing; 0 = trails permanent. Atmospheric flakes are managed by SnowWorldManager. |
-| `refill_levels_per_sec`, `refill_interval` | Packed-height recovery speed and pass rate. |
-| `puffs_enabled`, `puff_min_interval` | Kick-up snow bursts. |
+| `refill_levels_per_sec` | Packed-height recovery speed at recovery intensity 1. |
+| `puffs_enabled` | Kick-up bursts. |
 | `wrapped_diffuse_lighting` | Wrapped diffuse lighting on footprint bevels. |
+
+`get_quality_settings(q)` and `get_active_quality_settings()` return both groups merged into one dictionary.
+Changing the material profile's depth or berm height clears existing trails.
 Methods and signals: `reset_trails()`, `DeformableSurface.recommended_quality()`,
 `quality_changed(q)`. Changing quality rebuilds the mesh but preserves trails
 unless the map resolution, field size, maximum depth, or berm height changes.
@@ -222,7 +231,9 @@ addons/snowfall/
   resources/weather/  Calm, Snowfall, and Blizzard presets
 demos/
   launcher.tscn       start screen for all demos
-  classic/            world scene, HUD, actors, and scenery
+  common/             shared demo code: DemoHud + DemoSettings + DemoTheme (one HUD), DemoNav (back-to-launcher button + Esc), TouchSticks, props, character
+  materials/          material preset showcase, brush modes and vehicle tracks
+  classic/            world scene, actors, and scenery
   infinite_snow/      recycled grid of independent DeformableSurfaces
   procedural_playground/ finite and infinite playground scenes
 ```

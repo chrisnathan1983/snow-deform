@@ -1,0 +1,286 @@
+extends Node3D
+## Showcases the material presets, albedo/normal texture inputs and triplanar mode.
+## Hold the left mouse button to carve the surface; right-drag to orbit; wheel to zoom.
+
+const PRESET_DIR := "res://addons/deformable_surface/resources/materials/"
+const PRESETS := ["snow", "sand", "mud", "dirt", "ash"]
+const AREA := 24.0
+
+var _surface: DeformableSurface
+var _deformer: Deformer
+var _camera: Camera3D
+var _sun: DirectionalLight3D
+var _material: ShaderMaterial
+var _preset := "snow"
+var _use_albedo := false
+var _use_normal := false
+var _triplanar := false
+var _texture_scale := 0.5
+var _uv_tiling := 8.0
+var _normal_strength := 1.0
+
+var _albedo_tex: NoiseTexture2D
+var _normal_tex: NoiseTexture2D
+var _orbit := Vector2(0.9, 0.0)   # pitch, yaw
+var _distance := 14.0
+var _carving := false
+var _drive := false
+var _drive_time := 0.0
+var _vehicle: Node3D
+var _tracks: DeformerTracks
+var _autopilot_time := 0.0
+var _hud: DemoHud
+
+
+func _ready() -> void:
+	DemoNav.attach(self)
+	_build_world()
+	_build_textures()
+	_build_ui()
+	_apply_preset("snow")
+
+
+func _build_world() -> void:
+	var sky := Sky.new()
+	sky.sky_material = ProceduralSkyMaterial.new()
+	var environment := Environment.new()
+	environment.background_mode = Environment.BG_SKY
+	environment.sky = sky
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	var world_environment := WorldEnvironment.new()
+	world_environment.environment = environment
+	add_child(world_environment)
+
+	_sun = DirectionalLight3D.new()
+	_sun.rotation_degrees = Vector3(-50.0, -35.0, 0.0)
+	_sun.shadow_enabled = true
+	add_child(_sun)
+
+	_surface = DeformableSurface.new()
+	_surface.sun = _sun
+	_surface.quality = DeformableSurface.Quality.MEDIUM
+	var profile := DeformableSurfaceSettings.new()
+	profile.area_size = AREA
+	profile.res = 1024
+	profile.subdiv = 192
+	var material_profile := DeformableSurfaceMaterialProfile.new()
+	material_profile.recovery_intensity = 0.0
+	_surface.material_profile = material_profile
+	_surface.medium_surface_quality = profile
+	_surface.low_surface_quality = _scaled(profile, 512, 96)
+	_surface.high_surface_quality = _scaled(profile, 1536, 256)
+	add_child(_surface)
+
+	_deformer = Deformer.new()
+	_deformer.field = _surface
+	_deformer.radius = 0.6
+	_deformer.puff_distance = 0.8
+	_deformer.active = false
+	add_child(_deformer)
+
+	_vehicle = Node3D.new()
+	_vehicle.visible = false
+	add_child(_vehicle)
+	_tracks = DeformerTracks.new()
+	_tracks.field = _surface
+	_tracks.active = false
+	_vehicle.add_child(_tracks)
+	var body := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(1.0, 0.5, 2.0)
+	body.mesh = box
+	body.position.y = 0.55
+	_vehicle.add_child(body)
+
+	_camera = Camera3D.new()
+	add_child(_camera)
+	_update_camera()
+
+
+func _scaled(base: DeformableSurfaceSettings, res: int, subdiv: int) -> DeformableSurfaceSettings:
+	var p := base.duplicate() as DeformableSurfaceSettings
+	p.res = res
+	p.subdiv = subdiv
+	return p
+
+
+func _build_textures() -> void:
+	var albedo_noise := FastNoiseLite.new()
+	albedo_noise.noise_type = FastNoiseLite.TYPE_CELLULAR
+	albedo_noise.frequency = 0.03
+	var ramp := Gradient.new()
+	ramp.set_color(0, Color(0.55, 0.55, 0.55))
+	ramp.set_color(1, Color(1.0, 1.0, 1.0))
+	_albedo_tex = NoiseTexture2D.new()
+	_albedo_tex.noise = albedo_noise
+	_albedo_tex.color_ramp = ramp
+	_albedo_tex.seamless = true
+	_albedo_tex.width = 512
+	_albedo_tex.height = 512
+
+	var normal_noise := FastNoiseLite.new()
+	normal_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	normal_noise.frequency = 0.05
+	normal_noise.fractal_octaves = 4
+	_normal_tex = NoiseTexture2D.new()
+	_normal_tex.noise = normal_noise
+	_normal_tex.as_normal_map = true
+	_normal_tex.bump_strength = 6.0
+	_normal_tex.seamless = true
+	_normal_tex.width = 512
+	_normal_tex.height = 512
+
+
+func _apply_preset(preset: String) -> void:
+	_preset = preset
+	var profile := load(PRESET_DIR + preset + "_profile.tres") as DeformableSurfaceMaterialProfile
+	_material = profile.material.duplicate() as ShaderMaterial
+	# Each preset starts with its own noise (carried by the profile).
+	_surface.material_profile = profile
+	_push_material()
+
+
+func _push_material() -> void:
+	_material.set_shader_parameter("albedo_texture", _albedo_tex if _use_albedo else null)
+	_material.set_shader_parameter("normal_texture", _normal_tex if _use_normal else null)
+	_material.set_shader_parameter("triplanar", _triplanar)
+	_material.set_shader_parameter("texture_scale", _texture_scale)
+	_material.set_shader_parameter("uv_tiling", _uv_tiling)
+	_material.set_shader_parameter("texture_normal_strength", _normal_strength)
+	# Toggling textures keeps trails; switching presets changes depth and clears them.
+	_surface.material = _material
+	_refresh_info()
+
+
+func _refresh_info() -> void:
+	if _hud:
+		_hud.set_info("%s  |  albedo tex %s  |  normal tex %s  |  triplanar %s" % [
+			_preset.capitalize(), _on_off(_use_albedo), _on_off(_use_normal), _on_off(_triplanar)])
+
+
+func _on_off(value: bool) -> String:
+	return "on" if value else "off"
+
+
+func _build_ui() -> void:
+	_hud = DemoHud.new()
+	add_child(_hud)
+	_hud.set_title("Materials")
+	var fields: Array[DeformableSurface] = [_surface]
+	var settings := DemoSettings.create(_hud, fields)
+	settings.preset_handler = _apply_preset
+	settings.add_surface_tab()
+	settings.add_graphics_tab(_sun)
+
+	var tab := _hud.add_tab("Scene")
+	_hud.add_heading(tab, "Textures")
+	_hud.add_toggle(tab, "albedo", "Albedo texture", _use_albedo)
+	_hud.add_toggle(tab, "normal", "Normal texture", _use_normal)
+	_hud.add_toggle(tab, "triplanar", "Triplanar projection", _triplanar)
+	_hud.add_slider(tab, "texture_scale", "Triplanar tiles / m", 0.1, 3.0, 0.05, _texture_scale)
+	_hud.add_slider(tab, "uv_tiling", "UV tiling", 1.0, 32.0, 0.5, _uv_tiling)
+	_hud.add_slider(tab, "normal_strength", "Texture normal strength", 0.0, 3.0, 0.05, _normal_strength)
+	_hud.add_heading(tab, "Brush")
+	_hud.add_option(tab, "brush", "Mode", ["Carve", "Raise", "Smooth (plow)"], 0)
+	_hud.add_heading(tab, "Vehicle")
+	_hud.add_toggle(tab, "drive", "Drive vehicle", false)
+	_hud.add_option(tab, "vehicle", "Type", ["Car", "Truck", "Motorcycle", "Tracked"], 0)
+	_hud.changed.connect(_on_hud_changed)
+	_hud.set_hint("LMB brush | E explosion | RMB drag orbit | wheel zoom | M menu", 12.0)
+	_refresh_info()
+
+
+func _on_hud_changed(key: String, value: Variant) -> void:
+	match key:
+		"albedo":
+			_use_albedo = bool(value)
+			_push_material()
+		"normal":
+			_use_normal = bool(value)
+			_push_material()
+		"triplanar":
+			_triplanar = bool(value)
+			_push_material()
+		"texture_scale":
+			_texture_scale = float(value)
+			_material.set_shader_parameter("texture_scale", _texture_scale)
+		"uv_tiling":
+			_uv_tiling = float(value)
+			_material.set_shader_parameter("uv_tiling", _uv_tiling)
+		"normal_strength":
+			_normal_strength = float(value)
+			_material.set_shader_parameter("texture_normal_strength", _normal_strength)
+		"brush":
+			_deformer.mode = [DeformableSurface.StampMode.CARVE, DeformableSurface.StampMode.RAISE,
+					DeformableSurface.StampMode.SMOOTH][int(value)]
+		"drive":
+			_drive = bool(value)
+			_vehicle.visible = _drive
+			_tracks.reset_path()
+		"vehicle":
+			_tracks.preset = [DeformerTracks.Preset.CAR, DeformerTracks.Preset.TRUCK,
+					DeformerTracks.Preset.MOTORCYCLE, DeformerTracks.Preset.TRACKED][int(value)]
+			_tracks.wheel_width = 0.7 if _tracks.preset == DeformerTracks.Preset.TRACKED else 0.3
+
+
+func _update_camera() -> void:
+	var offset := Vector3(0.0, sin(_orbit.x), cos(_orbit.x)).rotated(Vector3.UP, _orbit.y)
+	_camera.position = offset * _distance
+	_camera.look_at(Vector3.ZERO)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo \
+			and (event as InputEventKey).keycode == KEY_E:
+		var hit := _ground_point(get_viewport().get_mouse_position())
+		if hit != Vector3.INF:
+			_surface.stamp_at(hit, 2.0, 1.0, null, DeformableSurface.StampMode.CARVE, 0.0, 1.0, true)
+			_surface.stamp_at(hit, 0.8, 1.0, null, DeformableSurface.StampMode.RAISE)
+	if event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.button_index == MOUSE_BUTTON_LEFT:
+			_carving = mb.pressed
+		elif mb.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_distance = maxf(4.0, _distance - 0.8)
+			_update_camera()
+		elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			_distance = minf(30.0, _distance + 0.8)
+			_update_camera()
+	elif event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
+		var motion := event as InputEventMouseMotion
+		_orbit.y -= motion.relative.x * 0.005
+		_orbit.x = clampf(_orbit.x + motion.relative.y * 0.005, 0.25, 1.45)
+		_update_camera()
+
+
+func _ground_point(mouse: Vector2) -> Vector3:
+	var origin := _camera.project_ray_origin(mouse)
+	var dir := _camera.project_ray_normal(mouse)
+	if absf(dir.y) < 0.001:
+		return Vector3.INF
+	var hit := origin + dir * (-origin.y / dir.y)
+	if absf(hit.x) > AREA * 0.5 or absf(hit.z) > AREA * 0.5:
+		return Vector3.INF
+	return Vector3(hit.x, 0.0, hit.z)
+
+
+func _process(delta: float) -> void:
+	if _drive:
+		_drive_time += delta
+		var a := _drive_time * 0.45
+		_vehicle.position = Vector3(cos(a) * 7.0, 0.0, sin(a) * 7.0)
+		_vehicle.rotation.y = -a - PI
+	_tracks.active = _drive
+	if _carving:
+		var hit := _ground_point(get_viewport().get_mouse_position())
+		_deformer.active = true
+		if hit != Vector3.INF:
+			_deformer.global_position = hit
+	elif not Input.is_anything_pressed():
+		# Idle: trace a slow figure so tracks appear right away.
+		_autopilot_time += delta
+		var t := _autopilot_time * 0.6
+		_deformer.active = true
+		_deformer.global_position = Vector3(sin(t) * 5.0, 0.0, sin(t * 2.0) * 3.0)
+	else:
+		_deformer.active = false

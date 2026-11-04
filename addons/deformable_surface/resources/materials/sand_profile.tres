@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="DeformableSurfaceMaterialProfile" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://addons/deformable_surface/scripts/deformable_surface_material_profile.gd" id="1_script"]
+[ext_resource type="Material" path="res://addons/deformable_surface/resources/materials/sand_material.tres" id="2_mat"]
+
+[sub_resource type="FastNoiseLite" id="noise"]
+noise_type = 0
+frequency = 0.55
+fractal_type = 1
+fractal_octaves = 2
+
+[resource]
+script = ExtResource("1_script")
+material = ExtResource("2_mat")
+surface_type = &"sand"
+initial_noise = SubResource("noise")
+initial_noise_height = 0.1
+initial_noise_mound_height = 0.18
+max_depth = 0.2
+berm_strength = 0.12
+berm_height = 0.03
+recovery_intensity = 0.05
+wrapped_diffuse_lighting = false
+puffs_enabled = true

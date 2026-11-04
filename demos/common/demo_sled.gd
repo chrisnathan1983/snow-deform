@@ -2,7 +2,7 @@ extends Node3D
 ## A sled that glides along a figure-8, carving two parallel grooves with berms.
 ## Demonstrates elongated Deformers (aspect) and distance-based puffs.
 
-const Props := preload("demo_props.gd")
+const Props := preload("res://demos/common/demo_props.gd")
 
 var amp := Vector2(10.0, 6.5)
 var rate := 0.45
@@ -12,16 +12,32 @@ var _t := 0.0
 var _runners: Array[Deformer] = []
 
 
-func _ready() -> void:
+## Meshes of the sled. Authored in demos/common/props/sled.tscn; this builds the same
+## body in code when the script is used without that scene.
+static func build_visual(parent: Node3D) -> void:
     var wood := Color(0.5, 0.33, 0.2)
-    Props.add_mesh(self, Props.box(Vector3(0.9, 0.1, 1.7)), wood, Vector3(0, 0.22, 0))
-    Props.add_mesh(self, Props.box(Vector3(0.9, 0.3, 0.08)), wood, Vector3(0, 0.38, 0.8))
+    Props.add_mesh(parent, Props.box(Vector3(0.9, 0.1, 1.7)), wood, Vector3(0, 0.22, 0))
+    Props.add_mesh(parent, Props.box(Vector3(0.9, 0.3, 0.08)), wood, Vector3(0, 0.38, 0.8))
     for sx in [-1.0, 1.0]:
         var x: float = sx * 0.32
-        Props.add_mesh(self, Props.box(Vector3(0.07, 0.12, 2.0)), Color(0.35, 0.37, 0.42), Vector3(x, 0.1, -0.05))
-        Props.add_mesh(self, Props.box(Vector3(0.07, 0.16, 0.2)), Color(0.35, 0.37, 0.42), Vector3(x, 0.2, -1.05), Vector3.ONE, Vector3(-30, 0, 0))
-        Props.add_mesh(self, Props.box(Vector3(0.06, 0.14, 0.06)), wood, Vector3(x, 0.17, -0.5))
-        Props.add_mesh(self, Props.box(Vector3(0.06, 0.14, 0.06)), wood, Vector3(x, 0.17, 0.5))
+        Props.add_mesh(parent, Props.box(Vector3(0.07, 0.12, 2.0)), Color(0.35, 0.37, 0.42), Vector3(x, 0.1, -0.05))
+        Props.add_mesh(parent, Props.box(Vector3(0.07, 0.16, 0.2)), Color(0.35, 0.37, 0.42), Vector3(x, 0.2, -1.05), Vector3.ONE, Vector3(-30, 0, 0))
+        Props.add_mesh(parent, Props.box(Vector3(0.06, 0.14, 0.06)), wood, Vector3(x, 0.17, -0.5))
+        Props.add_mesh(parent, Props.box(Vector3(0.06, 0.14, 0.06)), wood, Vector3(x, 0.17, 0.5))
+    # a gift riding along
+    Props.add_mesh(parent, Props.box(Vector3(0.45, 0.35, 0.45)), Color(0.85, 0.15, 0.2), Vector3(0, 0.45, 0.15))
+    Props.add_mesh(parent, Props.box(Vector3(0.47, 0.37, 0.08)), Color(0.95, 0.8, 0.2), Vector3(0, 0.45, 0.15))
+    Props.add_mesh(parent, Props.box(Vector3(0.08, 0.37, 0.47)), Color(0.95, 0.8, 0.2), Vector3(0, 0.45, 0.15))
+
+
+func _ready() -> void:
+    if get_node_or_null("Visual") == null:
+        var visual := Node3D.new()
+        visual.name = "Visual"
+        add_child(visual)
+        build_visual(visual)
+    for sx in [-1.0, 1.0]:
+        var x: float = sx * 0.32
         var d := Deformer.new()
         d.radius = 0.2
         d.aspect = 5.0
@@ -30,10 +46,6 @@ func _ready() -> void:
         d.position = Vector3(x, 0.0, -0.1)
         add_child(d)
         _runners.append(d)
-    # a gift riding along
-    Props.add_mesh(self, Props.box(Vector3(0.45, 0.35, 0.45)), Color(0.85, 0.15, 0.2), Vector3(0, 0.45, 0.15))
-    Props.add_mesh(self, Props.box(Vector3(0.47, 0.37, 0.08)), Color(0.95, 0.8, 0.2), Vector3(0, 0.45, 0.15))
-    Props.add_mesh(self, Props.box(Vector3(0.08, 0.37, 0.47)), Color(0.95, 0.8, 0.2), Vector3(0, 0.45, 0.15))
     _place()
 
 

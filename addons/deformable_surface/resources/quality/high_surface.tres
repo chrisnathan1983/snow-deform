@@ -4,7 +4,6 @@
 
 [resource]
 script = ExtResource("1")
-recovery_intensity = 0.3
 sparkle = 1.5
 puff = 12
 res = 1024

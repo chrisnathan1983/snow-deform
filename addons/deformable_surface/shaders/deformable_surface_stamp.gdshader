@@ -11,29 +11,60 @@ const float BERM_REACH = 2.0;
 const float BERM_FORWARD = 0.3;
 
 varying vec4 stamp_data;
-varying vec2 stamp_params;
+varying vec3 stamp_params;
+varying float stamp_phase;
 
 void vertex() {
 	stamp_data = INSTANCE_CUSTOM;
-	stamp_params = COLOR.rg;
+	stamp_params = COLOR.rgb;
+	stamp_phase = COLOR.a;
 }
 
 void fragment() {
 	float strength = stamp_params.x;
 	float radius_px = max(stamp_params.y * map_resolution, 0.5);
+	// 0 = carve, 1 = raise, 2 = smooth (flatten toward neutral)
+	float mode = floor(stamp_params.z * 4.0 + 0.5);
 	float aspect = stamp_data.x * 8.0;
 	float is_sliding = stamp_data.y;
+	// 3 = capsule: a segment with a rounded front, used for smooth continuous brush strokes.
+	float is_capsule = step(2.5, is_sliding);
+	// 2 = track segment: a straight strip whose tread is sampled by distance travelled.
+	float is_segment = step(1.5, is_sliding) * (1.0 - is_capsule);
 	float has_sprite = step(0.5, stamp_data.w);
 
 	vec2 pit_rad = vec2(radius_px * sqrt(aspect), radius_px / sqrt(aspect));
 	vec2 berm_rad = pit_rad * BERM_REACH;
 	vec2 berm_off = vec2(pit_rad.x * BERM_FORWARD * clamp(aspect - 1.0, 0.0, 1.0), 0.0);
 	vec2 outer_ext = max(pit_rad, abs(berm_off) + berm_rad);
+	if (is_capsule > 0.5) {
+		// pit_rad = (half length, brush radius); must match DeformableSurface._stamp.
+		berm_off = vec2(0.0);
+		outer_ext = vec2(pit_rad.x + berm_rad.y, berm_rad.y);
+	}
 	vec2 pos_px = (UV - vec2(0.5)) * (2.0 * outer_ext);
+	// Segments cover exactly [-length/2, length/2) so neighbours abut without overlap.
+	float seg_in = 1.0;
+	if (is_segment > 0.5) {
+		berm_off = vec2(0.0);
+		seg_in = step(-pit_rad.x, pos_px.x) * (1.0 - step(pit_rad.x, pos_px.x));
+	}
+	// Capsules drop their rear cap: the previous capsule's front cap already covers the joint.
+	vec2 cap_q = vec2(0.0);
+	if (is_capsule > 0.5) {
+		seg_in = step(-pit_rad.x, pos_px.x);
+		cap_q = vec2(max(abs(pos_px.x) - pit_rad.x, 0.0), pos_px.y);
+	}
 	float sprite_mask = 1.0;
 	if (has_sprite > 0.5) {
 		vec2 footprint_uv = pos_px / (2.0 * pit_rad) + vec2(0.5);
 		vec2 sprite_uv = vec2(footprint_uv.y, 1.0 - footprint_uv.x);
+		if (is_segment > 0.5) {
+			// One tile is as long as the track is wide times the texture's height/width ratio.
+			vec2 tex_size = vec2(textureSize(TEXTURE, 0));
+			float tile_px = 2.0 * pit_rad.y * tex_size.y / tex_size.x;
+			sprite_uv.y = 1.0 - fract(stamp_phase + pos_px.x / tile_px);
+		}
 		if (stamp_data.w > 1.5) {
 			sprite_uv.x = 1.0 - sprite_uv.x;
 		}
@@ -46,17 +77,32 @@ void fragment() {
 
 	// 1. Pit profile & exact analytical gradient (flat floor at center, smooth walls)
 	vec2 p_norm = pos_px / pit_rad;
+	if (is_segment > 0.5) {
+		p_norm.x = 0.0;
+	}
+	if (is_capsule > 0.5) {
+		p_norm = cap_q / pit_rad.y;
+	}
 	float r_pit2 = dot(p_norm, p_norm);
 	float pit_mask = max(1.0 - r_pit2, 0.0);
 	float pit_shape = pit_mask * pit_mask; // (1 - r^2)^2
 	// Derivative of (1 - r^2)^2 with respect to pos_px:
 	vec2 pit_grad = (-4.0 * pit_mask) * (p_norm / pit_rad);
+	if (is_capsule > 0.5) {
+		pit_grad = (-4.0 * pit_mask) * vec2(cap_q.x * sign(pos_px.x), cap_q.y) / (pit_rad.y * pit_rad.y);
+	}
 
 	// 2. Berm profile & analytical gradient
 	float berm_shape = 0.0;
 	vec2 berm_grad = vec2(0.0);
-	if (berm_strength > 0.0) {
+	if (berm_strength > 0.0 && mode < 0.5) {
 		vec2 b_norm = (pos_px - berm_off) / berm_rad;
+		if (is_segment > 0.5) {
+			b_norm.x = 0.0; // side ridges only
+		}
+		if (is_capsule > 0.5) {
+			b_norm = cap_q / berm_rad.y;
+		}
 		float r_berm = length(b_norm);
 		// Smooth ring peaking at r_berm = 0.65, zero inside 0.35 and outside 1.0
 		float b_in = smoothstep(0.35, 0.65, r_berm);
@@ -65,14 +111,20 @@ void fragment() {
 
 		// Suppress trailing berm behind a sliding deformer so it doesn't refill its own track
 		float trail_mask = 1.0;
-		if (is_sliding > 0.5) {
+		if (is_sliding > 0.5 && is_segment < 0.5 && is_capsule < 0.5) {
 			trail_mask = smoothstep(-0.3 * pit_rad.x, 0.1 * pit_rad.x, pos_px.x);
+		} else if (is_capsule > 0.5) {
+			trail_mask = smoothstep(-0.3 * pit_rad.y, 0.1 * pit_rad.y, pos_px.x + pit_rad.x);
 		}
 		berm_shape *= trail_mask;
 
 		// Approximate radial derivative of berm ring
 		float d_berm_dr = (step(0.35, r_berm) * step(r_berm, 0.65) * 3.33 - step(0.65, r_berm) * step(r_berm, 1.0) * 2.85) * trail_mask;
 		berm_grad = (r_berm > 0.001) ? (b_norm / (r_berm * berm_rad)) * d_berm_dr : vec2(0.0);
+		if (is_capsule > 0.5) {
+			berm_grad = (r_berm > 0.001) ? (b_norm / (r_berm * berm_rad.y)) * d_berm_dr : vec2(0.0);
+			berm_grad.x *= sign(pos_px.x);
+		}
 	}
 
 	// Combine pit and berm based on region
@@ -88,9 +140,21 @@ void fragment() {
 	vec2 map_slope = vec2(c * local_slope.x - s * local_slope.y, s * local_slope.x + c * local_slope.y);
 
 	vec3 encoded = vec3(MAP_NEUTRAL) + vec3(target_h, map_slope / 16.0);
-	float pit_alpha = in_pit * strength * 0.85 * sprite_mask;
+	// A capsule is laid once per move, so it takes full strength instead of the 0.85 that
+	// repeated overlapping stamps converge on; this keeps its depth even from frame to frame.
+	float pit_alpha = in_pit * strength * mix(0.85, 1.0, is_capsule) * sprite_mask;
 	float berm_alpha = berm_shape * berm_strength * strength;
 	float alpha = mix(berm_alpha, pit_alpha, in_pit);
 
-	COLOR = vec4(clamp(encoded, vec3(0.0), vec3(1.0)), clamp(alpha, 0.0, 1.0));
+	if (mode > 1.5) {
+		// Smooth: feathered blend toward a flat neutral surface.
+		encoded = vec3(MAP_NEUTRAL);
+		alpha = clamp(pit_mask * 1.5, 0.0, 1.0) * strength * sprite_mask;
+	} else if (mode > 0.5) {
+		// Raise: the pit profile mirrored upward, no berm.
+		map_slope = vec2(c * -local_slope.x - s * -local_slope.y, s * -local_slope.x + c * -local_slope.y);
+		encoded = vec3(MAP_NEUTRAL) + vec3(-target_h, map_slope / 16.0);
+	}
+
+	COLOR = vec4(clamp(encoded, vec3(0.0), vec3(1.0)), clamp(alpha, 0.0, 1.0) * seg_in);
 }

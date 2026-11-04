@@ -15,177 +15,156 @@ const HIGH_SURFACE_PROFILE: DeformableSurfaceSettings = preload(
 const CUSTOM_SURFACE_PROFILE: DeformableSurfaceSettings = preload(
 	"res://addons/deformable_surface/resources/quality/custom_surface.tres"
 )
-const CALM_WEATHER_PROFILE: SnowWeatherSettings = preload(
-	"res://addons/snowfall/resources/weather/calm.tres"
-)
-const SNOWFALL_WEATHER_PROFILE: SnowWeatherSettings = preload(
-	"res://addons/snowfall/resources/weather/snowfall.tres"
-)
-const BLIZZARD_WEATHER_PROFILE: SnowWeatherSettings = preload(
-	"res://addons/snowfall/resources/weather/blizzard.tres"
-)
+const WEATHER_PROFILES: Array[SnowWeatherSettings] = [
+	preload("res://addons/snowfall/resources/weather/calm.tres"),
+	preload("res://addons/snowfall/resources/weather/snowfall.tres"),
+	preload("res://addons/snowfall/resources/weather/blizzard.tres"),
+]
+const DemoCharacter := preload("res://demos/common/demo_character.gd")
+const FOLLOW_TARGETS := ["Camera", "Player", "Sled"]
 
 @onready var snow: DeformableSurface = $DeformableSurface
 @onready var weather: SnowWorldManager = $SnowWorldManager
-@onready var player: Player = $Actors/Player
+@onready var player: DemoCharacter = $Actors/Player
 @onready var npcs: Node3D = $Actors/NPCs
 @onready var sled: Node3D = $Actors/Sled
-@onready var hud: DemoHud = $HUD
 @onready var sun: DirectionalLight3D = $Sun
+@onready var camera: DemoCamera = $Camera3D
 
+var hud: DemoHud
+var settings: DemoSettings
 var _people: Array[Node3D] = []
 var _mice: Array[Node3D] = []
 var _person_serial := 0
 var _mouse_serial := 1
 var _real_shadows := false
-var _msaa_mode := Viewport.MSAA_2X
-var _custom_quality_settings: Dictionary = {}
+var _hud_t := 0.0
+var _stick: TouchSticks
+var _run_button := false
 @export_enum("Camera:0", "Player:1", "Sled:2") var follow_target_mode := 0
 
 
 func _ready() -> void:
+	DemoNav.attach(self)
 	snow.low_surface_quality = LOW_SURFACE_PROFILE
 	snow.medium_surface_quality = MEDIUM_SURFACE_PROFILE
 	snow.high_surface_quality = HIGH_SURFACE_PROFILE
 	snow.custom_surface_quality = CUSTOM_SURFACE_PROFILE
 	snow.set_quality(snow.quality)
-	_custom_quality_settings = _get_quality_settings(DeformableSurface.Quality.CUSTOM)
-	var initial_settings := _get_active_quality_settings()
-	snow.recovery_intensity = float(initial_settings["recovery_intensity"])
-	_apply_weather_settings(initial_settings, float(initial_settings["snowfall"]))
-	_apply_follow_target(initial_settings["follow_target_mode"])
-	snow.quality_changed.connect(_on_quality_changed)
-	_on_quality_changed(snow.quality)
+
+	var weather_profile := WEATHER_PROFILES[clampi(int(snow.quality), 0, 2)].duplicate() as SnowWeatherSettings
+	weather_profile.follow_target_path = NodePath("../Actors/Player")
+	weather.weather_settings = weather_profile
+	_apply_follow_target(follow_target_mode)
 
 	for person in npcs.get_children():
 		_people.append(person as Node3D)
 	_mice.append($Actors/Mouse as Node3D)
-	hud.set_population_counts(_people.size(), _mice.size())
 
-	hud.preset_selected.connect(_on_preset_selected)
-	hud.options_previewed.connect(_apply_options)
-	hud.options_cancelled.connect(_apply_options)
-	hud.options_confirmed.connect(_apply_options)
-	hud.reset_pressed.connect(snow.reset_trails)
-	hud.jump_pressed.connect(player.request_jump)
-	hud.add_person_pressed.connect(_add_person)
-	hud.remove_person_pressed.connect(_remove_person)
-	hud.add_mouse_pressed.connect(_add_mouse)
-	hud.remove_mouse_pressed.connect(_remove_mouse)
-	player.touch_stick = hud.stick
-
-	player.add_child(BlobShadow.make(1.2, snow.quality != DeformableSurface.Quality.HIGH))
-	for npc in npcs.get_children():
-		npc.add_child(BlobShadow.make(1.2, snow.quality != DeformableSurface.Quality.HIGH))
-	sled.add_child(BlobShadow.make(2.0, snow.quality != DeformableSurface.Quality.HIGH))
-
-
-func _on_quality_changed(q: DeformableSurface.Quality) -> void:
-	if not hud.options_panel.visible:
-		hud.set_current_options(
-			q,
-			_get_active_quality_settings(),
-			snow.recovery_intensity,
-			snow.has_custom_quality_settings(),
-			_real_shadows,
-			_msaa_mode,
-			snow.wrapped_diffuse_lighting
-		)
-	_apply_render_options()
-
-
-func _apply_render_options() -> void:
 	sun.shadow_enabled = _real_shadows
-	get_viewport().msaa_3d = _msaa_mode
+	get_viewport().msaa_3d = Viewport.MSAA_2X
+	_build_hud()
+	settings.edit_profile("recovery_intensity", weather.snowfall_intensity)
+	hud.set_value("surface.recovery", weather.snowfall_intensity)
+
+	for body in [player, sled] + npcs.get_children():
+		body.add_child(BlobShadow.make(2.0 if body == sled else 1.2, snow.quality != DeformableSurface.Quality.HIGH))
+	_apply_blob_shadows()
+
+
+func _build_hud() -> void:
+	hud = DemoHud.new()
+	add_child(hud)
+	hud.set_title("Classic")
+	settings = DemoSettings.create(hud, [snow] as Array[DeformableSurface])
+	settings.allow_area = true
+	settings.add_surface_tab()
+	settings.add_weather_tab(weather)
+	settings.add_graphics_tab(sun)
+
+	var scene_tab := hud.add_tab("Scene")
+	hud.add_counter(scene_tab, "people", "People", _people.size())
+	hud.add_counter(scene_tab, "mice", "Mice", _mice.size())
+	hud.add_option(scene_tab, "follow", "Weather follows", FOLLOW_TARGETS, follow_target_mode)
+	hud.changed.connect(_on_hud_changed)
+
+	var overlay := CanvasLayer.new()
+	overlay.layer = 9
+	add_child(overlay)
+	var stick := TouchSticks.new()
+	stick.is_blocked = hud.over_ui
+	stick.stick_scale = hud.ui_scale
+	get_viewport().size_changed.connect(func(): stick.stick_scale = hud.ui_scale)
+	overlay.add_child(stick)
+	camera.sticks = stick
+	_stick = stick
+	if hud.touch_ui:
+		hud.add_touch_buttons()
+	hud.set_hint("WASD / arrows move | Shift run | Space jump | M menu | Esc launcher", 12.0)
+
+
+func _process(delta: float) -> void:
+	var keys := Vector2(
+		_axis(KEY_D, KEY_RIGHT) - _axis(KEY_A, KEY_LEFT),
+		_axis(KEY_S, KEY_DOWN) - _axis(KEY_W, KEY_UP))
+	if _stick:
+		keys += _stick.move
+	keys = keys.limit_length(1.0)
+	player.move_input = Basis(Vector3.UP, camera.yaw) * Vector3(keys.x, 0.0, keys.y)
+	player.running = Input.is_key_pressed(KEY_SHIFT) or _run_button
+	_push_balls(delta)
+	_hud_t -= delta
+	if _hud_t <= 0.0:
+		_hud_t = 0.4
+		hud.set_info("%d FPS  |  %s  |  %d people  |  %d mice" % [
+			Engine.get_frames_per_second(), DemoSettings.QUALITY_NAMES[int(snow.quality)],
+			_people.size(), _mice.size()])
+
+
+func _on_hud_changed(key: String, value: Variant) -> void:
+	match key:
+		"gfx.shadows":
+			_real_shadows = bool(value)
+			_apply_blob_shadows()
+		"follow": _apply_follow_target(int(value))
+		"people":
+			while _people.size() > int(value):
+				_remove_person()
+			while _people.size() < int(value):
+				_add_person()
+		"mice":
+			while _mice.size() > int(value):
+				_remove_mouse()
+			while _mice.size() < int(value):
+				_add_mouse()
+		"jump": player.jump()
+		"run": _run_button = bool(value)
+
+
+func _axis(a: Key, b: Key) -> float:
+	return 1.0 if Input.is_key_pressed(a) or Input.is_key_pressed(b) else 0.0
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	var k := event as InputEventKey
+	if k and k.pressed and not k.echo and k.keycode == KEY_SPACE:
+		player.jump()
+
+
+## The explorer is not a physics body, so nudge any soccer ball it walks into.
+func _push_balls(delta: float) -> void:
+	var speed := player.move_input.length() * player.move_speed * (player.run_mult if player.running else 1.0)
+	for node in get_tree().get_nodes_in_group(&"player_pushable"):
+		var ball := node as RigidBody3D
+		var away := ball.global_position - player.global_position
+		away.y = 0.0
+		if away.length() < 0.9 and away.length() > 0.001:
+			ball.apply_central_impulse(away.normalized() * (2.0 + speed) * ball.mass * delta * 8.0)
+
+
+func _apply_blob_shadows() -> void:
 	for shadow in get_tree().get_nodes_in_group(&"blob_shadow"):
 		shadow.visible = not _real_shadows
-
-
-func _on_preset_selected(q: int) -> void:
-	hud.set_draft_preset(q, _get_quality_settings(q as DeformableSurface.Quality))
-
-
-func _apply_options(
-	q: int,
-	custom: bool,
-	settings: Dictionary,
-	snowfall: float,
-	shadows: bool,
-	msaa: int,
-	wrapped_diffuse_lighting: bool
-) -> void:
-	var selected_quality := q as DeformableSurface.Quality
-	_real_shadows = shadows
-	_msaa_mode = msaa as Viewport.MSAA
-	if custom and selected_quality == snow.quality:
-		snow.apply_quality_settings(settings)
-	else:
-		snow.quality = selected_quality
-		if custom:
-			snow.apply_quality_settings(settings)
-	if custom:
-		_custom_quality_settings = settings.duplicate(true)
-	snow.recovery_intensity = snowfall
-	_apply_weather_settings(settings, snowfall)
-	snow.wrapped_diffuse_lighting = wrapped_diffuse_lighting
-	_apply_follow_target(settings["follow_target_mode"])
-	_apply_render_options()
-
-
-func _get_quality_settings(q: DeformableSurface.Quality) -> Dictionary:
-	var surface_settings := snow.get_surface_quality_settings(q)
-	if surface_settings == null:
-		push_error("Classic demo: surface quality profile is not assigned.")
-		return {}
-	var weather_profile: SnowWeatherSettings
-	match q:
-		DeformableSurface.Quality.LOW:
-			weather_profile = CALM_WEATHER_PROFILE
-		DeformableSurface.Quality.MEDIUM:
-			weather_profile = SNOWFALL_WEATHER_PROFILE
-		DeformableSurface.Quality.HIGH:
-			weather_profile = BLIZZARD_WEATHER_PROFILE
-		DeformableSurface.Quality.CUSTOM:
-			if not _custom_quality_settings.is_empty():
-				var current := _custom_quality_settings.duplicate(true)
-				current.merge(surface_settings.to_dictionary(), true)
-				return current
-			weather_profile = BLIZZARD_WEATHER_PROFILE
-		_:
-			push_error("Classic demo: invalid quality profile.")
-			return {}
-	var settings := weather_profile.to_dictionary()
-	settings.merge(surface_settings.to_dictionary(), true)
-	settings["follow_target_mode"] = follow_target_mode
-	settings["snowfall"] = weather_profile.snowfall_intensity
-	return settings
-
-
-func _get_active_quality_settings() -> Dictionary:
-	var settings := _get_quality_settings(snow.quality)
-	var snowfall := float(settings.get("snowfall", snow.recovery_intensity))
-	settings.merge(snow.get_active_quality_settings(), true)
-	settings["snowfall"] = snowfall
-	return settings
-
-
-func _apply_weather_settings(settings: Dictionary, intensity: float) -> void:
-	var weather_settings := SnowWeatherSettings.new()
-	weather_settings.flake_count = int(settings.get("flakes", weather.flake_count))
-	weather_settings.near_flake_count = int(settings.get("near", weather.near_flake_count))
-	weather_settings.wind = Vector2(
-		float(settings.get("wind_x", weather.wind.x)),
-		float(settings.get("wind_z", weather.wind.y))
-	)
-	weather_settings.fall_height = float(settings.get("fall_height", weather.fall_height))
-	var emitter_area: Variant = settings.get("emitter_area", weather.emitter_area)
-	if emitter_area is Vector2:
-		weather_settings.emitter_area = emitter_area
-	weather_settings.snowfall_intensity = intensity
-	weather_settings.follow_target_path = NodePath("../Actors/Player")
-	weather_settings.follow_camera = bool(settings.get("follow_camera", weather.follow_camera))
-	weather_settings.quality = snow.quality as SnowWeatherSettings.Quality
-	weather.weather_settings = weather_settings
 
 
 func _apply_follow_target(mode: int) -> void:
@@ -209,15 +188,13 @@ func _add_person() -> void:
 	person.speed = randf_range(2.0, 3.2)
 	npcs.add_child(person)
 	person.add_child(BlobShadow.make(1.2, snow.quality != DeformableSurface.Quality.HIGH))
+	_apply_blob_shadows()
 	_people.append(person)
-	hud.set_population_counts(_people.size(), _mice.size())
 
 
 func _remove_person() -> void:
-	if _people.is_empty():
-		return
-	_people.pop_back().queue_free()
-	hud.set_population_counts(_people.size(), _mice.size())
+	if not _people.is_empty():
+		_people.pop_back().queue_free()
 
 
 func _add_mouse() -> void:
@@ -230,11 +207,8 @@ func _add_mouse() -> void:
 	mouse.position = Vector3(randf_range(-9.0, 9.0), 0.0, randf_range(-9.0, 9.0))
 	$Actors.add_child(mouse)
 	_mice.append(mouse)
-	hud.set_population_counts(_people.size(), _mice.size())
 
 
 func _remove_mouse() -> void:
-	if _mice.is_empty():
-		return
-	_mice.pop_back().queue_free()
-	hud.set_population_counts(_people.size(), _mice.size())
+	if not _mice.is_empty():
+		_mice.pop_back().queue_free()

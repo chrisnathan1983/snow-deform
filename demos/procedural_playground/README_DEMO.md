@@ -5,7 +5,8 @@ built from code and primitive meshes.
 
 ## Install
 1. Make sure the addon is at `res://addons/deformable_surface/`.
-2. Drag this `demos/procedural_playground` folder into your project's `res://demos/` folder.
+2. Drag this `demos/procedural_playground` folder and `demos/common` (shared HUD, props, character and
+   the launcher button) into your project's `res://demos/` folder.
 3. Project Settings -> Rendering -> Renderer: **Compatibility** (needed for Web / mobile).
 4. Open `res://demos/procedural_playground/snow_demo.tscn` and press **F6**
    (or set it as the main scene for a Web export).
@@ -32,7 +33,7 @@ tiles clear their deformation map when they are moved to a new world location.
 | Bouncing balls | Craters + puffs on every landing (deformers ignored while airborne) |
 | Tap / click to throw | Snowball arcs from you and splats into a crater |
 | Snowball storm | 14 snowballs dropped around you |
-| Menu | Quality Low/Med/High at runtime, snowfall, wind, sun height, shadows, toggles, reset |
+| Menu | Shared tabbed HUD: surface (quality, material preset, depth, berms, technical), weather, graphics, scene toggles |
 
 The infinite variant keeps the same playground controls and actors but removes
 the fence and recycles a 3x3 grid of DeformableSurfaces around the player. Field
@@ -42,11 +43,11 @@ a tile boundary.
 ## Controls
 - **Desktop:** WASD/arrows move, Shift run, Space jump, drag = look, click = throw,
   wheel = zoom, M = menu, R = reset tracks, 1/2/3 = quality.
-- **Touch:** left half of the screen = floating joystick; right half = drag to look,
-  tap to throw; JUMP / RUN buttons bottom-right; MENU top-right.
+- **Touch:** left half drag = move joystick; right half drag = camera joystick;
+  quick tap = throw; JUMP / RUN buttons bottom-right; MENU top-right.
 
 ## Things to try on a phone
-- Start on **Low**, then bump to Medium/High and watch the FPS counter (top-left).
+- Start on **Low**, then bump to Medium/High and watch the FPS graph (top center; F3 toggles it, F4 shows a per-operation breakdown).
 - Switch quality while tracks exist: the map clears when resolution changes.
 - Drag the **Snowfall** slider: visual snowfall increases and tracks heal faster.
 - Lower the **Sun height** for long shadows and strong sparkle.

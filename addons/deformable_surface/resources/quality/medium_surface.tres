@@ -4,5 +4,4 @@
 
 [resource]
 script = ExtResource("1")
-recovery_intensity = 0.3
 subdiv = 128

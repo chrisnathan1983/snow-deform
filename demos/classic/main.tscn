@@ -1,12 +1,11 @@
 [gd_scene format=3 uid="uid://dcfw1g7ipqiqo"]
 
 [ext_resource type="Script" uid="uid://bm2dt855iutns" path="res://demos/classic/main.gd" id="1_main"]
-[ext_resource type="Script" uid="uid://3cab4qgnuplj" path="res://demos/classic/world/pine_forest.gd" id="2_forest"]
-[ext_resource type="Script" uid="uid://di5wn2d4q6734" path="res://demos/classic/world/demo_camera.gd" id="3_camera"]
-[ext_resource type="PackedScene" uid="uid://snqkfnjpqg3y" path="res://demos/classic/actors/player.tscn" id="4_player"]
+[ext_resource type="Script" uid="uid://3cab4qgnuplj" path="res://demos/common/pine_forest.gd" id="2_forest"]
+[ext_resource type="Script" uid="uid://di5wn2d4q6734" path="res://demos/common/demo_camera.gd" id="3_camera"]
+[ext_resource type="Script" path="res://demos/common/demo_character.gd" id="4_player"]
 [ext_resource type="PackedScene" path="res://demos/classic/actors/npc.tscn" id="5_npc"]
 [ext_resource type="PackedScene" uid="uid://c1qxwd3hn6anl" path="res://demos/classic/actors/sled.tscn" id="6_sled"]
-[ext_resource type="PackedScene" path="res://demos/classic/ui/demo_hud.tscn" id="7_hud"]
 [ext_resource type="Script" uid="uid://c01n4wbhvbn0m" path="res://addons/deformable_surface/scripts/deformable_surface.gd" id="8_snow"]
 [ext_resource type="PackedScene" uid="uid://c01t78ey68jer" path="res://demos/classic/actors/mouse.tscn" id="12_mouse"]
 [ext_resource type="Script" uid="uid://deupmvloejyfn" path="res://addons/snowfall/scripts/core/snow_world_manager.gd" id="13_weather"]
@@ -122,7 +121,11 @@ script = ExtResource("2_forest")
 
 [node name="Actors" type="Node3D" parent="." unique_id=908769467]
 
-[node name="Player" parent="Actors" unique_id=2115864717 instance=ExtResource("4_player")]
+[node name="Player" type="Node3D" parent="Actors" unique_id=2115864717]
+script = ExtResource("4_player")
+role = 0
+move_speed = 5.0
+half_extent = 11.0
 
 [node name="NPCs" type="Node3D" parent="Actors" unique_id=1585499757]
 
@@ -160,12 +163,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 0.35, -3)
 [node name="DeformableSurface" type="Node3D" parent="." unique_id=188116127 node_paths=PackedStringArray("sun")]
 script = ExtResource("8_snow")
 sun = NodePath("../Sun")
-initial_noise_enabled = true
-initial_noise_frequency = null
-initial_noise_height = 0.155
 quality = 2
 
 [node name="SnowWorldManager" type="Node3D" parent="." unique_id=1437319999]
 script = ExtResource("13_weather")
-
-[node name="HUD" parent="." unique_id=1561618672 instance=ExtResource("7_hud")]

@@ -6,20 +6,19 @@ extends Node3D
 ##
 ## Desktop: WASD/arrows move, Shift run, Space jump, drag = look, click = throw snowball,
 ##          wheel = zoom, M = menu, R = reset tracks, 1/2/3 = quality.
-## Touch:   left half = floating joystick, right half = drag to look / tap to throw.
+## Touch:   left half drag = move joystick, right half drag = camera joystick, tap = throw.
 
-const Props := preload("demo_props.gd")
-const DemoCharacter := preload("demo_character.gd")
-const DemoSled := preload("demo_sled.gd")
-const DemoBall := preload("demo_ball.gd")
-const DemoUI := preload("demo_ui.gd")
-const DemoStick := preload("demo_stick.gd")
-const Snowangel := preload("snow_angel.gd")
+const Props := preload("res://demos/common/demo_props.gd")
+const DemoCharacter := preload("res://demos/common/demo_character.gd")
+const DemoSled := preload("res://demos/common/demo_sled.gd")
+const DemoBall := preload("res://demos/common/demo_ball.gd")
+const Snowangel := preload("res://demos/common/snow_angel.gd")
 
 const FIELD_SIZE := 32.0
+const LOOK_YAW_RATE := 2.4
+const LOOK_PITCH_RATE := 1.5
 const HALF := FIELD_SIZE * 0.5
 const GROUND_Y := -0.3
-const QUALITY_NAMES := ["Low", "Medium", "High"]
 
 var snow: DeformableSurface
 var snow_fields: Array[DeformableSurface] = []
@@ -31,8 +30,9 @@ var camera: Camera3D
 var _ground: MeshInstance3D
 var player: DemoCharacter
 var sled: DemoSled
-var ui: DemoUI
-var stick: DemoStick
+var ui: DemoHud
+var settings: DemoSettings
+var stick: TouchSticks
 
 var _rng := RandomNumberGenerator.new()
 var _obstacles: Array[Vector3] = []
@@ -47,6 +47,7 @@ var _wind := 0.3
 var _sun_height := 30.0
 var _run_button := false
 var _touch_ui := false
+var _mouse_emulates_touch := bool(ProjectSettings.get_setting("input_devices/pointing/emulate_touch_from_mouse", false))
 
 # camera
 var _yaw := 0.0
@@ -55,9 +56,8 @@ var _dist := 7.5
 var _cam_ready := false
 
 # pointer state
-var _touches := {}
-var _stick_index := -1
 var _mouse_down := false
+var _mouse_look_ok := false   # the drag began on the right half, the only place that moves the camera
 var _mouse_start := Vector2.ZERO
 var _mouse_moved := false
 var _mouse_t := 0
@@ -68,6 +68,7 @@ var debug_move := Vector2.ZERO
 
 
 func _ready() -> void:
+    DemoNav.attach(self)
     _rng.seed = 1234
     _touch_ui = DisplayServer.is_touchscreen_available()
     _build_environment()
@@ -75,12 +76,10 @@ func _ready() -> void:
     _build_scenery()
     _build_actors()
     _build_ui()
-    get_viewport().size_changed.connect(_update_ui_scale)
-    _update_ui_scale()
-    _apply_quality(_quality)
+    settings.set_quality(_quality)
     _set_sun(_sun_height)
     if _touch_ui:
-        ui.set_hint("Left side: move   |   Right side: drag to look, tap to throw a snowball", 12.0)
+        ui.set_hint("Left side: move   |   Right side: drag to turn the camera, tap to throw", 12.0)
     else:
         ui.set_hint("WASD move | Shift run | Space jump | drag to look | click to throw | wheel zoom | M menu", 12.0)
 
@@ -123,11 +122,22 @@ func _build_snow() -> void:
     snow.low_surface_quality = _make_profile(384, 64, 4, 0.3, 64)
     snow.medium_surface_quality = _make_profile(768, 128, 8, 1.0, 96)
     snow.high_surface_quality = _make_profile(1024, 192, 12, 1.5, 128)
+    snow.material_profile = _make_material_profile()
     snow.sun = sun
     _quality = DeformableSurface.recommended_quality()
     snow.quality = _quality
     snow_fields.append(snow)
     add_child(snow)
+
+
+func _make_material_profile() -> DeformableSurfaceMaterialProfile:
+    var m := DeformableSurfaceMaterialProfile.new()
+    m.recovery_intensity = _snowfall
+    m.max_depth = 0.4
+    m.berm_strength = 0.2
+    m.berm_height = 0.08
+    m.refill_levels_per_sec = 16.0
+    return m
 
 
 func _make_profile(res: int, subdiv: int, puff: int,
@@ -139,11 +149,6 @@ func _make_profile(res: int, subdiv: int, puff: int,
     p.puff = puff
     p.sparkle = sparkle
     p.max_stamps_per_frame = stamps
-    p.recovery_intensity = _snowfall
-    p.max_depth = 0.25
-    p.berm_strength = 0.2
-    p.berm_height = 0.08
-    p.refill_levels_per_sec = 16.0
     return p
 
 
@@ -211,7 +216,7 @@ func _build_actors() -> void:
     add_child(weather)
     weather.follow_target = player
 
-    sled = DemoSled.new()
+    sled = (load("res://demos/common/props/sled.tscn") as PackedScene).instantiate() as DemoSled
     add_child(sled)
 
     # torso centre on the snow surface; yaw = rotation around Y, head points along -Z
@@ -241,7 +246,7 @@ func _build_actors() -> void:
     var cols := [Color(0.9, 0.2, 0.2), Color(0.2, 0.5, 0.95), Color(0.95, 0.6, 0.1),
             Color(0.2, 0.75, 0.4), Color(0.8, 0.3, 0.85), Color(0.95, 0.85, 0.2)]
     for i in 6:
-        var b := DemoBall.new()
+        var b := (load("res://demos/common/props/ball.tscn") as PackedScene).instantiate() as DemoBall
         b.kind = DemoBall.Kind.BOUNCER
         b.radius = _rng.randf_range(0.3, 0.45)
         b.color = cols[i]
@@ -255,45 +260,42 @@ func _build_actors() -> void:
 
 
 func _make_character(kind: String, role: int) -> DemoCharacter:
-    var c := DemoCharacter.new()
+    var c := (load("res://demos/common/characters/%s.tscn" % kind) as PackedScene).instantiate() as DemoCharacter
     c.kind = kind
     c.role = role
     return c
 
 
 func _build_ui() -> void:
-    ui = DemoUI.new()
+    ui = DemoHud.new()
     add_child(ui)
-    ui.build({
-        "quality": _quality, "snowfall": _snowfall, "wind": _wind,
-        "sun": _sun_height, "shadows": sun.shadow_enabled, "menu_open": not _touch_ui,
-    })
+    ui.set_title("Snow Lab")
+    settings = DemoSettings.create(ui, snow_fields)
+    settings.sun_handler = _set_sun
+    settings.add_surface_tab()
+    settings.add_weather_tab(weather)
+    settings.add_graphics_tab(sun, _sun_height)
+    var scene_tab := ui.add_tab("Scene")
+    ui.add_toggle(scene_tab, "sled", "Sled (figure-8)", true)
+    ui.add_toggle(scene_tab, "balls", "Bouncing balls", true)
+    ui.add_toggle(scene_tab, "yeti", "Yeti", true)
+    ui.add_toggle(scene_tab, "penguins", "Penguin parade", true)
+    ui.add_button(scene_tab, "storm", "Snowball storm")
     ui.changed.connect(_on_ui)
+    if _touch_ui:
+        ui.add_touch_buttons()
     var overlay := CanvasLayer.new()
     overlay.layer = 9
     add_child(overlay)
-    stick = DemoStick.new()
+    stick = TouchSticks.new()
+    stick.is_blocked = ui.over_ui
+    stick.stick_scale = ui.ui_scale
+    stick.tapped.connect(_throw_at)
+    ui.get_viewport().size_changed.connect(func(): stick.stick_scale = ui.ui_scale)
     overlay.add_child(stick)
 
 
-func _update_ui_scale() -> void:
-    var vs := get_viewport().get_visible_rect().size
-    var short := minf(vs.x, vs.y)
-    var s := clampf(short / 480.0, 1.0, 3.5) if _touch_ui else clampf(short / 720.0, 1.0, 2.0)
-    ui.set_ui_scale(s)
-
-
 # ================================================================ settings
-
-func _apply_quality(q: int) -> void:
-    _quality = q
-    for field in snow_fields:
-        field.quality = q
-        field.recovery_intensity = _snowfall
-    weather.weather_settings = _make_weather_profile(q)
-    weather.follow_target = player
-    ui.set_quality_selected(q)
-
 
 func _make_weather_profile(q: int) -> SnowWeatherSettings:
     var profile := SnowWeatherSettings.new()
@@ -332,16 +334,6 @@ func _set_sun(height_deg: float) -> void:
 
 func _on_ui(key: String, value: Variant) -> void:
     match key:
-        "quality": _apply_quality(int(value))
-        "snowfall":
-            _snowfall = float(value)
-            for field in snow_fields:
-                field.recovery_intensity = _snowfall
-            weather.snowfall_intensity = _snowfall
-        "wind":
-            _wind = float(value)
-            weather.wind = Vector2(_wind, _wind * 0.3)
-        "sun": _set_sun(float(value))
         "sled":
             sled.visible = bool(value)
             sled.set_running(bool(value))
@@ -352,8 +344,6 @@ func _on_ui(key: String, value: Variant) -> void:
             if bool(value):
                 for i in _penguins.size():
                     _penguins[i].position = player.position + Vector3(0.5 * float(i + 1), 0, 1.5 + float(i))
-        "shadows": sun.shadow_enabled = bool(value)
-        "reset": _reset_fields()
         "storm": _storm()
         "jump": player.jump()
         "run": _run_button = bool(value)
@@ -383,7 +373,7 @@ func _storm() -> void:
         var d := _rng.randf_range(1.5, 9.0)
         var t := player.position + Vector3(cos(a) * d, 0, sin(a) * d)
         t = _constrain_target(t, 0.8)
-        var ball := DemoBall.new()
+        var ball := (load("res://demos/common/props/ball.tscn") as PackedScene).instantiate() as DemoBall
         ball.kind = DemoBall.Kind.THROWN
         ball.radius = 0.28
         ball.position = t + Vector3(0, _rng.randf_range(9.0, 15.0), 0)
@@ -399,7 +389,7 @@ func _throw_at(screen_pos: Vector2) -> void:
         return
     var target: Vector3 = hit
     target = _constrain_target(target, 0.6)
-    var ball := DemoBall.new()
+    var ball := (load("res://demos/common/props/ball.tscn") as PackedScene).instantiate() as DemoBall
     ball.kind = DemoBall.Kind.THROWN
     ball.radius = 0.28
     var start := player.global_position + Vector3(0, 1.4, 0)
@@ -420,17 +410,19 @@ func _process(delta: float) -> void:
     var kb := Vector2(
         _key(KEY_D, KEY_RIGHT) - _key(KEY_A, KEY_LEFT),
         _key(KEY_S, KEY_DOWN) - _key(KEY_W, KEY_UP))
-    var mv := (kb + stick.value() + debug_move).limit_length(1.0)
+    var mv := (kb + stick.move + debug_move).limit_length(1.0)
     player.move_input = Basis(Vector3.UP, _yaw) * Vector3(mv.x, 0.0, mv.y)
     player.running = Input.is_key_pressed(KEY_SHIFT) or _run_button
 
+    _yaw -= stick.look.x * LOOK_YAW_RATE * delta
+    _pitch = clampf(_pitch + stick.look.y * LOOK_PITCH_RATE * delta, 0.08, 1.3)
     _update_camera(delta)
 
     _hud_t -= delta
     if _hud_t <= 0.0:
         _hud_t = 0.4
         ui.set_info("%d FPS  |  %s  |  map %d  |  %d deformers" % [
-            Engine.get_frames_per_second(), QUALITY_NAMES[_quality],
+            Engine.get_frames_per_second(), DemoSettings.QUALITY_NAMES[int(snow.quality)],
             int(snow.get_active_quality_settings().get("res", 0)), Deformer.unassigned.size()])
 
 
@@ -459,29 +451,22 @@ func _unhandled_input(event: InputEvent) -> void:
         if k.pressed and not k.echo:
             match k.keycode:
                 KEY_SPACE: player.jump()
-                KEY_M: ui.toggle_menu()
                 KEY_R: _reset_fields()
-                KEY_1: _apply_quality(0)
-                KEY_2: _apply_quality(1)
-                KEY_3: _apply_quality(2)
-    elif event is InputEventScreenTouch:
-        var st := event as InputEventScreenTouch
-        if st.pressed:
-            _touch_down(st.index, st.position)
-        else:
-            _touch_up(st.index, st.position)
-    elif event is InputEventScreenDrag:
-        var sd := event as InputEventScreenDrag
-        _touch_drag(sd.index, sd.position, sd.relative)
+                KEY_1: settings.set_quality(0)
+                KEY_2: settings.set_quality(1)
+                KEY_3: settings.set_quality(2)
     elif event is InputEventMouseButton and event.device != InputEvent.DEVICE_ID_EMULATION:
         var mb := event as InputEventMouseButton
         if mb.button_index == MOUSE_BUTTON_WHEEL_UP and mb.pressed:
             _dist = clampf(_dist - 0.6, 3.0, 16.0)
         elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN and mb.pressed:
             _dist = clampf(_dist + 0.6, 3.0, 16.0)
+        elif _mouse_emulates_touch:
+            pass   # the emulated touch drives the sticks; reacting here too would also turn the camera
         elif mb.button_index == MOUSE_BUTTON_LEFT or mb.button_index == MOUSE_BUTTON_RIGHT:
             if mb.pressed:
                 _mouse_down = true
+                _mouse_look_ok = mb.position.x >= get_viewport().get_visible_rect().size.x * 0.5
                 _mouse_moved = false
                 _mouse_start = mb.position
                 _mouse_t = Time.get_ticks_msec()
@@ -492,7 +477,9 @@ func _unhandled_input(event: InputEvent) -> void:
                 _mouse_down = false
     elif event is InputEventMouseMotion and event.device != InputEvent.DEVICE_ID_EMULATION:
         var mm := event as InputEventMouseMotion
-        if _mouse_down:
+        if _mouse_down and not _mouse_emulates_touch:
+            if not _mouse_look_ok:
+                return
             if mm.position.distance_to(_mouse_start) > 6.0:
                 _mouse_moved = true
             if _mouse_moved:
@@ -502,39 +489,3 @@ func _unhandled_input(event: InputEvent) -> void:
 func _look(rel: Vector2) -> void:
     _yaw -= rel.x * 0.006
     _pitch = clampf(_pitch + rel.y * 0.005, 0.08, 1.3)
-
-
-func _touch_down(index: int, pos: Vector2) -> void:
-    if ui.over_ui(pos):
-        return
-    var role := "look"
-    if pos.x < get_viewport().get_visible_rect().size.x * 0.45 and _stick_index == -1:
-        role = "stick"
-        _stick_index = index
-        stick.begin(pos, 62.0 * ui.ui_scale)
-    _touches[index] = {"role": role, "start": pos, "moved": false, "t": Time.get_ticks_msec()}
-
-
-func _touch_up(index: int, pos: Vector2) -> void:
-    if not _touches.has(index):
-        return
-    var info: Dictionary = _touches[index]
-    if info["role"] == "stick":
-        _stick_index = -1
-        stick.end()
-    elif not info["moved"] and Time.get_ticks_msec() - int(info["t"]) < 350:
-        _throw_at(pos)
-    _touches.erase(index)
-
-
-func _touch_drag(index: int, pos: Vector2, rel: Vector2) -> void:
-    if not _touches.has(index):
-        return
-    var info: Dictionary = _touches[index]
-    if info["role"] == "stick":
-        stick.drag_to(pos)
-    else:
-        if pos.distance_to(info["start"]) > 14.0 * ui.ui_scale:
-            info["moved"] = true
-        if info["moved"]:
-            _look(rel * 0.8)

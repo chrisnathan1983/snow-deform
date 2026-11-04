@@ -13,6 +13,11 @@ const DEMOS := [
 		"scene": "res://demos/infinite_snow/infinite_snow.tscn",
 	},
 	{
+		"title": "Material Showcase",
+		"description": "Snow, sand, mud, dirt and ash presets with albedo/normal textures and triplanar mode.",
+		"scene": "res://demos/materials/materials_demo.tscn",
+	},
+	{
 		"title": "Procedural Snow Playground",
 		"description": "A self-contained playground with actors, props, and quality controls.",
 		"scene": "res://demos/procedural_playground/snow_demo.tscn",

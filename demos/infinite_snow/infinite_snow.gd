@@ -1,7 +1,7 @@
 extends Node3D
 ## Demonstrates a shared weather manager over a recycled grid of DeformableSurfaces.
 
-const DemoCharacter := preload("res://demos/procedural_playground/demo_character.gd")
+const DemoCharacter := preload("res://demos/common/demo_character.gd")
 
 const TILE_SIZE := 40.0
 const TILE_RADIUS := 1
@@ -19,10 +19,15 @@ var _yaw := 0.0
 var _pitch := 0.42
 var _camera_distance := 9.0
 var _dragging := false
-var _hud_label: Label
+var _hud: DemoHud
+var _settings: DemoSettings
+var _hud_t := 0.0
+var _sticks: TouchSticks
+var _run_button := false
 
 
 func _ready() -> void:
+	DemoNav.attach(self)
 	_build_world()
 	_build_hud()
 	_update_camera(0.0)
@@ -74,7 +79,7 @@ func _build_world() -> void:
 	_distant_ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_distant_ground)
 
-	_player = DemoCharacter.new()
+	_player = (load("res://demos/common/characters/explorer.tscn") as PackedScene).instantiate() as DemoCharacter
 	_player.name = "Player"
 	_player.kind = "explorer"
 	_player.role = DemoCharacter.Role.PLAYER
@@ -111,18 +116,23 @@ func _create_field_grid() -> void:
 			var field := DeformableSurface.new()
 			field.name = "SnowField_%02d" % _fields.size()
 			field.sun = _sun
-			field.initial_noise_enabled = false
 			field.quality = DeformableSurface.Quality.MEDIUM
 
 			var profile := DeformableSurfaceSettings.new()
 			profile.area_size = TILE_SIZE
 			profile.res = 256
 			profile.subdiv = 64
-			profile.recovery_intensity = recovery_levels[posmod(x + z, recovery_levels.size())]
-			profile.refill_levels_per_sec = 16.0
 			profile.puff = 8
 			profile.max_stamps_per_frame = 64
 			field.medium_surface_quality = profile
+			field.low_surface_quality = _scaled(profile, 192, 48, 4)
+			field.high_surface_quality = _scaled(profile, 320, 80, 12)
+
+			var material_profile := DeformableSurfaceMaterialProfile.new()
+			material_profile.recovery_intensity = recovery_levels[posmod(x + z, recovery_levels.size())]
+			material_profile.refill_levels_per_sec = 16.0
+			material_profile.initial_noise_enabled = false
+			field.material_profile = material_profile
 
 			var tile := Vector2i(x, z)
 			field.position = Vector3(tile.x * TILE_SIZE, 0.0, tile.y * TILE_SIZE)
@@ -131,18 +141,34 @@ func _create_field_grid() -> void:
 			_tiles[tile] = field
 
 
+func _scaled(base: DeformableSurfaceSettings, res: int, subdiv: int, puff: int) -> DeformableSurfaceSettings:
+	var p := base.duplicate() as DeformableSurfaceSettings
+	p.res = res
+	p.subdiv = subdiv
+	p.puff = puff
+	return p
+
+
 func _build_hud() -> void:
-	var layer := CanvasLayer.new()
-	layer.layer = 5
-	add_child(layer)
-	_hud_label = Label.new()
-	_hud_label.position = Vector2(18.0, 16.0)
-	_hud_label.add_theme_font_size_override("font_size", 17)
-	_hud_label.add_theme_color_override("font_color", Color(0.08, 0.12, 0.2))
-	_hud_label.add_theme_color_override("font_shadow_color", Color(1.0, 1.0, 1.0, 0.8))
-	_hud_label.add_theme_constant_override("shadow_offset_x", 1)
-	_hud_label.add_theme_constant_override("shadow_offset_y", 1)
-	layer.add_child(_hud_label)
+	_hud = DemoHud.new()
+	add_child(_hud)
+	_hud.set_title("Infinite Snow")
+	_settings = DemoSettings.create(_hud, _fields)
+	_settings.add_surface_tab()
+	_settings.add_weather_tab(_weather)
+	_settings.add_graphics_tab(_sun)
+	var overlay := CanvasLayer.new()
+	overlay.layer = 9
+	add_child(overlay)
+	_sticks = TouchSticks.new()
+	_sticks.is_blocked = _hud.over_ui
+	_sticks.stick_scale = _hud.ui_scale
+	get_viewport().size_changed.connect(func(): _sticks.stick_scale = _hud.ui_scale)
+	overlay.add_child(_sticks)
+	_hud.changed.connect(_on_hud_changed)
+	if _hud.touch_ui:
+		_hud.add_touch_buttons()
+	_hud.set_hint("WASD / arrows move | Shift run | Space jump | right-drag look | wheel zoom | R reset | M menu", 12.0)
 	_update_hud()
 
 
@@ -150,15 +176,29 @@ func _process(delta: float) -> void:
 	var move := Vector2(
 		_key_axis(KEY_D, KEY_RIGHT, KEY_A, KEY_LEFT),
 		_key_axis(KEY_S, KEY_DOWN, KEY_W, KEY_UP)
-	).limit_length(1.0)
+	)
+	if _sticks:
+		move += _sticks.move
+		_yaw -= _sticks.look.x * 2.4 * delta
+		_pitch = clampf(_pitch + _sticks.look.y * 1.5 * delta, 0.08, 1.25)
+	move = move.limit_length(1.0)
 	_player.move_input = Basis(Vector3.UP, _yaw) * Vector3(move.x, 0.0, move.y)
-	_player.running = Input.is_key_pressed(KEY_SHIFT)
+	_player.running = Input.is_key_pressed(KEY_SHIFT) or _run_button
 
 	_distant_ground.global_position.x = _player.global_position.x
 	_distant_ground.global_position.z = _player.global_position.z
 	_recenter_fields()
 	_update_camera(delta)
-	_update_hud()
+	_hud_t -= delta
+	if _hud_t <= 0.0:
+		_hud_t = 0.4
+		_update_hud()
+
+
+func _on_hud_changed(key: String, value: Variant) -> void:
+	match key:
+		"jump": _player.jump()
+		"run": _run_button = bool(value)
 
 
 func _key_axis(positive_a: Key, positive_b: Key, negative_a: Key, negative_b: Key) -> float:
@@ -212,17 +252,14 @@ func _update_camera(delta: float) -> void:
 
 
 func _update_hud() -> void:
-	if not is_instance_valid(_hud_label):
+	if not is_instance_valid(_hud):
 		return
 	var tile := Vector2i(
 		floori(_player.global_position.x / TILE_SIZE + 0.5),
 		floori(_player.global_position.z / TILE_SIZE + 0.5)
 	)
-	_hud_label.text = (
-		"INFINITE SNOW  |  %d independent fields  |  1 shared weather manager\n"
-		+ "WASD / arrows move   Shift run   Space jump   Right-drag look   Wheel zoom   R reset\n"
-		+ "Recycled tile center: (%d, %d)   |   Surface recovery varies per field"
-	) % [FIELD_COUNT, tile.x, tile.y]
+	_hud.set_info("%d FPS  |  %d fields  |  tile (%d, %d)" % [
+		Engine.get_frames_per_second(), FIELD_COUNT, tile.x, tile.y])
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -241,7 +278,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif button.button_index == MOUSE_BUTTON_WHEEL_DOWN and button.pressed:
 			_camera_distance = minf(_camera_distance + 0.8, 22.0)
 		elif button.button_index == MOUSE_BUTTON_RIGHT:
-			_dragging = button.pressed
+			_dragging = button.pressed and button.position.x >= get_viewport().get_visible_rect().size.x * 0.5
 	elif event is InputEventMouseMotion and _dragging:
 		var motion := event as InputEventMouseMotion
 		_yaw -= motion.relative.x * 0.006

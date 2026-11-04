@@ -169,32 +169,19 @@ static func add_fence(parent: Node3D, half: float, ground_y: float) -> void:
     add_mesh(parent, box(Vector3(0.1, skirt_h, half * 2.0 + 0.2)), snow, Vector3(half + 0.04, sy, 0))
 
 
-static func add_rock(parent: Node3D, pos: Vector3, r: float, yaw_deg: float) -> void:
-    var mi := add_mesh(parent, sphere(1.0, 9), Color(0.52, 0.56, 0.64),
-            pos + Vector3(0, r * 0.35, 0), Vector3(r, r * 0.65, r * 0.85), Vector3(0, yaw_deg, 0))
-    mi.material_override = mat(Color(0.52, 0.56, 0.64), 0.95)
-    # little snow cap
-    add_mesh(parent, sphere(1.0, 9), Color(0.93, 0.96, 1.0),
-            pos + Vector3(0, r * 0.62, 0), Vector3(r * 0.7, r * 0.28, r * 0.6), Vector3(0, yaw_deg, 0))
+## Scene-based props live in demos/common/props/ and can be dropped into any scene.
+static func add_rock(parent: Node3D, pos: Vector3, r: float, yaw_deg: float) -> Node3D:
+    var rock := (load("res://demos/common/props/rock.tscn") as PackedScene).instantiate() as Node3D
+    rock.position = pos
+    rock.scale = Vector3.ONE * r
+    rock.rotation_degrees.y = yaw_deg
+    parent.add_child(rock)
+    return rock
 
 
-static func add_snowman(parent: Node3D, pos: Vector3, yaw_deg: float) -> void:
-    var root := Node3D.new()
-    root.position = pos
-    root.rotation_degrees.y = yaw_deg
-    parent.add_child(root)
-    var white := Color(0.95, 0.97, 1.0)
-    var coal := Color(0.08, 0.08, 0.1)
-    add_mesh(root, sphere(0.62), white, Vector3(0, 0.55, 0))
-    add_mesh(root, sphere(0.46), white, Vector3(0, 1.4, 0))
-    add_mesh(root, sphere(0.32), white, Vector3(0, 2.0, 0))
-    add_mesh(root, cone(0.06, 0.4, 6), Color(1.0, 0.5, 0.1), Vector3(0, 2.0, -0.5), Vector3.ONE, Vector3(-90, 0, 0))
-    add_mesh(root, sphere(0.04, 6), coal, Vector3(-0.11, 2.08, -0.29))
-    add_mesh(root, sphere(0.04, 6), coal, Vector3(0.11, 2.08, -0.29))
-    for i in 3:
-        add_mesh(root, sphere(0.045, 6), coal, Vector3(0, 1.55 - 0.17 * float(i), -0.44 + 0.03 * float(i)))
-    add_mesh(root, cylinder(0.2, 0.3, 10), coal, Vector3(0, 2.42, 0))
-    add_mesh(root, cylinder(0.31, 0.03, 12), coal, Vector3(0, 2.27, 0))
-    add_mesh(root, cylinder(0.025, 0.9, 5), Color(0.35, 0.24, 0.15), Vector3(-0.62, 1.58, 0), Vector3.ONE, Vector3(0, 0, 60))
-    add_mesh(root, cylinder(0.025, 0.9, 5), Color(0.35, 0.24, 0.15), Vector3(0.62, 1.58, 0), Vector3.ONE, Vector3(0, 0, -60))
-    add_mesh(root, cylinder(0.3, 0.09, 12), Color(0.85, 0.15, 0.2), Vector3(0, 1.72, 0))
+static func add_snowman(parent: Node3D, pos: Vector3, yaw_deg: float) -> Node3D:
+    var snowman := (load("res://demos/common/props/snowman.tscn") as PackedScene).instantiate() as Node3D
+    snowman.position = pos
+    snowman.rotation_degrees.y = yaw_deg
+    parent.add_child(snowman)
+    return snowman

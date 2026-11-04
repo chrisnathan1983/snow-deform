@@ -1,0 +1,16 @@
+[gd_resource type="ShaderMaterial" load_steps=2 format=3]
+
+[ext_resource type="Shader" path="res://addons/deformable_surface/shaders/deformable_surface.gdshader" id="1_shader"]
+
+[resource]
+shader = ExtResource("1_shader")
+shader_parameter/surface_color = Color(0.612, 0.518, 0.346, 1)
+shader_parameter/shadow_color = Color(0.432, 0.338, 0.202, 1)
+shader_parameter/base_roughness = 0.95
+shader_parameter/pressed_roughness = 0.85
+shader_parameter/glaze_amount = 0.0
+shader_parameter/specular_amount = 0.3
+shader_parameter/sparkle_strength = 0.0
+shader_parameter/cool_shading = 0.0
+shader_parameter/wrap_amount = 0.15
+shader_parameter/bevel_noise_strength = 0.6

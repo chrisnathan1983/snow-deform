@@ -9,6 +9,11 @@ extends Node3D
 var _pool: Array[CPUParticles3D] = []
 var _next := 0
 var _amount := 8
+var _mesh: QuadMesh
+var _texture: Texture2D
+var _ramp: Gradient
+var _vel_min := 0.6
+var _vel_max := 1.4
 
 
 func _ready() -> void:
@@ -18,15 +23,11 @@ func _ready() -> void:
 	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	mat.billboard_keep_scale = true
 	mat.vertex_color_use_as_albedo = true
-	mat.albedo_texture = _soft_dot()
 
 	var mesh := QuadMesh.new()
 	mesh.size = Vector2(0.3, 0.3)
 	mesh.material = mat
-
-	var ramp := Gradient.new()
-	ramp.set_color(0, Color(1, 1, 1, 0.85))
-	ramp.set_color(1, Color(1, 1, 1, 0.0))
+	_mesh = mesh
 
 	for i in pool_size:
 		var p := CPUParticles3D.new()
@@ -37,19 +38,41 @@ func _ready() -> void:
 		p.lifetime = 0.6
 		p.local_coords = false   # world space: puffs stay put after the node moves
 		p.mesh = mesh
-		p.color_ramp = ramp
 		p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
 		p.emission_sphere_radius = 0.1
 		p.direction = Vector3.UP
 		p.spread = 55.0
 		p.gravity = Vector3(0, -2.5, 0)
-		p.initial_velocity_min = 0.6
-		p.initial_velocity_max = 1.4
 		p.damping_min = 1.0
 		p.damping_max = 2.0
 		p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(p)
 		_pool.append(p)
+	_apply_look()
+
+
+## Applies the surface's puff look. Null texture/ramp fall back to a soft dot and a white fade.
+func configure(texture: Texture2D, ramp: Gradient, vel_min: float, vel_max: float) -> void:
+	_texture = texture
+	_ramp = ramp
+	_vel_min = vel_min
+	_vel_max = maxf(vel_max, vel_min)
+	if not _pool.is_empty():
+		_apply_look()
+
+
+func _apply_look() -> void:
+	var tex: Texture2D = _texture if _texture != null else _soft_dot()
+	(_mesh.material as StandardMaterial3D).albedo_texture = tex
+	var ramp := _ramp
+	if ramp == null:
+		ramp = Gradient.new()
+		ramp.set_color(0, Color(1, 1, 1, 0.85))
+		ramp.set_color(1, Color(1, 1, 1, 0.0))
+	for p in _pool:
+		p.color_ramp = ramp
+		p.initial_velocity_min = _vel_min
+		p.initial_velocity_max = _vel_max
 
 
 func set_amount(n: int) -> void:

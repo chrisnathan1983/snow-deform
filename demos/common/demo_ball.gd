@@ -2,7 +2,7 @@ extends Node3D
 ## BOUNCER: bounces around the arena, cratering the snow on every landing.
 ## THROWN: a snowball that flies in an arc, splats into a crater, then pops.
 
-const Props := preload("demo_props.gd")
+const Props := preload("res://demos/common/demo_props.gd")
 
 enum Kind { BOUNCER, THROWN }
 const GRAVITY := 16.0
@@ -14,23 +14,36 @@ var bounce_speed := 7.5
 var half := 13.5
 var color := Color(0.9, 0.2, 0.2)
 
-var _deformer: Deformer
 var _landed := false
 var _t := 0.0
 
 
+## Unit-radius sphere; authored in demos/common/props/ball.tscn.
+static func build_visual(parent: Node3D) -> void:
+    Props.add_mesh(parent, Props.sphere(1.0, 12), Color.WHITE).name = "Sphere"
+
+
 func _ready() -> void:
-    Props.add_mesh(self, Props.sphere(radius, 12), color if kind == Kind.BOUNCER else Color(0.97, 0.98, 1.0))
-    _deformer = Deformer.new()
-    _deformer.position = Vector3(0, -radius, 0)
-    if kind == Kind.THROWN:
-        _deformer.radius = 0.62
-        _deformer.strength = 1.0
-        _deformer.active = false          # only stamp on impact
-    else:
-        _deformer.radius = radius * 1.2
-        _deformer.strength = 0.85
-    add_child(_deformer)
+    var visual := get_node_or_null("Visual") as Node3D
+    if visual == null:
+        visual = Node3D.new()
+        visual.name = "Visual"
+        add_child(visual)
+        build_visual(visual)
+    visual.scale = Vector3.ONE * radius
+    var tint := color if kind == Kind.BOUNCER else Color(0.97, 0.98, 1.0)
+    for child in visual.get_children():
+        var mi := child as MeshInstance3D
+        if mi:
+            mi.material_override = Props.mat(tint)
+
+
+func _impact() -> void:
+    var r := 0.62 if kind == Kind.THROWN else radius * 1.2
+    var s := 1.0 if kind == Kind.THROWN else 0.85
+    var p := Vector3(global_position.x, 0.0, global_position.z)
+    for surface in DeformableSurface.instances:
+        surface.stamp_at(p, r, s, null, DeformableSurface.StampMode.CARVE, 0.0, 1.0, kind == Kind.THROWN)
 
 
 func _process(delta: float) -> void:
@@ -40,6 +53,7 @@ func _process(delta: float) -> void:
         if position.y - radius <= 0.0:
             position.y = radius
             velocity.y = bounce_speed
+            _impact()
         if absf(position.x) > half:
             position.x = clampf(position.x, -half, half)
             velocity.x = -velocity.x
@@ -54,7 +68,7 @@ func _process(delta: float) -> void:
         if velocity.y < 0.0 and position.y - radius <= 0.0:
             position.y = radius
             _landed = true
-            _deformer.active = true
+            _impact()
     else:
         _t += delta
         if _t > 0.25:

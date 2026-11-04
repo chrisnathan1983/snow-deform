@@ -19,6 +19,7 @@ func _build_snow() -> void:
 			field.medium_surface_quality = _make_profile(256, 64, 8, 1.0, 96)
 			field.high_surface_quality = _make_profile(320, 80, 12, 1.5, 128)
 			field.sun = sun
+			field.material_profile = _make_material_profile()
 			field.quality = _quality as DeformableSurface.Quality
 			field.position = Vector3(x * FIELD_SIZE, 0.0, z * FIELD_SIZE)
 			add_child(field)
@@ -41,7 +42,7 @@ func _build_actors() -> void:
 	weather.weather_settings = _make_weather_profile(_quality)
 	add_child(weather)
 	weather.follow_target = player
-	sled = DemoSled.new()
+	sled = (load("res://demos/common/props/sled.tscn") as PackedScene).instantiate() as DemoSled
 	add_child(sled)
 
 	# torso centre on the snow surface; yaw = rotation around Y, head points along -Z
@@ -71,7 +72,7 @@ func _build_actors() -> void:
 	var cols := [Color(0.9, 0.2, 0.2), Color(0.2, 0.5, 0.95), Color(0.95, 0.6, 0.1),
 			Color(0.2, 0.75, 0.4), Color(0.8, 0.3, 0.85), Color(0.95, 0.85, 0.2)]
 	for i in 6:
-		var b := DemoBall.new()
+		var b := (load("res://demos/common/props/ball.tscn") as PackedScene).instantiate() as DemoBall
 		b.kind = DemoBall.Kind.BOUNCER
 		b.radius = _rng.randf_range(0.3, 0.45)
 		b.color = cols[i]

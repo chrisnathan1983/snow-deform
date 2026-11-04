@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="DeformableSurfaceMaterialProfile" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://addons/deformable_surface/scripts/deformable_surface_material_profile.gd" id="1_script"]
+[ext_resource type="Material" path="res://addons/deformable_surface/resources/materials/snow_material.tres" id="2_mat"]
+
+[resource]
+script = ExtResource("1_script")
+material = ExtResource("2_mat")
+surface_type = &"snow"
+initial_noise_height = 0.25
+initial_noise_mound_height = 0.4
+max_depth = 0.5
+berm_strength = 0.12
+berm_height = 0.06
+recovery_intensity = 0.3
+wrapped_diffuse_lighting = true
+puffs_enabled = true

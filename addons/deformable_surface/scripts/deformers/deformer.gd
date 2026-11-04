@@ -15,6 +15,9 @@ static var assigned: Dictionary = {}
 @export_range(0.02, 5.0, 0.01, "or_greater") var radius := 0.4 : set = set_radius
 @export_range(0.0, 1.0) var strength := 1.0 : set = set_strength
 @export var active := true : set = set_active
+## CARVE presses the surface down, RAISE builds it up (e.g. dumping snow), SMOOTH flattens it
+## (a snow plow). See DeformableSurface.StampMode.
+@export var mode: DeformableSurface.StampMode = DeformableSurface.StampMode.CARVE : set = set_mode
 
 var stamp_texture: Texture2D : set = set_stamp_texture
 var stamp_flip_x := false : set = set_stamp_flip_x
@@ -100,6 +103,13 @@ func set_aspect(value: float) -> void:
 	if is_equal_approx(aspect, updated):
 		return
 	aspect = updated
+	_mark_changed()
+
+
+func set_mode(value: DeformableSurface.StampMode) -> void:
+	if mode == value:
+		return
+	mode = value
 	_mark_changed()
 
 

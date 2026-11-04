@@ -2,7 +2,7 @@ extends Node3D
 ## A simple primitive-mesh character that leaves footprints via DeformerFootsteps.
 ## kind: "explorer" (player), "yeti", "penguin". Origin is at the feet, facing -Z.
 
-const Props := preload("demo_props.gd")
+const Props := preload("res://demos/common/demo_props.gd")
 
 enum Role { PLAYER, WANDERER, FOLLOWER }
 
@@ -43,8 +43,14 @@ var _roll_amp := 0.05
 
 
 func _ready() -> void:
-    _visual = Node3D.new()
-    add_child(_visual)
+    # Character scenes (demos/common/characters/) ship their meshes under "Visual";
+    # without one the body is built in code.
+    _visual = get_node_or_null("Visual") as Node3D
+    var has_authored_visual := _visual != null
+    if not has_authored_visual:
+        _visual = Node3D.new()
+        _visual.name = "Visual"
+        add_child(_visual)
     var foot_radius := 0.2
     var foot_aspect := 2.2
     var spread := 0.12
@@ -53,7 +59,8 @@ func _ready() -> void:
     var strength := 1.0
     match kind:
         "yeti":
-            _build_yeti()
+            if not has_authored_visual:
+                _build_yeti()
             foot_radius = 0.4
             foot_aspect = 1.7
             spread = 0.34
@@ -64,7 +71,8 @@ func _ready() -> void:
             _bob_amp = 0.12
             _roll_amp = 0.04
         "penguin":
-            _build_penguin()
+            if not has_authored_visual:
+                _build_penguin()
             foot_radius = 0.13
             foot_aspect = 1.6
             spread = 0.08
@@ -76,7 +84,8 @@ func _ready() -> void:
             _bob_amp = 0.03
             _roll_amp = 0.24
         _:
-            _build_explorer()
+            if not has_authored_visual:
+                _build_explorer()
     _foot = DeformerFootsteps.new()
     _foot.foot_radius = foot_radius
     _foot.foot_aspect = foot_aspect
