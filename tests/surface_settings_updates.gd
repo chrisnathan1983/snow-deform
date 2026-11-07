@@ -7,7 +7,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	var scene = load("res://demos/procedural_playground/snow_demo_infinite.tscn").instantiate()
+	var scene = load("res://demos/snow_demo_infinite.tscn").instantiate()
 	root.add_child(scene)
 	scene.set_process(false)
 	scene.settings.set_process(false)
@@ -52,7 +52,7 @@ func _run() -> void:
 	quality.res = 256
 	while not field.prepare_initial_noise_at(field.global_position, profile, quality):
 		await process_frame
-	var prepared := field._initial_noise_cache
+	var prepared := field._prepared_noise_texture
 	field.apply_surface_settings(profile, quality)
 	if field._initial_map_texture != prepared:
 		push_error("Combined settings regenerated noise synchronously")

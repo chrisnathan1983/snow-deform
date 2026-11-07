@@ -103,6 +103,8 @@ var _bg: Control
 var _initial_map_texture: Texture2D
 var _initial_noise_cache: ImageTexture
 var _initial_noise_cache_key: Array = []
+var _prepared_noise_texture: ImageTexture
+var _prepared_noise_key: Array = []
 var _initial_noise_thread: Thread
 var _initial_noise_thread_key: Array = []
 var _batching_surface_settings := false
@@ -783,15 +785,19 @@ func prepare_initial_noise_at(world_position: Vector3, profile: DeformableSurfac
 	var resolution := mini(clampi(settings.res, 128, 2048) if settings != null else _vp.size.x, 512)
 	var key := _initial_noise_key(resolution, target)
 	key[2] = Vector2(world_position.x, world_position.z)
+	if (_initial_noise_cache != null and _initial_noise_cache_key == key
+			or _prepared_noise_texture != null and _prepared_noise_key == key):
+		return true
 	if _initial_noise_thread != null:
 		if _initial_noise_thread.is_alive():
 			return false
 		var image: Image = _initial_noise_thread.wait_to_finish()
 		_initial_noise_thread = null
-		_initial_noise_cache = ImageTexture.create_from_image(image)
-		_initial_noise_cache_key = _initial_noise_thread_key
-	if _initial_noise_cache != null and _initial_noise_cache_key == key:
-		return true
+		# Discard obsolete results before uploading them after a direction/settings change.
+		if _initial_noise_thread_key == key:
+			_prepared_noise_texture = ImageTexture.create_from_image(image)
+			_prepared_noise_key = key
+			return true
 	var snapshot := target.duplicate(true) as DeformableSurfaceType
 	snapshot.clamp_values()
 	var origin := Vector2(world_position.x, world_position.z) - area_size * 0.5
@@ -808,6 +814,11 @@ func prepare_initial_noise_at(world_position: Vector3, profile: DeformableSurfac
 ## Regenerating is a per-pixel GDScript loop, so reuse the texture while its inputs are unchanged.
 func _get_initial_noise_texture() -> Texture2D:
 	var key := _initial_noise_key(mini(_vp.size.x, 512))
+	if _prepared_noise_texture != null and _prepared_noise_key == key:
+		_initial_noise_cache = _prepared_noise_texture
+		_initial_noise_cache_key = _prepared_noise_key
+		_prepared_noise_texture = null
+		_prepared_noise_key = []
 	if _initial_noise_cache == null or _initial_noise_cache_key != key:
 		_initial_noise_cache = ImageTexture.create_from_image(_make_initial_noise_image())
 		_initial_noise_cache_key = key

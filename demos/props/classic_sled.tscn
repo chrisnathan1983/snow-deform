@@ -1,0 +1,38 @@
+[gd_scene format=3 uid="uid://c1qxwd3hn6anl"]
+
+[ext_resource type="Script" uid="uid://bdagugdsyyn7l" path="res://addons/deformable_surface/scripts/deformers/deformer.gd" id="1_deformer"]
+[ext_resource type="Script" uid="uid://fu27oofsr43e" path="res://demos/scripts/sled.gd" id="2_sled"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_sled"]
+size = Vector3(1, 0.2, 1.8)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_sled"]
+albedo_color = Color(0.55, 0.25, 0.15, 1)
+roughness = 0.8
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_sled"]
+size = Vector3(1, 0.2, 1.8)
+
+[node name="Sled" type="AnimatableBody3D" unique_id=777307405]
+script = ExtResource("2_sled")
+
+[node name="Body" type="MeshInstance3D" parent="." unique_id=272760147]
+mesh = SubResource("BoxMesh_sled")
+surface_material_override/0 = SubResource("StandardMaterial3D_sled")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1145806770]
+shape = SubResource("BoxShape3D_sled")
+
+[node name="LeftRunner" type="Node3D" parent="." unique_id=564754910]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.35, -0.1, 0)
+script = ExtResource("1_deformer")
+radius = 0.19999999999999998
+aspect = 3.0
+puff_distance = 1.0
+
+[node name="RightRunner" type="Node3D" parent="." unique_id=449901468]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.35, -0.1, 0)
+script = ExtResource("1_deformer")
+radius = 0.19999999999999998
+aspect = 3.0
+puff_distance = 1.0

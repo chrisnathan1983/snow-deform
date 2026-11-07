@@ -7,7 +7,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	var scene = load("res://demos/procedural_playground/snow_demo_infinite.tscn").instantiate()
+	var scene = load("res://demos/snow_demo_infinite.tscn").instantiate()
 	root.add_child(scene)
 	scene.set_process(false)
 	while scene.settings.has_pending_surface_updates():
