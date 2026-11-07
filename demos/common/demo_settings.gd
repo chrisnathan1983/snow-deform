@@ -25,6 +25,40 @@ var allow_area := false
 var quality_presets: Array[DeformableSurfaceQuality] = []
 var quality_index := 1
 var _preset_name := ""
+var _pending_surface_updates: Dictionary = {}
+var _surface_edit_delay := 0.0
+
+
+func has_pending_surface_updates() -> bool:
+	return not _pending_surface_updates.is_empty()
+
+
+func _queue_surface_update(f: DeformableSurface, profile: DeformableSurfaceType,
+		settings: DeformableSurfaceQuality) -> void:
+	profile.clamp_values()
+	settings.clamp_values()
+	_pending_surface_updates[f] = {"profile": profile, "quality": settings}
+	_surface_edit_delay = 0.12
+
+
+func _process(delta: float) -> void:
+	if not has_pending_surface_updates():
+		return
+	_surface_edit_delay = maxf(0.0, _surface_edit_delay - delta)
+	if _surface_edit_delay > 0.0:
+		return
+	# Prepare and apply one field at a time so uploads/rebuilds are spread over frames.
+	var f: DeformableSurface = _pending_surface_updates.keys()[0]
+	if not is_instance_valid(f):
+		_pending_surface_updates.erase(f)
+		return
+	var update: Dictionary = _pending_surface_updates[f]
+	var profile: DeformableSurfaceType = update["profile"]
+	var settings: DeformableSurfaceQuality = update["quality"]
+	if not f.prepare_initial_noise_at(f.global_position, profile, settings):
+		return
+	f.apply_surface_settings(profile, settings)
+	_pending_surface_updates.erase(f)
 
 
 static func create(p_hud: DemoHud, p_fields: Array[DeformableSurface]) -> DemoSettings:
@@ -37,6 +71,8 @@ static func create(p_hud: DemoHud, p_fields: Array[DeformableSurface]) -> DemoSe
 
 
 func _quality_of(f: DeformableSurface) -> DeformableSurfaceQuality:
+	if _pending_surface_updates.has(f):
+		return _pending_surface_updates[f]["quality"]
 	return f.quality if f.quality != null else DeformableSurfaceQuality.medium()
 
 
@@ -166,7 +202,8 @@ func set_quality(index: int) -> void:
 			quality_presets = [DeformableSurfaceQuality.low(), DeformableSurfaceQuality.medium(),
 					DeformableSurfaceQuality.high()]
 		for f in fields:
-			f.quality = quality_presets[index]
+			_queue_surface_update(f, _profile_of(f).duplicate() as DeformableSurfaceType,
+					quality_presets[index].duplicate() as DeformableSurfaceQuality)
 	if weather and index < FLAKES.size():
 		weather.flake_count = FLAKES[index][0]
 		weather.near_flake_count = FLAKES[index][1]
@@ -190,7 +227,7 @@ func _set_preset(index: int) -> void:
 		var p := source.duplicate() as DeformableSurfaceType
 		p.recovery_intensity = previous.recovery_intensity
 		p.initial_noise_enabled = previous.initial_noise_enabled and p.initial_noise_enabled
-		f.surface_type = p
+		_queue_surface_update(f, p, _quality_of(f).duplicate() as DeformableSurfaceQuality)
 	_sync_surface()
 
 
@@ -199,14 +236,14 @@ func edit_profile(prop: String, value: Variant) -> void:
 	for f in fields:
 		var p := _profile_of(f).duplicate() as DeformableSurfaceType
 		p.set(prop, value)
-		f.surface_type = p
+		_queue_surface_update(f, p, _quality_of(f).duplicate() as DeformableSurfaceQuality)
 
 
 func _edit_technical(key: String, value: Variant) -> void:
 	for f in fields:
 		var q := _quality_of(f).duplicate() as DeformableSurfaceQuality
 		q.set(key, int(value) if q.get(key) is int else float(value))
-		f.quality = q
+		_queue_surface_update(f, _profile_of(f).duplicate() as DeformableSurfaceType, q)
 	quality_index = 3
 	hud.set_value("surface.quality", quality_index)
 
@@ -245,6 +282,8 @@ func _primary() -> DeformableSurface:
 
 
 func _profile_of(f: DeformableSurface) -> DeformableSurfaceType:
+	if _pending_surface_updates.has(f):
+		return _pending_surface_updates[f]["profile"]
 	if f.surface_type != null:
 		return f.surface_type
 	return DeformableSurfaceType.new()

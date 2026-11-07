@@ -105,6 +105,8 @@ var _initial_noise_cache: ImageTexture
 var _initial_noise_cache_key: Array = []
 var _initial_noise_thread: Thread
 var _initial_noise_thread_key: Array = []
+var _batching_surface_settings := false
+var _surface_clear_pending := false
 var _refill: ColorRect
 var _refill_material: ShaderMaterial
 var _mesh: MeshInstance3D
@@ -227,6 +229,18 @@ func _mark_deformer_dirty(deformer: Deformer) -> void:
 
 
 # ------------------------------------------------------------------ public API
+
+## Applies prepared material/quality changes together, clearing the map only once at
+## the final resolution. Call prepare_initial_noise_at() with these settings first.
+func apply_surface_settings(profile: DeformableSurfaceType, settings: DeformableSurfaceQuality) -> void:
+	_batching_surface_settings = true
+	set_surface_type(profile)
+	set_quality(settings)
+	_batching_surface_settings = false
+	if _surface_clear_pending:
+		_surface_clear_pending = false
+		_clear_map()
+
 
 ## Assigns a quality (the node keeps a clamped copy). Reconfiguring preserves trails unless the
 ## map resolution changes.
@@ -702,6 +716,9 @@ func _configure_stamp_material(stamp_material: ShaderMaterial) -> void:
 
 ## Restores the starting surface and clears tracks.
 func _clear_map() -> void:
+	if _batching_surface_settings:
+		_surface_clear_pending = true
+		return
 	if is_instance_valid(_bg):
 		_bg.queue_free()
 	if _mp.initial_noise_enabled:
@@ -727,14 +744,15 @@ func _clear_map() -> void:
 	_refill_timer = 0.0
 	_refill_idle = 0.0
 	_puff_acc.clear()
+	_last.clear()
 	for deformer in Deformer.unassigned:
 		_register_deformer(deformer)
 	for deformer in Deformer.assigned.get(get_instance_id(), []):
 		_register_deformer(deformer)
 
 
-func _initial_noise_key(resolution: int) -> Array:
-	var p := _values()
+func _initial_noise_key(resolution: int, profile: DeformableSurfaceType = null) -> Array:
+	var p := profile if profile != null else _values()
 	# Surface types can be assigned before this node is added to the scene.
 	var origin := global_position if is_inside_tree() else position
 	var noise_key: Array = [null]
@@ -755,11 +773,15 @@ func _initial_noise_key(resolution: int) -> Array:
 ## Prepares noise for a future relocation without blocking a frame. Poll until true, then
 ## move the surface and call reset_trails(). Texture creation stays on the main thread;
 ## the worker only reads a private settings snapshot and writes its own Image.
-func prepare_initial_noise_at(world_position: Vector3) -> bool:
-	if not _runtime or not _values().initial_noise_enabled:
+## Optional profile/quality arguments prepare a settings change at its final resolution;
+## pass the same resources to apply_surface_settings() once preparation is complete.
+func prepare_initial_noise_at(world_position: Vector3, profile: DeformableSurfaceType = null,
+		settings: DeformableSurfaceQuality = null) -> bool:
+	var target := profile if profile != null else _values()
+	if not _runtime or not target.initial_noise_enabled:
 		return true
-	var resolution := mini(_vp.size.x, 512)
-	var key := _initial_noise_key(resolution)
+	var resolution := mini(clampi(settings.res, 128, 2048) if settings != null else _vp.size.x, 512)
+	var key := _initial_noise_key(resolution, target)
 	key[2] = Vector2(world_position.x, world_position.z)
 	if _initial_noise_thread != null:
 		if _initial_noise_thread.is_alive():
@@ -770,7 +792,8 @@ func prepare_initial_noise_at(world_position: Vector3) -> bool:
 		_initial_noise_cache_key = _initial_noise_thread_key
 	if _initial_noise_cache != null and _initial_noise_cache_key == key:
 		return true
-	var snapshot := _values().duplicate(true) as DeformableSurfaceType
+	var snapshot := target.duplicate(true) as DeformableSurfaceType
+	snapshot.clamp_values()
 	var origin := Vector2(world_position.x, world_position.z) - area_size * 0.5
 	_initial_noise_thread = Thread.new()
 	_initial_noise_thread_key = key
@@ -935,12 +958,18 @@ func _process(delta: float) -> void:
 			_dirty_deformers.erase(id)
 			continue
 		var local := to_local(d.global_position)
-		if (render_mesh and local.y > max_depth) or absf(local.x) > area_size.x * 0.5 or absf(local.z) > area_size.y * 0.5:
+		# Include the whole elongated brush and its berms, even when the center is
+		# on a neighboring tile. The viewport clips the stamp to this surface.
+		var reach := d.radius * sqrt(clampf(d.aspect, 1.0, STAMP_MAX_ASPECT)) * (BERM_REACH + BERM_FORWARD)
+		if (render_mesh and local.y > max_depth) or absf(local.x) > area_size.x * 0.5 + reach or absf(local.z) > area_size.y * 0.5 + reach:
 			_last.erase(id)
 			_dirty_deformers.erase(id)
 			continue
 		var depth_ratio := clampf(1.0 - (local.y / max_depth), 0.1, 1.0) if render_mesh else 1.0
 		var effective_strength := d.strength * depth_ratio
+		# Half-open bounds give shared edges a single owner for audio and particles.
+		var owns_contact := (local.x >= -area_size.x * 0.5 and local.x < area_size.x * 0.5
+				and local.z >= -area_size.y * 0.5 and local.z < area_size.y * 0.5)
 		var pos := (Vector2(local.x, local.z) / area_size + Vector2(0.5, 0.5)) * res
 		var r_px := maxf(d.radius, 0.01) * px_per_m
 		var heading := d.map_heading()
@@ -982,7 +1011,7 @@ func _process(delta: float) -> void:
 						done = sp
 					if done == prev:
 						continue
-				if d.puff_distance > 0.0:
+				if d.puff_distance > 0.0 and owns_contact:
 					var stamped_move := done - prev
 					var acc: float = _puff_acc.get(id, 0.0) + stamped_move.length() / px_per_m
 					if acc >= d.puff_distance:
@@ -992,7 +1021,8 @@ func _process(delta: float) -> void:
 		else:
 			if not _stamp(pos, r_px, heading, aspect, effective_strength, false, d.stamp_texture, d.stamp_flip_x, d.mode):
 				continue
-			_emit_contact(d.global_position, effective_strength, d.mode, d, d.radius, d.puff_on_touchdown)
+			if owns_contact:
+				_emit_contact(d.global_position, effective_strength, d.mode, d, d.radius, d.puff_on_touchdown)
 		_last[id] = done
 		if done.distance_to(pos) < 0.001:
 			_dirty_deformers.erase(id)

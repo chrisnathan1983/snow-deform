@@ -106,6 +106,10 @@ func _process(delta: float) -> void:
 
 
 func _recenter_fields() -> void:
+	# Settings and relocation share each field's noise worker/cache. Finish a settings
+	# batch before requesting another destination so the two queues cannot compete.
+	if settings != null and settings.has_pending_surface_updates():
+		return
 	var center := Vector2i(
 		floori(player.global_position.x / FIELD_SIZE + 0.5),
 		floori(player.global_position.z / FIELD_SIZE + 0.5)

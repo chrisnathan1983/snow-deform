@@ -40,6 +40,13 @@ the fence and recycles a 3x3 grid of DeformableSurfaces around the player. Field
 relocations are spread across frames to avoid a large reset spike when crossing
 a tile boundary.
 
+Surface settings wait 120 ms after the last edit, prepare noise in a background
+thread, and apply one field per frame. Rapid slider edits keep the latest values.
+Tile recycling waits for the settings batch to finish so both operations share
+the noise cache safely. Footprint brushes overlap neighboring fields at tile
+edges and corners; contact effects are emitted only by the field containing the
+brush center.
+
 ## Controls
 - **Desktop:** WASD/arrows move, Shift run, Space jump, drag = look, click = throw,
   wheel = zoom, M = menu, R = reset tracks, 1/2/3 = quality.

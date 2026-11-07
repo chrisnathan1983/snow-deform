@@ -10,6 +10,8 @@ func _run() -> void:
 	var scene = load("res://demos/procedural_playground/snow_demo_infinite.tscn").instantiate()
 	root.add_child(scene)
 	scene.set_process(false)
+	while scene.settings.has_pending_surface_updates():
+		await process_frame
 	var longest_usec := 0
 	# Start preparation, then reverse direction before its worker finishes.
 	scene.player.position.x = -scene.FIELD_SIZE
