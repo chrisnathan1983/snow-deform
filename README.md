@@ -35,6 +35,11 @@ continuous carved ski tracks, trees, rocks, jump ramps, and scored slalom gates.
 Steer with A/D or Left/Right, tuck with W/Up, brake with S/Down, and jump with
 Space. P pauses, R starts a fresh run, and Esc returns to the launcher.
 It has its own compact game HUD and touch controls.
+On touchscreens, use the same floating joystick as the other demos: drag on the
+left half to steer, push forward to tuck, and pull back to brake. Tap **Jump**
+with another finger while steering. Pause and rotating the screen release the stick.
+Web builds support both portrait and landscape, with a scrolling launcher and
+a ski camera that adapts when the browser changes size.
 Ten slope guests join the run: six skiers, two snowboarders, a sled rider,
 and a belly-sliding penguin. They carve narrow twin grooves or wide sweeping
 trails, steer around scenery and each other, and hop rocks and ramps. Traffic

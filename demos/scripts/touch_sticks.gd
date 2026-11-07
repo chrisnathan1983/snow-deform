@@ -18,6 +18,8 @@ var look := Vector2.ZERO
 ## Optional Callable(position: Vector2) -> bool; true means the point belongs to other UI.
 var is_blocked: Callable
 var stick_scale := 1.0
+## Disable the camera stick for demos with a fixed camera (such as skiing).
+var look_enabled := true
 
 var _slots := {
 	"move": {"id": -1, "origin": Vector2.ZERO, "pos": Vector2.ZERO, "moved": false, "t": 0},
@@ -54,6 +56,8 @@ func _begin(index: int, pos: Vector2) -> void:
 	if is_blocked.is_valid() and is_blocked.call(pos):
 		return
 	var key := "move" if pos.x < get_viewport_rect().size.x * 0.5 else "look"
+	if key == "look" and not look_enabled:
+		return
 	var slot: Dictionary = _slots[key]
 	if slot["id"] != -1:
 		return

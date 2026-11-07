@@ -30,18 +30,26 @@ var message_time := 0.0
 var stats: Label
 var message: Label
 var pause_button: Button
-var touch_steer := 0.0
-var touch_brake := false
+var touch_sticks: TouchSticks
+var touch_jump: TouchScreenButton
+var _touch_ui: Control
+var _hint: Label
+var _touch_blockers: Array[Control] = []
 
 
 func _ready() -> void:
 	rng.seed = 78421
-	DemoNav.attach(self)
+	var nav := DemoNav.attach(self)
+	for child in nav.get_children():
+		if child is Button:
+			_touch_blockers.append(child)
 	_build_world()
 	_build_skier()
 	_build_course()
 	_build_guests()
 	_build_hud()
+	get_viewport().size_changed.connect(_update_layout)
+	_update_layout()
 	_update_camera()
 	_flash("FRESH POWDER  /  Find your line", 4.0)
 
@@ -205,9 +213,9 @@ func _physics_process(delta: float) -> void:
 	if paused:
 		return
 	var steer := float(Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT)) - float(Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT))
-	steer = clampf(steer + touch_steer, -1.0, 1.0)
-	var braking := touch_brake or Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN)
-	var tuck := Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP)
+	steer = clampf(steer + touch_sticks.move.x, -1.0, 1.0)
+	var braking := touch_sticks.move.y > 0.35 or Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN)
+	var tuck := touch_sticks.move.y < -0.35 or Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP)
 	invincible = maxf(0, invincible - delta)
 	crash_time = maxf(0, crash_time - delta)
 	if crash_time > 0:
@@ -305,6 +313,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _toggle_pause() -> void:
 	paused = not paused
+	_cancel_touch_input()
+	touch_sticks.set_process_input(not paused)
 	for guest in guests:
 		guest.set_paused(paused)
 	tracks.active = not paused and skier.position.y < 0.05 and crash_time <= 0
@@ -343,14 +353,17 @@ func _build_hud() -> void:
 	row.add_child(stats)
 	message = _label("", 20)
 	message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	message.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	message.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	message.offset_top = 104
+	message.offset_left = 24
+	message.offset_right = -24
 	layer.add_child(message)
 	var bottom := VBoxContainer.new()
-	bottom.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
-	bottom.offset_left = -620
+	bottom.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	bottom.offset_left = 180
 	bottom.offset_right = -24
-	bottom.offset_top = -106
+	bottom.offset_top = -64
 	bottom.offset_bottom = -18
 	layer.add_child(bottom)
 	var buttons := HBoxContainer.new()
@@ -358,26 +371,84 @@ func _build_hud() -> void:
 	bottom.add_child(buttons)
 	pause_button = _button("Pause (P)", _toggle_pause)
 	buttons.add_child(pause_button)
-	buttons.add_child(_button("New run (R)", func(): get_tree().reload_current_scene()))
-	var hint := _label("A/D or ←/→  steer    W/↑  tuck    S/↓  brake    SPACE  jump\nShare the powder: skiers, boarders, a sled & a runaway penguin!", 15)
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	bottom.add_child(hint)
-	if OS.has_feature("mobile") or DisplayServer.is_touchscreen_available() and not OS.has_feature("windows"):
-		var touch := HBoxContainer.new()
-		touch.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
-		touch.position += Vector2(-220, -180)
-		layer.add_child(touch)
-		for direction in [-1.0, 1.0]:
-			var button := _button("◀" if direction < 0 else "▶", func(): pass)
-			button.custom_minimum_size = Vector2(80, 60)
-			button.button_down.connect(func(): touch_steer = direction)
-			button.button_up.connect(func(): touch_steer = 0)
-			touch.add_child(button)
-		var brake := _button("Brake", func(): pass)
-		brake.button_down.connect(func(): touch_brake = true)
-		brake.button_up.connect(func(): touch_brake = false)
-		touch.add_child(brake)
-		touch.add_child(_button("Jump", _jump))
+	var restart := _button("New run (R)", func(): get_tree().reload_current_scene())
+	buttons.add_child(restart)
+	_touch_blockers.append_array([pause_button, restart])
+	_hint = _label("A/D or ←/→ steer   W/↑ tuck   S/↓ brake   SPACE jump", 15)
+	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	bottom.add_child(_hint)
+
+	touch_sticks = TouchSticks.new()
+	touch_sticks.look_enabled = false
+	touch_sticks.is_blocked = _over_touch_ui
+	layer.add_child(touch_sticks)
+	_touch_ui = Control.new()
+	_touch_ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_touch_ui.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_touch_ui.visible = OS.has_feature("web") or OS.has_feature("mobile") or DisplayServer.is_touchscreen_available()
+	layer.add_child(_touch_ui)
+	var instruction := _label("Drag left side to steer\nForward: tuck / Back: brake", 18)
+	instruction.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	instruction.offset_left = 24
+	instruction.offset_top = -200
+	_touch_ui.add_child(instruction)
+	var jump_area := Control.new()
+	jump_area.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	jump_area.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	jump_area.offset_left = -140
+	jump_area.offset_right = -24
+	jump_area.offset_top = -200
+	jump_area.offset_bottom = -104
+	_touch_ui.add_child(jump_area)
+	_touch_blockers.append(jump_area)
+	var jump_visual := _button("JUMP", func(): pass)
+	jump_visual.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	jump_visual.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	jump_area.add_child(jump_visual)
+	# Native touch input lets a second finger jump while the joystick is held.
+	touch_jump = TouchScreenButton.new()
+	var shape := RectangleShape2D.new()
+	shape.size = Vector2(116, 96)
+	touch_jump.shape = shape
+	touch_jump.position = shape.size * 0.5
+	touch_jump.pressed.connect(func():
+		jump_visual.set_pressed_no_signal(true)
+		_jump())
+	touch_jump.released.connect(func(): jump_visual.set_pressed_no_signal(false))
+	jump_area.add_child(touch_jump)
+
+
+func _over_touch_ui(point: Vector2) -> bool:
+	for control in _touch_blockers:
+		if control.is_visible_in_tree() and control.get_global_rect().has_point(point):
+			return true
+	return false
+
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch and event.pressed:
+		_touch_ui.show()
+		_hint.hide()
+
+
+func _notification(what: int) -> void:
+	if what in [NOTIFICATION_APPLICATION_FOCUS_OUT, NOTIFICATION_WM_WINDOW_FOCUS_OUT] and is_instance_valid(touch_jump):
+		_cancel_touch_input()
+
+
+func _cancel_touch_input() -> void:
+	touch_sticks.cancel()
+	# Hiding also releases a native touch button whose finger was interrupted.
+	touch_jump.hide()
+	touch_jump.visible = not paused
+
+
+func _update_layout() -> void:
+	var viewport_size := get_viewport().get_visible_rect().size
+	camera.keep_aspect = Camera3D.KEEP_WIDTH if viewport_size.x < viewport_size.y else Camera3D.KEEP_HEIGHT
+	_cancel_touch_input()
+	_hint.visible = not _touch_ui.visible
 
 
 func _label(text: String, font_size: int) -> Label:
