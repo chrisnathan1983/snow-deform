@@ -16,6 +16,13 @@ func _run() -> void:
 	assert(scene.fields.size() == 9)
 	assert(scene.obstacles.size() == 76)
 	assert(scene.guests.size() == 10)
+	assert(scene.tracks.profile == DeformerTracks.Profile.SMOOTH)
+	var pooled_obstacle: Node3D = scene.obstacles[0]
+	scene._place_obstacle(pooled_obstacle, pooled_obstacle.position.z + 144.0)
+	assert(not pooled_obstacle.get_meta("draw_slots", []).is_empty())
+	for slot in pooled_obstacle.get_meta("draw_slots"):
+		var drawn: Transform3D = slot.multimesh.get_instance_transform(slot.index)
+		assert(drawn.is_equal_approx(pooled_obstacle.transform * slot.local_transform), "Recycled scenery instances must follow logical obstacles")
 	var guest = scene.guests[0]
 	var old_position: Vector3 = guest.position
 	guest.advance(0.1, scene.skier, scene.obstacles, scene.guests)

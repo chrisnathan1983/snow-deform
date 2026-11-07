@@ -223,6 +223,7 @@ frame rate. Tracks don't emit `contact` or puffs.
 | `wheel_offsets` | 4 wheels | `CUSTOM` only: contact points as (x = right, y = local Z) in meters. |
 | `wheel_width` | `0.3` | Width of each track in meters (use ~0.7 for `TRACKED`). |
 | `tread_texture` | Built-in chevron | Alpha-mask tread pattern; its top edge faces the direction of travel. One tile spans the track width and is as long as the texture's height/width ratio implies. |
+| `profile` | `TREAD` | `TREAD` retains patterned vehicle ribbons. `SMOOTH` ignores the texture and uses rounded analytical grooves for skis, boards, and sled runners; all smooth tracks share the untextured stamp batch. |
 | `strength`, `mode`, `active`, `field` | `0.8`, `CARVE`, `true`, empty | As for `Deformer`. |
 
 Wheels that are above the field's `max_depth` leave no print. Call `reset_path()` after

@@ -362,6 +362,7 @@ func stamp_at(
 ## `width` * (texture height / texture width) meters long. `phase` is how many tiles of tread
 ## precede `from` along the path (running distance / tile length), so consecutive segments
 ## continue the same pattern. Used by DeformerTracks.
+## `rounded` uses an untextured capsule brush, with a rounded leading cap for smooth grooves.
 func stamp_segment(
 	from: Vector3,
 	to: Vector3,
@@ -369,7 +370,8 @@ func stamp_segment(
 	strength := 1.0,
 	shape: Texture2D = null,
 	mode := StampMode.CARVE,
-	phase := 0.0
+	phase := 0.0,
+	rounded := false
 ) -> void:
 	if not _runtime:
 		return
@@ -389,7 +391,7 @@ func stamp_segment(
 	_pending_stamps.append({
 		"local": mid, "radius": sqrt(half_len * half_w), "strength": clampf(strength, 0.0, 1.0),
 		"shape": shape, "mode": mode, "heading": atan2(delta.z, delta.x), "aspect": half_len / half_w,
-		"puff": false, "silent": true, "track": true, "phase": phase,
+		"puff": false, "silent": true, "track": not rounded, "phase": phase, "capsule": rounded,
 	})
 
 
@@ -417,7 +419,7 @@ func _flush_pending_stamps(res: Vector2, px_per_m: float) -> void:
 		var pos := (Vector2(local.x, local.z) / area_size + Vector2(0.5, 0.5)) * res
 		if _prime_frames > 0 or not _stamp(
 			pos, float(s["radius"]) * px_per_m, float(s["heading"]), float(s["aspect"]),
-			float(s["strength"]), false, s["shape"], false, s["mode"], bool(s["track"]), float(s["phase"])
+			float(s["strength"]), false, s["shape"], false, s["mode"], bool(s["track"]), float(s["phase"]), bool(s.get("capsule", false))
 		):
 			remaining.append(s)
 			continue

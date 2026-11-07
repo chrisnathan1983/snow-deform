@@ -8,6 +8,7 @@ extends Node3D
 ## Built on DeformableSurface.stamp_segment; needs a DeformableSurface in the scene.
 
 enum Preset { CUSTOM, CAR, TRUCK, MOTORCYCLE, TRACKED }
+enum Profile { TREAD, SMOOTH }
 
 ## Wheel movement below this (meters) is accumulated until it is long enough to draw.
 const MIN_STEP := 0.05
@@ -33,6 +34,9 @@ static var _default_tread: ImageTexture
 ## track width and is as long as the texture's height/width ratio implies. Empty uses a
 ## built-in chevron tread.
 @export var tread_texture: Texture2D
+## SMOOTH uses an analytical rounded brush without texture sampling or tread seams.
+## Suitable for skis, sled runners and boards. TREAD preserves textured vehicle tracks.
+@export var profile := Profile.TREAD
 @export_range(0.0, 1.0) var strength := 0.8
 @export var mode: DeformableSurface.StampMode = DeformableSurface.StampMode.CARVE
 @export var active := true
@@ -107,8 +111,12 @@ func _process(_delta: float) -> void:
 		_last.fill(null)
 		return
 
-	var texture := tread_texture if tread_texture != null else _get_default_tread()
-	var tile_length := wheel_width * float(texture.get_height()) / float(texture.get_width())
+	var texture: Texture2D = null
+	if profile == Profile.TREAD:
+		texture = tread_texture if tread_texture != null else _get_default_tread()
+	var tile_length := wheel_width
+	if texture != null:
+		tile_length *= float(texture.get_height()) / float(texture.get_width())
 
 	for i in offsets.size():
 		var o := offsets[i]
@@ -134,13 +142,15 @@ func _process(_delta: float) -> void:
 			_last[i] = pos
 			continue
 
-		var pieces := ceili(dist / MAX_SEGMENT)
+		# Respect the shader's maximum aspect so narrow tracks keep their actual width.
+		var pieces := ceili(dist / minf(MAX_SEGMENT, maxf(wheel_width, 0.02) * 8.0))
 		var from := prev
 		for k in pieces:
 			var to := prev.lerp(pos, float(k + 1) / pieces)
 			var phase := float(_dist[i]) / tile_length
 			for surface in _surfaces():
-				surface.stamp_segment(from, to, wheel_width, strength, texture, mode, phase)
+				if not surface.render_mesh or surface.to_local(pos).y <= surface.max_depth:
+					surface.stamp_segment(from, to, wheel_width, strength, texture, mode, phase, profile == Profile.SMOOTH)
 			_dist[i] += from.distance_to(to)
 			from = to
 		_last[i] = pos

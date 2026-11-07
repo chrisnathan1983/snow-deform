@@ -15,6 +15,8 @@ var recovery := 0.0
 var visual: Node3D
 var tracks: DeformerTracks
 var tint := Color("9b64da")
+var use_blob_shadow := false
+var shadow: MeshInstance3D
 
 
 func _ready() -> void:
@@ -33,10 +35,11 @@ func _ready() -> void:
 	elif kind == Kind.SLED:
 		tracks.wheel_offsets = PackedVector2Array([Vector2(-0.48, -0.5), Vector2(0.48, -0.5)])
 		tracks.wheel_width = 0.18
-	var mask := Image.create(8, 8, false, Image.FORMAT_RGBA8)
-	mask.fill(Color.WHITE)
-	tracks.tread_texture = ImageTexture.create_from_image(mask)
+	tracks.profile = DeformerTracks.Profile.SMOOTH
 	add_child(tracks)
+	if use_blob_shadow:
+		shadow = BlobShadow.make(1.8, true)
+		add_child(shadow)
 
 
 func _build_visual() -> void:
@@ -132,5 +135,7 @@ func advance(delta: float, player: Node3D, scenery: Array[Node3D], peers: Array)
 		if position.y == 0:
 			lift = 0
 	rotation.y = heading
+	if shadow != null:
+		shadow.position.y = 0.04 - position.y
 	visual.rotation.z = lerpf(visual.rotation.z, 1.1 if recovery > 0 else -heading * 0.32, 1.0 - exp(-8.0 * delta))
 	tracks.active = position.y < 0.05 and recovery <= 0

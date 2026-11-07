@@ -8,8 +8,14 @@ const TILE_SIZE := 40.0
 const COURSE_LENGTH := 144.0
 const HALF_WIDTH := 25.0
 
+## Exposed for native A/B profiling; normal gameplay keeps scenery batched.
+@export var batch_scenery := true
+## Mobile-first lighting; the expensive original is retained only for native A/B tests.
+@export var mobile_lighting := true
+
 var skier: Node3D
 var visual: Node3D
+var skier_shadow: MeshInstance3D
 var tracks: DeformerTracks
 var camera: Camera3D
 var fields: Array[DeformableSurface] = []
@@ -46,6 +52,8 @@ func _ready() -> void:
 	_build_world()
 	_build_skier()
 	_build_course()
+	if batch_scenery:
+		_batch_scenery()
 	_build_guests()
 	_build_hud()
 	get_viewport().size_changed.connect(_update_layout)
@@ -60,15 +68,15 @@ func _build_world() -> void:
 	environment.background_color = Color("dbeaf2")
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color("c7ddec")
-	environment.ambient_light_energy = 0.45
+	environment.ambient_light_energy = 0.55 if mobile_lighting else 0.45
 	var world := WorldEnvironment.new()
 	world.environment = environment
 	add_child(world)
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-42, -35, 0)
 	sun.light_color = Color("fff0da")
-	sun.light_energy = 0.75
-	sun.shadow_enabled = true
+	sun.light_energy = 0.65 if mobile_lighting else 0.75
+	sun.shadow_enabled = not mobile_lighting
 	sun.directional_shadow_max_distance = 110.0
 	add_child(sun)
 	var quality := DeformableSurfaceQuality.new()
@@ -86,6 +94,13 @@ func _build_world() -> void:
 	snow_material.set_shader_parameter("surface_color", Color("c6d9e5"))
 	snow_material.set_shader_parameter("shadow_color", Color("7896b6"))
 	snow_material.set_shader_parameter("disturbed_darkening", 0.16)
+	if mobile_lighting:
+		# Matte powder with enough headroom for the terrain's highlights and berms.
+		snow_material.set_shader_parameter("surface_color", Color("e2edf3"))
+		snow_material.set_shader_parameter("specular_amount", 0.0)
+		snow_material.set_shader_parameter("sparkle_strength", 0.0)
+		snow_material.set_shader_parameter("normal_strength", 4.0)
+		snow_material.set_shader_parameter("disturbed_darkening", 0.06)
 	snow.material = snow_material
 	for z in range(-1, 2):
 		for x in range(-1, 2):
@@ -130,10 +145,11 @@ func _build_skier() -> void:
 	tracks.wheel_offsets = PackedVector2Array([Vector2(-0.32, -0.3), Vector2(0.32, -0.3)])
 	tracks.wheel_width = 0.24
 	tracks.strength = 0.85
-	var mask := Image.create(8, 8, false, Image.FORMAT_RGBA8)
-	mask.fill(Color.WHITE)
-	tracks.tread_texture = ImageTexture.create_from_image(mask)
+	tracks.profile = DeformerTracks.Profile.SMOOTH
 	skier.add_child(tracks)
+	if mobile_lighting:
+		skier_shadow = BlobShadow.make(1.8, true)
+		skier.add_child(skier_shadow)
 
 
 func _build_guests() -> void:
@@ -148,6 +164,7 @@ func _build_guests() -> void:
 		elif i == 9:
 			guest.kind = SlopeGuest.Kind.PENGUIN
 		guest.tint = colors[i % colors.size()]
+		guest.use_blob_shadow = mobile_lighting
 		guest.lane = -18.0 + (i % 5) * 9.0
 		guest.cruise_speed = 9.0 + (i % 4) * 2.5
 		guest.phase = i * 1.7
@@ -178,6 +195,8 @@ func _build_course() -> void:
 		else:
 			Props.add_mesh(obstacle, Props.box(Vector3(2.6, 0.35, 2.0)), Color("90c4d4"), Vector3(0, 0.22, 0), Vector3.ONE, Vector3(-14, 0, 0))
 			Props.add_mesh(obstacle, Props.box(Vector3(2.6, 0.05, 0.22)), Color("ffd05a"), Vector3(0, 0.62, 0.8))
+		if mobile_lighting:
+			obstacle.add_child(BlobShadow.make(3.4 if kind == "tree" else 2.5, true))
 		_place_obstacle(obstacle, 15.0 + i * COURSE_LENGTH / 76.0)
 		obstacles.append(obstacle)
 	for i in 6:
@@ -202,6 +221,46 @@ func _place_obstacle(obstacle: Node3D, z: float) -> void:
 	if absf(z - nearest_gate_z) < 5.0 and absf(x - _gate_x(nearest_gate_z)) < 5.0:
 		x = clampf(_gate_x(nearest_gate_z) + (8.0 if x >= _gate_x(nearest_gate_z) else -8.0), -HALF_WIDTH, HALF_WIDTH)
 	obstacle.position = Vector3(x, 0, z)
+	for slot in obstacle.get_meta("draw_slots", []):
+		var multimesh: MultiMesh = slot.multimesh
+		multimesh.set_instance_transform(slot.index, obstacle.transform * slot.local_transform)
+
+
+func _batch_scenery() -> void:
+	# One draw per repeated mesh part, rather than one per part per tree (plus shadows).
+	# Logical obstacle nodes remain independent for AI, collisions, and recycling.
+	var groups := {}
+	for obstacle in obstacles:
+		var part := 0
+		for child in obstacle.get_children():
+			if not child is MeshInstance3D:
+				continue
+			var key := "%s_%d" % [obstacle.get_meta("kind"), part]
+			if not groups.has(key):
+				groups[key] = []
+			groups[key].append({"obstacle": obstacle, "mesh": child})
+			part += 1
+	for key in groups:
+		var parts: Array = groups[key]
+		var first: MeshInstance3D = parts[0].mesh
+		var multimesh := MultiMesh.new()
+		multimesh.transform_format = MultiMesh.TRANSFORM_3D
+		multimesh.mesh = first.mesh
+		multimesh.instance_count = parts.size()
+		var renderer := MultiMeshInstance3D.new()
+		renderer.name = "Scenery_" + key
+		renderer.multimesh = multimesh
+		renderer.material_override = first.material_override
+		renderer.cast_shadow = first.cast_shadow
+		add_child(renderer)
+		for i in parts.size():
+			var obstacle: Node3D = parts[i].obstacle
+			var mesh: MeshInstance3D = parts[i].mesh
+			multimesh.set_instance_transform(i, obstacle.transform * mesh.transform)
+			var slots: Array = obstacle.get_meta("draw_slots", [])
+			slots.append({"multimesh": multimesh, "index": i, "local_transform": mesh.transform})
+			obstacle.set_meta("draw_slots", slots)
+			mesh.queue_free()
 
 
 func _place_gate(gate: Node3D, z: float) -> void:
@@ -235,6 +294,8 @@ func _physics_process(delta: float) -> void:
 		if skier.position.y == 0:
 			vertical_speed = 0
 	skier.rotation.y = heading
+	if skier_shadow != null:
+		skier_shadow.position.y = 0.04 - skier.position.y
 	visual.rotation.z = lerpf(visual.rotation.z, -steer * 0.22 if crash_time <= 0 else 1.4, 1.0 - exp(-12.0 * delta))
 	visual.visible = invincible <= 0 or int(invincible * 12) % 2 == 0
 	tracks.active = skier.position.y < 0.05 and crash_time <= 0
