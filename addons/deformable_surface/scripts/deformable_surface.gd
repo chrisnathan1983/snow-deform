@@ -103,6 +103,8 @@ var _bg: Control
 var _initial_map_texture: Texture2D
 var _initial_noise_cache: ImageTexture
 var _initial_noise_cache_key: Array = []
+var _initial_noise_thread: Thread
+var _initial_noise_thread_key: Array = []
 var _refill: ColorRect
 var _refill_material: ShaderMaterial
 var _mesh: MeshInstance3D
@@ -195,6 +197,9 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	if _initial_noise_thread != null:
+		_initial_noise_thread.wait_to_finish()
+		_initial_noise_thread = null
 	instances.erase(self)
 	_dirty_deformers.clear()
 
@@ -730,6 +735,8 @@ func _clear_map() -> void:
 
 func _initial_noise_key(resolution: int) -> Array:
 	var p := _values()
+	# Surface types can be assigned before this node is added to the scene.
+	var origin := global_position if is_inside_tree() else position
 	var noise_key: Array = [null]
 	if p.initial_noise != null:
 		noise_key = [
@@ -737,11 +744,42 @@ func _initial_noise_key(resolution: int) -> Array:
 			p.initial_noise.noise_type, p.initial_noise.fractal_type,
 		]
 	return [
-		resolution, area_size, p.max_depth, p.initial_noise_invert,
+		resolution, area_size, Vector2(origin.x, origin.z),
+		p.max_depth, p.initial_noise_invert,
 		p.initial_noise_frequency, p.initial_noise_height, noise_key,
 		p.initial_noise_detail, p.initial_noise_detail_scale,
 		p.initial_noise_mound_height, p.initial_noise_mound_frequency,
 	]
+
+
+## Prepares noise for a future relocation without blocking a frame. Poll until true, then
+## move the surface and call reset_trails(). Texture creation stays on the main thread;
+## the worker only reads a private settings snapshot and writes its own Image.
+func prepare_initial_noise_at(world_position: Vector3) -> bool:
+	if not _runtime or not _values().initial_noise_enabled:
+		return true
+	var resolution := mini(_vp.size.x, 512)
+	var key := _initial_noise_key(resolution)
+	key[2] = Vector2(world_position.x, world_position.z)
+	if _initial_noise_thread != null:
+		if _initial_noise_thread.is_alive():
+			return false
+		var image: Image = _initial_noise_thread.wait_to_finish()
+		_initial_noise_thread = null
+		_initial_noise_cache = ImageTexture.create_from_image(image)
+		_initial_noise_cache_key = _initial_noise_thread_key
+	if _initial_noise_cache != null and _initial_noise_cache_key == key:
+		return true
+	var snapshot := _values().duplicate(true) as DeformableSurfaceType
+	var origin := Vector2(world_position.x, world_position.z) - area_size * 0.5
+	_initial_noise_thread = Thread.new()
+	_initial_noise_thread_key = key
+	var error := _initial_noise_thread.start(
+		_generate_initial_noise_image.bind(snapshot, resolution, area_size, origin))
+	if error != OK:
+		_initial_noise_thread = null
+		push_error("DeformableSurface: could not start noise preparation (%s)." % error)
+	return false
 
 
 ## Regenerating is a per-pixel GDScript loop, so reuse the texture while its inputs are unchanged.
@@ -754,9 +792,17 @@ func _get_initial_noise_texture() -> Texture2D:
 
 
 func _make_initial_noise_image() -> Image:
-	var p := _values()
 	var resolution := mini(_vp.size.x, 512)
-	var pixel_count := resolution * resolution
+	var origin := Vector2(global_position.x, global_position.z) - area_size * 0.5
+	return _generate_initial_noise_image(_values(), resolution, area_size, origin)
+
+
+static func _generate_initial_noise_image(p: DeformableSurfaceType, resolution: int,
+		area: Vector2, origin: Vector2) -> Image:
+	var depth := p.max_depth
+	# A one-sample border lets both tiles use the same centered derivative at a seam.
+	var stride := resolution + 2
+	var pixel_count := stride * stride
 	var noise := p.initial_noise
 	if noise == null:
 		noise = FastNoiseLite.new()
@@ -776,7 +822,7 @@ func _make_initial_noise_image() -> Image:
 		fine_noise.frequency = noise.frequency * maxf(p.initial_noise_detail_scale, 0.05)
 	# Mounds only rise above the base surface, leaving flat ground between piles/dunes.
 	# A stamp carves down to a fixed floor, so these are the places that can be dug deepest.
-	var mound_height := clampf(p.initial_noise_mound_height, 0.0, max_depth)
+	var mound_height := clampf(p.initial_noise_mound_height, 0.0, depth)
 	var mound_noise: FastNoiseLite = null
 	if mound_height > 0.0:
 		mound_noise = FastNoiseLite.new()
@@ -786,13 +832,13 @@ func _make_initial_noise_image() -> Image:
 	var heights := PackedFloat32Array()
 	heights.resize(pixel_count)
 	var image := Image.create(resolution, resolution, false, Image.FORMAT_RGB8)
-	var height_amplitude := clampf(p.initial_noise_height, 0.0, max_depth)
-	var pixel_world_size_x := area_size.x / float(resolution - 1)
-	var pixel_world_size_z := area_size.y / float(resolution - 1)
-	for y in resolution:
-		var world_z := (float(y) / float(resolution - 1) - 0.5) * area_size.y
-		for x in resolution:
-			var world_x := (float(x) / float(resolution - 1) - 0.5) * area_size.x
+	var height_amplitude := clampf(p.initial_noise_height, 0.0, depth)
+	var pixel_world_size_x := area.x / float(resolution - 1)
+	var pixel_world_size_z := area.y / float(resolution - 1)
+	for y in range(-1, resolution + 1):
+		var world_z := origin.y + float(y) * pixel_world_size_z
+		for x in range(-1, resolution + 1):
+			var world_x := origin.x + float(x) * pixel_world_size_x
 			var noise_value := noise.get_noise_2d(world_x, world_z)
 			if fine_noise != null:
 				# Normalized so the combined height still peaks at initial_noise_height.
@@ -805,27 +851,24 @@ func _make_initial_noise_image() -> Image:
 			if mound_noise != null:
 				var mound := smoothstep(-0.1, 0.6, mound_noise.get_noise_2d(world_x, world_z))
 				surface_level += mound * mound_height
-			var height := minf(surface_level * (1.0 + noise_value) - height_amplitude, max_depth)
-			heights[y * resolution + x] = height
+			var height := minf(surface_level * (1.0 + noise_value) - height_amplitude, depth)
+			heights[(y + 1) * stride + x + 1] = height
 
 	for y in resolution:
-		var previous_y := maxi(y - 1, 0)
-		var next_y := mini(y + 1, resolution - 1)
 		for x in resolution:
-			var previous_x := maxi(x - 1, 0)
-			var next_x := mini(x + 1, resolution - 1)
-			var height := heights[y * resolution + x]
+			var index := (y + 1) * stride + x + 1
+			var height := heights[index]
 			var slope_x := (
-				heights[y * resolution + next_x] - heights[y * resolution + previous_x]
-			) / (float(next_x - previous_x) * pixel_world_size_x)
+				heights[index + 1] - heights[index - 1]
+			) / (2.0 * pixel_world_size_x)
 			var slope_z := (
-				heights[next_y * resolution + x] - heights[previous_y * resolution + x]
-			) / (float(next_y - previous_y) * pixel_world_size_z)
+				heights[index + stride] - heights[index - stride]
+			) / (2.0 * pixel_world_size_z)
 			image.set_pixel(
 				x,
 				y,
 				Color(
-					MAP_NEUTRAL + height / (2.0 * max_depth),
+					MAP_NEUTRAL + height / (2.0 * depth),
 					MAP_NEUTRAL + slope_x / 16.0,
 					MAP_NEUTRAL + slope_z / 16.0
 				)

@@ -114,15 +114,19 @@ func _recenter_fields() -> void:
 		_queue_recenter(center)
 
 	if not _pending_relocations.is_empty():
-		var relocation: Dictionary = _pending_relocations.pop_front()
+		var relocation: Dictionary = _pending_relocations.front()
 		var field := relocation["field"] as DeformableSurface
 		var tile: Vector2i = relocation["tile"]
+		var destination := Vector3(tile.x * FIELD_SIZE, 0.0, tile.y * FIELD_SIZE)
+		if not field.prepare_initial_noise_at(to_global(destination)):
+			return
+		_pending_relocations.pop_front()
 		var old_tile := Vector2i(
 			roundi(field.position.x / FIELD_SIZE),
 			roundi(field.position.z / FIELD_SIZE)
 		)
 		_tiles.erase(old_tile)
-		field.position = Vector3(tile.x * FIELD_SIZE, 0.0, tile.y * FIELD_SIZE)
+		field.position = destination
 		field.reset_trails()
 		_tiles[tile] = field
 
