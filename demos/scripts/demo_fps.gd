@@ -57,6 +57,7 @@ var _graph: Control
 var _detail: Control
 var _label: Label
 var _viewport_rid: RID
+var _measure_render_time := not OS.has_feature("web")
 var _cpu := PackedFloat32Array()   # worst CPU ms per slice, ring buffer
 var _gpu := PackedFloat32Array()   # worst GPU ms per slice, ring buffer
 var _head := 0
@@ -104,7 +105,8 @@ func _ready() -> void:
 		_ring_max.append(maxes)
 
 	_viewport_rid = get_viewport().get_viewport_rid()
-	RenderingServer.viewport_set_measure_render_time(_viewport_rid, true)
+	if _measure_render_time:
+		RenderingServer.viewport_set_measure_render_time(_viewport_rid, true)
 	_update_budget()
 
 	_graph = Control.new()
@@ -136,16 +138,18 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
-	if _viewport_rid.is_valid():
+	if _measure_render_time and _viewport_rid.is_valid():
 		RenderingServer.viewport_set_measure_render_time(_viewport_rid, false)
 
 
 func _process(delta: float) -> void:
 	var cpu_ms := (Performance.get_monitor(Performance.TIME_PROCESS)
 			+ Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS)) * 1000.0 \
-			+ RenderingServer.get_frame_setup_time_cpu() \
-			+ RenderingServer.viewport_get_measured_render_time_cpu(_viewport_rid)
-	var gpu_ms := RenderingServer.viewport_get_measured_render_time_gpu(_viewport_rid)
+			+ RenderingServer.get_frame_setup_time_cpu()
+	var gpu_ms := 0.0
+	if _measure_render_time:
+		cpu_ms += RenderingServer.viewport_get_measured_render_time_cpu(_viewport_rid)
+		gpu_ms = RenderingServer.viewport_get_measured_render_time_gpu(_viewport_rid)
 	_gpu_seen = _gpu_seen or gpu_ms > 0.0
 	_read_frame(cpu_ms)
 

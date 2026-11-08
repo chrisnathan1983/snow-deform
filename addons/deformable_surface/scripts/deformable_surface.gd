@@ -41,6 +41,21 @@ const STAMP_MIN_RADIUS_PX := 0.5
 const STAMP_MAX_ASPECT := 8.0
 const STAMP_CAPACITY := 512
 
+class PendingStamp:
+	extends RefCounted
+	var local := Vector3.ZERO
+	var radius := 0.0
+	var strength := 0.0
+	var shape: Texture2D
+	var mode := 0
+	var heading := 0.0
+	var aspect := 1.0
+	var puff := false
+	var silent := false
+	var track := false
+	var phase := 0.0
+	var capsule := false
+
 @export_group("Surface")
 ## World size of the surface, in meters: a square centered on this node. Changing it at
 ## runtime rebuilds the mesh and clears the trails.
@@ -131,8 +146,12 @@ var _cost_queued_us := 0
 var _cost_puffs_us := 0
 var _cost_stamp_px := 0.0
 var _cost_refill_px := 0.0
-var _pending_stamps: Array[Dictionary] = []
+var _pending_stamps: Array[PendingStamp] = []
+var _pending_stamp_pool: Array[PendingStamp] = []
 var _dirty_deformers: Dictionary = {}
+var _dirty_deformer_list: Array[Deformer] = []
+var _dirty_deformer_indices: Dictionary = {}
+var _dirty_deformer_tombstones := 0
 var _known := {}       # deformer instance_id -> true (we've connected its tree_exiting)
 var _last := {}        # deformer instance_id -> last stamped pixel pos
 var _puff_last := {}   # deformer instance_id -> time of last puff (s)
@@ -214,6 +233,8 @@ func _exit_tree() -> void:
 		_initial_noise_thread = null
 	instances.erase(self)
 	_dirty_deformers.clear()
+	_dirty_deformer_list.clear()
+	_dirty_deformer_indices.clear()
 
 
 func _create_runtime_mesh() -> void:
@@ -226,12 +247,45 @@ func _create_runtime_mesh() -> void:
 func _register_deformer(deformer: Deformer) -> void:
 	if not is_instance_valid(deformer):
 		return
-	_dirty_deformers[deformer.get_instance_id()] = deformer
+	var id := deformer.get_instance_id()
+	if _dirty_deformers.has(id):
+		_dirty_deformers[id] = deformer
+		return
+	_dirty_deformers[id] = deformer
+	_dirty_deformer_indices[id] = _dirty_deformer_list.size()
+	_dirty_deformer_list.append(deformer)
 
 
 func _unregister_deformer(deformer: Deformer) -> void:
 	if is_instance_valid(deformer):
-		_dirty_deformers.erase(deformer.get_instance_id())
+		_remove_dirty_deformer(deformer.get_instance_id())
+
+
+func _remove_dirty_deformer(id: int) -> void:
+	if not _dirty_deformers.has(id):
+		return
+	var index := int(_dirty_deformer_indices[id])
+	_dirty_deformers.erase(id)
+	_dirty_deformer_indices.erase(id)
+	if index >= 0 and index < _dirty_deformer_list.size() and _dirty_deformer_list[index] != null:
+		_dirty_deformer_list[index] = null
+		_dirty_deformer_tombstones += 1
+
+
+func _compact_dirty_deformers() -> void:
+	if _dirty_deformer_tombstones < 32 \
+			and _dirty_deformer_tombstones * 2 < _dirty_deformer_list.size():
+		return
+	var compacted: Array[Deformer] = []
+	_dirty_deformer_indices.clear()
+	for deformer in _dirty_deformer_list:
+		if deformer == null or not is_instance_valid(deformer):
+			continue
+		_dirty_deformer_indices[deformer.get_instance_id()] = compacted.size()
+		compacted.append(deformer)
+	_dirty_deformer_list = compacted
+	_dirty_deformer_tombstones = 0
+	_rr = 0
 
 
 func _mark_deformer_dirty(deformer: Deformer) -> void:
@@ -261,13 +315,22 @@ func set_quality(q: DeformableSurfaceQuality) -> void:
 	var previous := _active_quality_settings
 	if not _set_active_quality(q):
 		return
-	if previous != null and previous.to_dictionary() == _active_quality_settings.to_dictionary():
+	if previous != null and _quality_settings_equal(previous, _active_quality_settings):
 		return
 	_apply_profile_values(_active_quality_settings)
 	_configure_quality(previous)
 	if previous == null or previous.res != _active_quality_settings.res:
 		_clear_map()
 	quality_changed.emit(_active_quality_settings)
+
+
+func _quality_settings_equal(a: DeformableSurfaceQuality, b: DeformableSurfaceQuality) -> bool:
+	return a.res == b.res and a.subdiv == b.subdiv \
+		and a.max_stamps_per_frame == b.max_stamps_per_frame \
+		and a.refill_interval == b.refill_interval \
+		and a.puff == b.puff \
+		and a.puff_min_interval == b.puff_min_interval \
+		and a.sparkle == b.sparkle
 
 
 ## Takes a clamped private copy of `q` (Medium when null).
@@ -331,7 +394,7 @@ func get_frame_costs() -> Dictionary:
 ## Wipes all trails. Cheap: does not touch the mesh, material or particles.
 func reset_trails() -> void:
 	if _runtime:
-		_pending_stamps.clear()
+		_clear_pending_stamps()
 		_clear_map()
 
 
@@ -358,11 +421,8 @@ func stamp_at(
 	var reach := radius * (1.0 + BERM_REACH) * maxf(aspect, 1.0)
 	if absf(local.x) > area_size.x * 0.5 + reach or absf(local.z) > area_size.y * 0.5 + reach:
 		return
-	_pending_stamps.append({
-		"local": local, "radius": maxf(radius, 0.01), "strength": clampf(strength, 0.0, 1.0),
-		"shape": shape, "mode": mode, "heading": heading, "aspect": maxf(aspect, 1.0),
-		"puff": puff, "silent": silent, "track": false, "phase": 0.0,
-	})
+	_queue_pending_stamp(local, maxf(radius, 0.01), clampf(strength, 0.0, 1.0),
+		shape, mode, heading, maxf(aspect, 1.0), puff, silent, false, 0.0, false)
 
 
 ## One continuous strip of track from `from` to `to`: flat-bottomed, with side ridges only.
@@ -396,11 +456,39 @@ func stamp_segment(
 	var reach := (half_len + half_w) * (1.0 + BERM_REACH)
 	if absf(mid.x) > area_size.x * 0.5 + reach or absf(mid.z) > area_size.y * 0.5 + reach:
 		return
-	_pending_stamps.append({
-		"local": mid, "radius": sqrt(half_len * half_w), "strength": clampf(strength, 0.0, 1.0),
-		"shape": shape, "mode": mode, "heading": atan2(delta.z, delta.x), "aspect": half_len / half_w,
-		"puff": false, "silent": true, "track": not rounded, "phase": phase, "capsule": rounded,
-	})
+	_queue_pending_stamp(mid, sqrt(half_len * half_w), clampf(strength, 0.0, 1.0),
+		shape, mode, atan2(delta.z, delta.x), half_len / half_w,
+		false, true, not rounded, phase, rounded)
+
+
+func _queue_pending_stamp(local: Vector3, radius: float, strength: float,
+		shape: Texture2D, mode: int, heading: float, aspect: float,
+		puff: bool, silent: bool, track: bool, phase: float, capsule: bool) -> void:
+	var stamp: PendingStamp
+	if _pending_stamp_pool.is_empty():
+		stamp = PendingStamp.new()
+	else:
+		stamp = _pending_stamp_pool.pop_back()
+	stamp.local = local
+	stamp.radius = radius
+	stamp.strength = strength
+	stamp.shape = shape
+	stamp.mode = mode
+	stamp.heading = heading
+	stamp.aspect = aspect
+	stamp.puff = puff
+	stamp.silent = silent
+	stamp.track = track
+	stamp.phase = phase
+	stamp.capsule = capsule
+	_pending_stamps.append(stamp)
+
+
+func _clear_pending_stamps() -> void:
+	for stamp in _pending_stamps:
+		stamp.shape = null
+		_pending_stamp_pool.append(stamp)
+	_pending_stamps.clear()
 
 
 ## Every contact goes through here. Puffs are spawned by a listener on `contact`.
@@ -421,20 +509,29 @@ func _on_contact_puff(world_pos: Vector3, _depth: float, _surface_type: StringNa
 
 
 func _flush_pending_stamps(res: Vector2, px_per_m: float) -> void:
-	var remaining: Array[Dictionary] = []
-	for s in _pending_stamps:
-		var local: Vector3 = s["local"]
+	var input_count := _pending_stamps.size()
+	var write_index := 0
+	for read_index in input_count:
+		var s := _pending_stamps[read_index]
+		var local := s.local
 		var pos := (Vector2(local.x, local.z) / area_size + Vector2(0.5, 0.5)) * res
 		if _prime_frames > 0 or not _stamp(
-			pos, float(s["radius"]) * px_per_m, float(s["heading"]), float(s["aspect"]),
-			float(s["strength"]), false, s["shape"], false, s["mode"], bool(s["track"]), float(s["phase"]), bool(s.get("capsule", false))
+			pos, s.radius * px_per_m, s.heading, s.aspect, s.strength,
+			false, s.shape, false, s.mode, s.track, s.phase, s.capsule
 		):
-			remaining.append(s)
+			_pending_stamps[write_index] = s
+			write_index += 1
 			continue
-		if not s["silent"]:
-			_emit_contact(to_global(Vector3(local.x, 0.0, local.z)), float(s["strength"]), int(s["mode"]),
-					null, float(s["radius"]), bool(s["puff"]))
-	_pending_stamps = remaining
+		if not s.silent:
+			_emit_contact(to_global(Vector3(local.x, 0.0, local.z)), s.strength, s.mode,
+					null, s.radius, s.puff)
+		s.shape = null
+		_pending_stamp_pool.append(s)
+	# Contact callbacks may enqueue new stamps; preserve that tail after compacting old work.
+	var appended_count := _pending_stamps.size() - input_count
+	for i in appended_count:
+		_pending_stamps[write_index + i] = _pending_stamps[input_count + i]
+	_pending_stamps.resize(write_index + appended_count)
 
 
 func set_recovery_intensity(value: float) -> void:
@@ -955,7 +1052,7 @@ func _make_initial_noise_image() -> Image:
 func _forget(id: int) -> void:
 	_known.erase(id)
 	_last.erase(id)
-	_dirty_deformers.erase(id)
+	_remove_dirty_deformer(id)
 	_puff_last.erase(id)
 	_puff_acc.erase(id)
 
@@ -980,8 +1077,8 @@ func _process(delta: float) -> void:
 	for batch in _stamp_batches:
 		batch["used"] = 0
 
-	var list: Array = []
-	var n := _dirty_deformers.size()
+	var list := _dirty_deformer_list
+	var n := list.size()
 	var res := Vector2(_vp.size)
 	var px_per_m := res.x / area_size.x
 	var queued_start := Time.get_ticks_usec()
@@ -989,11 +1086,9 @@ func _process(delta: float) -> void:
 		_flush_pending_stamps(res, px_per_m)
 	_cost_queued_us = Time.get_ticks_usec() - queued_start
 	var deformers_start := Time.get_ticks_usec()
-	if n > 0:
-		list = _dirty_deformers.values()
 	for k in n:
 		var d := list[(k + _rr) % n] as Deformer
-		if not is_instance_valid(d):
+		if d == null or not is_instance_valid(d):
 			continue
 		var id := d.get_instance_id()
 		if not _known.has(id):
@@ -1005,11 +1100,11 @@ func _process(delta: float) -> void:
 
 		if not d.active:
 			_last.erase(id)   # lifted: next touchdown starts a fresh print
-			_dirty_deformers.erase(id)
+			_remove_dirty_deformer(id)
 			continue
 		if d.strength <= 0.0:
 			_last.erase(id)
-			_dirty_deformers.erase(id)
+			_remove_dirty_deformer(id)
 			continue
 		var local := to_local(d.global_position)
 		# Include the whole elongated brush and its berms, even when the center is
@@ -1017,7 +1112,7 @@ func _process(delta: float) -> void:
 		var reach := d.radius * sqrt(clampf(d.aspect, 1.0, STAMP_MAX_ASPECT)) * (BERM_REACH + BERM_FORWARD)
 		if (render_mesh and local.y > max_depth) or absf(local.x) > area_size.x * 0.5 + reach or absf(local.z) > area_size.y * 0.5 + reach:
 			_last.erase(id)
-			_dirty_deformers.erase(id)
+			_remove_dirty_deformer(id)
 			continue
 		var depth_ratio := clampf(1.0 - (local.y / max_depth), 0.1, 1.0) if render_mesh else 1.0
 		var effective_strength := d.strength * depth_ratio
@@ -1037,7 +1132,7 @@ func _process(delta: float) -> void:
 			var prev: Vector2 = _last[id]
 			var dist := prev.distance_to(pos)
 			if dist < r_px * 0.15:
-				_dirty_deformers.erase(id)
+				_remove_dirty_deformer(id)
 				continue
 			# Keep elongated prints (boots/skis) aligned to node heading; orient round prints to travel
 			var move_heading := heading if (aspect > 1.05 or d.stamp_texture != null) else (pos - prev).angle()
@@ -1079,13 +1174,14 @@ func _process(delta: float) -> void:
 				_emit_contact(d.global_position, effective_strength, d.mode, d, d.radius, d.puff_on_touchdown)
 		_last[id] = done
 		if done.distance_to(pos) < 0.001:
-			_dirty_deformers.erase(id)
+			_remove_dirty_deformer(id)
 
 	# Puffs spawned inside the loop are timed separately, so take them out of this figure.
 	_cost_deformers_us = maxi(Time.get_ticks_usec() - deformers_start - _cost_puffs_us, 0)
 
 	if n > 0:
 		_rr = (_rr + 1) % n
+	_compact_dirty_deformers()
 
 	for batch in _stamp_batches:
 		var multimesh := batch["multimesh"] as MultiMesh

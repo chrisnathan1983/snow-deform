@@ -39,12 +39,12 @@ The Compatibility renderer compiles shaders on first draw, so the first footstep
 
 ## 7. Per-frame allocations
 
-- `_dirty_deformers.values()` allocates an array every frame.
-- Each pending stamp is a `Dictionary`, so use parallel packed arrays or a small `RefCounted` class.
-- `set_quality` compares two `to_dictionary()` results.
-- `DemoFps` calls `RenderingServer.viewport_set_measure_render_time` and reads GPU time, which isn't available on web. Disable it there, or make it opt-in.
+~~- `_dirty_deformers.values()` allocates an array every frame.~~ The dirty-deformer list is cached and compacted only after enough removals.
+~~- Each pending stamp is a `Dictionary`, so use parallel packed arrays or a small `RefCounted` class.~~ Pending stamps use pooled `RefCounted` objects, and the queue is compacted in place.
+~~- `set_quality` compares two `to_dictionary()` results.~~ Quality settings are compared field by field.
+~~- `DemoFps` calls `RenderingServer.viewport_set_measure_render_time` and reads GPU time, which isn't available on web. Disable it there, or make it opt-in.~~ Render timing is disabled on web.
 
-Web builds run in a GC'd single-threaded WASM heap, so avoiding these allocations reduces frame spikes.
+The listed recurring allocations and unsupported web GPU timing calls have been addressed.
 
 ## ~~8. Weather particles~~
 
@@ -61,4 +61,4 @@ Tier-0 devices cap CPU snowfall at 250 main flakes plus 50 near-camera flakes an
 
 The README admits that `CLEAR_MODE_NEVER` persistence, the blend-based refill, and `amount_ratio` are untested on mobile browsers. I'd add a small startup self-test that stamps once, waits two frames, reads the map back, and falls back to a different strategy (for example ping-pong between two viewports) if the stamp vanished. The one-time readback cost is fine at startup.
 
-The time-sliced CPU generator and its packed-byte texture upload are implemented. A world-space GPU shader remains the next step; it should preserve support for custom `FastNoiseLite` resources.
+Phone validation via itch.io showed smooth High-quality rendering and visible sparkles. The startup persistence/refill checks in item 10 remain unverified; custom `FastNoiseLite` starting profiles still use the optimized CPU generator.
