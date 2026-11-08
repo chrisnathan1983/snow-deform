@@ -17,7 +17,8 @@ subtle clumpy edges. The Playground also has a mouse that leaves tiny footprints
    register through `class_name`, so they work either way.
 
 See the [Deformable Surface addon guide](addons/deformable_surface/README.md)
-for its API, quality and material settings, and usage examples.
+for the surface and deformer API, quality and material settings, and usage examples.
+See the [Snowfall addon guide](addons/snowfall/README.md) for the weather API and presets.
 
 ## Demos
 
@@ -134,6 +135,8 @@ XR, and model importers. Launch all four demos after exporting with a custom tem
 The root README covers installation, demos, and Web export. The
 [Deformable Surface addon guide](addons/deformable_surface/README.md) owns the
 surface and deformer API, material customization, and custom-terrain integration.
+The [Snowfall addon guide](addons/snowfall/README.md) documents world weather and
+standalone snow emitters.
 
 ## Regression checks
 

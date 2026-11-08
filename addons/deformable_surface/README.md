@@ -52,7 +52,7 @@ position. Surface parents should remain unrotated and unscaled.
 
 ## Nodes
 
-### DeformableSurface
+### [DeformableSurface](scripts/deformable_surface.gd)
 
 The surface and controller for deformation, track recovery, and puffs. Keep the
 field and its parents unrotated and unscaled. The surface is at the field's Y
@@ -141,18 +141,34 @@ berm height or the puff rate.
 **Methods and signal**
 
 - `quality_changed(q)` is emitted (with the node's copy of the quality) when the quality changes.
+- `apply_surface_settings(profile, settings)` applies a `DeformableSurfaceType` and
+  `DeformableSurfaceQuality` together, clearing the map at most once if either requires it.
 - `reset_trails()` clears deformation without changing the mesh, material, or
   particle settings.
+- `warm_up_effects(tread, puff_position)` and `finish_effects_warmup()` draw and remove
+  representative stamp and puff effects during a covered startup/loading screen.
 - `get_stamps_used()` returns the stamps drawn this frame, for performance readouts.
+- `get_stamp_batch_count()` and `get_active_stamp_batch_count()` return allocated and
+  currently used stamp-texture batches.
 - `get_frame_costs()` returns this frame's cost per operation (`deformers_ms`, `queued_ms`,
   `puffs_ms`, `stamp_mpx`, `refill_mpx`, `mesh_kverts`). CPU values are milliseconds; the GPU
   values are estimates in millions of map pixels shaded, not timings.
-- `stamp_segment(from, to, width, strength, shape, mode, phase)` draws one continuous strip
-  of track between two world positions; `DeformerTracks` uses it.
+- `get_deform_texture()` returns the live map texture, or `null` before setup;
+  `get_deform_area_transform()` returns `(center_x, center_z, 1 / size_x, 1 / size_z)`
+  for `deform_world_to_uv()` in the shader include.
+- `get_deform_image()` returns a diagnostic image snapshot, and `get_deform_resolution()`
+  returns the map size in pixels.
+- `get_pending_stamp_count()` and `get_pending_stamp_info(index)` inspect the queued stamp
+  budget; `is_priming()` reports startup map preparation; `has_deformer_history(deformer)`
+  checks movement history. These are intended for diagnostics and tooling.
+- `stamp_segment(from, to, width = 0.3, strength = 1.0, shape = null, mode = CARVE,
+  phase = 0.0, rounded = false)` draws one continuous strip between world positions;
+  `rounded` selects the capsule brush used for smooth grooves. `DeformerTracks` uses it.
 - `stamp_at(world_pos, radius = 0.5, strength = 1.0, shape = null, mode = StampMode.CARVE, heading = 0.0, aspect = 1.0, puff = false, silent = false)`
   applies a one-shot stamp (explosions, falling objects, projectile impacts) with no
   persistent `Deformer`. `shape` is an optional alpha-mask `Texture2D`. Stamps are queued
-  and respect `max_stamps_per_frame`; positions outside the field are ignored.
+  and respect `max_stamps_per_frame`; stamps whose brush extent does not overlap the field
+  are ignored.
 - `StampMode`: `CARVE` presses down, `RAISE` piles up (snow accumulation, digging
   spoil; height is capped at about `max_depth`), `SMOOTH` levels toward flat (a snow plow / erase).
 - `contact(position, depth, type_name, source, radius, puff)` is emitted when a `Deformer` touches
@@ -167,7 +183,7 @@ preserved unless the map resolution or field size changes. Changes to other
 options, including mesh subdivisions, recovery intensity, lighting, and particle counts,
 do not clear the simulation.
 
-### Deformer
+### [Deformer](scripts/deformers/deformer.gd)
 
 Add a deformer under any object that should leave marks. Its world X/Z position
 is used for the stamp. Deformers above the field's `max_depth` are ignored.
@@ -183,6 +199,10 @@ is used for the stamp. Deformers above the field's `max_depth` are ignored.
 | `puff_on_touchdown` | `true` | Emits a puff when stamping starts after contact. |
 | `puff_distance` | `0.0` | Also emit a puff every this many meters while moving. `0` disables distance-based puffs. |
 
+`stamp_texture` and `stamp_flip_x` are runtime properties used to assign and mirror an
+alpha-mask stamp; they are set automatically by `DeformerFootsteps` when a footprint texture
+is configured. `map_heading()` returns the node's forward angle in the surface map's X/Z plane.
+
 For a boot use an aspect around `2`; for a sled runner use around `3`.
 A moving round, untextured deformer draws one continuous capsule-shaped stroke per
 frame (up to 20 radii of travel) so the trail has no gaps at speed; textured or elongated
@@ -191,7 +211,7 @@ can end a long trail early, and it continues on later frames.
 The demo mouse moves underground while hidden and disables its deformer; when it
 pops out, it leaves footprints.
 
-### DeformerFootsteps
+### [DeformerFootsteps](scripts/deformers/deformer_footsteps.gd)
 
 Add under a walking character, with the origin at ground level and the character
 facing -Z. It creates and moves two alternating `Deformer` nodes. Planted
@@ -214,7 +234,7 @@ does not advance its stride. Airborne state is not detected, so disable the
 `DeformerFootsteps` node or its child deformers while airborne if prints should
 pause.
 
-### DeformerTracks
+### [DeformerTracks](scripts/deformers/deformer_tracks.gd)
 
 Lays tread tracks behind wheels or tracked belts. Add under a vehicle with its origin at
 ground level, facing -Z. Each wheel draws one unbroken ribbon (through `stamp_segment`)
@@ -234,7 +254,9 @@ frame rate. Tracks don't emit `contact` or puffs.
 | `strength`, `mode`, `active`, `field` | `0.8`, `CARVE`, `true`, empty | As for `Deformer`. |
 
 Wheels that are above the field's `max_depth` leave no print. Call `reset_path()` after
-teleporting the vehicle.
+teleporting the vehicle. `get_wheel_offsets()` returns the resolved local contact points for
+the selected preset; the `CUSTOM` preset returns `wheel_offsets`. The static
+`get_default_tread()` returns the shared built-in chevron texture.
 
 ## Customizing the surface material
 
@@ -301,7 +323,16 @@ its scale and strength with `bevel_noise_scale` and `bevel_noise_strength`.
 
 ## Files
 
-- `scripts/deformable_surface.gd` defines `DeformableSurface`.
+- [`DeformableSurface`](scripts/deformable_surface.gd) defines the surface properties,
+  signals and methods documented above.
+- [`DeformableSurfaceQuality`](scripts/deformable_surface_quality.gd) defines the quality
+  resource and its `low()`, `medium()`, `high()`, `for_platform()`, `preset(tier)`,
+  `platform_tier()` and `clamp_values()` methods.
+- [`DeformableSurfaceType`](scripts/deformable_surface_type.gd) defines material, deformation,
+  starting-noise, recovery, lighting and puff settings, plus `clamp_values()`.
+- [`Deformer`](scripts/deformers/deformer.gd),
+  [`DeformerFootsteps`](scripts/deformers/deformer_footsteps.gd), and
+  [`DeformerTracks`](scripts/deformers/deformer_tracks.gd) define the contact nodes.
 - `scripts/deformation_map.gd` manages map rendering, initial noise, refill, and stamps.
 - `scripts/deformers/stamp_batch_renderer.gd` batches stamp materials and draw calls.
 - `scripts/initial_noise_textures.gd` creates and caches seamless initial-noise textures.
