@@ -54,11 +54,10 @@ static func preset(tier: int) -> DeformableSurfaceQuality:
 
 ## Low on mobile (and mobile browsers), Medium on desktop browsers, High elsewhere.
 static func platform_tier() -> int:
-	if OS.has_feature("web"):
-		var mobile = JavaScriptBridge.eval("/Android|iPhone|iPad/i.test(navigator.userAgent)")
-		return 0 if mobile else 1
-	if OS.has_feature("mobile"):
+	if OS.has_feature("web_android") or OS.has_feature("web_ios") or OS.has_feature("mobile"):
 		return 0
+	if OS.has_feature("web"):
+		return 1
 	return 2
 
 
