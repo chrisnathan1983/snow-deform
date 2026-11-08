@@ -46,9 +46,9 @@ The Compatibility renderer compiles shaders on first draw, so the first footstep
 
 Web builds run in a GC'd single-threaded WASM heap, so avoiding these allocations reduces frame spikes.
 
-## 8. Weather particles
+## ~~8. Weather particles~~
 
-`CPUParticles3D` is the safe choice, but 900 + 120 flakes simulated in single-threaded WASM is noticeable. On tier 0, use roughly 200–300 flakes and `fixed_fps = 20`. `GPUParticles3D` also works in Compatibility on WebGL2 if you want to test it on your target devices.
+Tier-0 devices cap CPU snowfall at 250 main flakes plus 50 near-camera flakes and simulate them at `fixed_fps = 20`. Other tiers retain the configured counts and 30 FPS simulation.
 
 ## 9. Export and load size
 

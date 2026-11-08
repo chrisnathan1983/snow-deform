@@ -15,9 +15,11 @@ var _fall_near: SnowFall
 
 
 func _ready() -> void:
+	set_flakes(flakes)
+	set_near_flakes(near_flakes)
 	_fall = SnowFall.new()
 	_fall.height = fall_height
-	_fall.max_amount = maxi(flakes, 1)
+	_fall.set_max_amount(flakes)
 	_fall.set_intensity(snowfall)
 	_fall.set_wind(wind)
 	_fall.follow_target = follow_target
@@ -42,7 +44,7 @@ func _ensure_near_emitter() -> void:
 	_fall_near.flake_size = 0.35
 	_fall_near.flake_color = Color(1, 1, 1, 0.4)
 	_fall_near.follow_camera = true
-	_fall_near.max_amount = near_flakes
+	_fall_near.set_max_amount(near_flakes)
 	_fall_near.set_intensity(snowfall)
 	_fall_near.set_wind(wind)
 	add_child(_fall_near)
@@ -116,7 +118,7 @@ func set_fall_height(value: float) -> void:
 
 
 func set_flakes(value: int) -> void:
-	var updated := maxi(value, 1)
+	var updated := mini(maxi(value, 1), 250) if SnowFall.is_low_power_mobile() else maxi(value, 1)
 	if flakes == updated:
 		return
 	flakes = updated
@@ -125,7 +127,7 @@ func set_flakes(value: int) -> void:
 
 
 func set_near_flakes(value: int) -> void:
-	var updated := maxi(value, 0)
+	var updated := mini(maxi(value, 0), 50) if SnowFall.is_low_power_mobile() else maxi(value, 0)
 	if near_flakes == updated:
 		return
 	near_flakes = updated

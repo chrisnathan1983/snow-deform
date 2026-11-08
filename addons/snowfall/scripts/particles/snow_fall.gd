@@ -49,7 +49,7 @@ func _ready() -> void:
 	_update_lifetime()
 	preprocess = lifetime          # start the scene already snowing
 	local_coords = false
-	fixed_fps = 30
+	fixed_fps = 20 if is_low_power_mobile() else 30
 	cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_apply_wind()
 	_apply_intensity()
@@ -163,3 +163,7 @@ static func _soft_dot(size := 32) -> GradientTexture2D:
 	if size == 32:
 		_dot_cache = t
 	return t
+
+
+static func is_low_power_mobile() -> bool:
+	return OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios")

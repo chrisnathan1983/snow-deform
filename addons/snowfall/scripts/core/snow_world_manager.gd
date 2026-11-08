@@ -26,6 +26,8 @@ var _last_ground_y := 0.0
 
 
 func _ready() -> void:
+	set_flake_count(flake_count)
+	set_near_flake_count(near_flake_count)
 	if weather_settings != null:
 		_apply_weather_settings(weather_settings)
 	_weather_root = Node3D.new()
@@ -150,7 +152,7 @@ func set_emitter_area(value: Vector2) -> void:
 
 
 func set_flake_count(value: int) -> void:
-	var updated := maxi(value, 1)
+	var updated := mini(maxi(value, 1), 250) if SnowFall.is_low_power_mobile() else maxi(value, 1)
 	if flake_count == updated:
 		return
 	flake_count = updated
@@ -159,7 +161,7 @@ func set_flake_count(value: int) -> void:
 
 
 func set_near_flake_count(value: int) -> void:
-	var updated := maxi(value, 0)
+	var updated := mini(maxi(value, 0), 50) if SnowFall.is_low_power_mobile() else maxi(value, 0)
 	if near_flake_count == updated:
 		return
 	near_flake_count = updated
