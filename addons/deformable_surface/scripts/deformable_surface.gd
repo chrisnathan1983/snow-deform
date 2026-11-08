@@ -77,8 +77,7 @@ var area_size := Vector2(40, 40)
 @export var surface_type: DeformableSurfaceType : set = set_surface_type
 ## Optional. The sun: the sparkle shader follows its direction.
 @export var sun: DirectionalLight3D
-# The values below come from the surface type. The node keeps one private snapshot of it
-# (`_mp`), so there is a single copy to read and nothing to keep in sync by hand.
+# The assigned resources remain the source of truth. Their `changed` signals update runtime state.
 
 ## Enables wrapped diffuse lighting with cool-tinted shadows on footprint bevels.
 var wrapped_diffuse_lighting: bool:
@@ -100,8 +99,8 @@ var recovery_intensity: float:
 
 @export_group("Quality")
 ## Resolution, mesh density and budgets (a DeformableSurfaceQuality: use `low()`, `medium()`,
-## `high()` or `for_platform()`, or your own). The node keeps its own copy, so assign a changed
-## resource again to apply edits. Empty = the Medium preset.
+## `high()` or `for_platform()`, or your own). The node listens to resource changes. Duplicate
+## shared presets before editing one surface. Empty = the Medium preset.
 @export var quality: DeformableSurfaceQuality : set = set_quality
 
 var max_stamps_per_frame := 64
@@ -111,7 +110,15 @@ var puff_min_interval := 0.2    # per deformer, seconds
 
 var _active_quality_settings: DeformableSurfaceQuality
 var _default_surface_type: DeformableSurfaceType
-var _mp: DeformableSurfaceType   # clamped snapshot of the effective surface type
+var _observed_surface_type: DeformableSurfaceType
+var _observed_noise: FastNoiseLite
+var _observed_puff_ramp: Gradient
+var _observed_material: ShaderMaterial
+var _configured_material_source: ShaderMaterial
+var _applied_surface_state: Array = []
+var _applying_surface_type := false
+var _configured_quality_res := 0
+var _updating_quality := false
 
 var _runtime := false          # true once running in the game (not the editor)
 var _mat: ShaderMaterial       # our private copy of the material
@@ -136,15 +143,12 @@ var _cost_stamp_px := 0.0
 var _cost_refill_px := 0.0
 var _pending_stamps: Array[PendingStamp] = []
 var _pending_stamp_pool: Array[PendingStamp] = []
-var _dirty_deformers: Dictionary = {}
-var _dirty_deformer_list: Array[Deformer] = []
-var _dirty_deformer_indices: Dictionary = {}
-var _dirty_deformer_tombstones := 0
+var _dirty_deformers: Array[Deformer] = []
 var _known := {}       # deformer instance_id -> true (we've connected its tree_exiting)
 var _last := {}        # deformer instance_id -> last stamped pixel pos
 var _puff_last := {}   # deformer instance_id -> time of last puff (s)
 var _puff_acc := {}    # deformer instance_id -> meters since last moving puff
-var _rr := 0           # round-robin start index, so a full stamp budget can't starve anyone
+var _dirty_deformer_cursor := 0
 var _prime_frames := 0
 var _refill_timer := 0.0
 var _refill_idle := 0.0   # seconds since the last stamp
@@ -159,10 +163,9 @@ func _enter_tree() -> void:
 		return
 	if not instances.has(self):
 		instances.append(self)
-	for deformer in Deformer.unassigned:
-		_register_deformer(deformer)
-	for deformer in Deformer.assigned.get(get_instance_id(), []):
-		_register_deformer(deformer)
+	for deformer in Deformer.instances:
+		if deformer.field == null or deformer.field == self:
+			_register_deformer(deformer)
 
 
 func _notification(what: int) -> void:
@@ -178,10 +181,14 @@ func _ready() -> void:
 	if not contact.is_connected(_on_contact_puff):
 		contact.connect(_on_contact_puff)
 	_adopt_material()
+	_configured_material_source = _source_material()
 	if not _set_active_quality(quality):
 		return
+	_connect_quality_changed()
 	_apply_profile_values(_active_quality_settings)
-	_apply_surface_type_values()
+	_values().clamp_values()
+	_connect_surface_type_changed()
+	_applied_surface_state = _surface_type_state()
 
 	_make_brushes()
 
@@ -210,7 +217,7 @@ func _ready() -> void:
 		_create_runtime_mesh()
 
 	_runtime = true
-	_configure_quality(null)
+	_configure_quality()
 	_clear_map()
 	quality_changed.emit(_active_quality_settings)
 
@@ -218,8 +225,7 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	instances.erase(self)
 	_dirty_deformers.clear()
-	_dirty_deformer_list.clear()
-	_dirty_deformer_indices.clear()
+	_dirty_deformer_cursor = 0
 
 
 func _create_runtime_mesh() -> void:
@@ -232,45 +238,24 @@ func _create_runtime_mesh() -> void:
 func _register_deformer(deformer: Deformer) -> void:
 	if not is_instance_valid(deformer):
 		return
-	var id := deformer.get_instance_id()
-	if _dirty_deformers.has(id):
-		_dirty_deformers[id] = deformer
-		return
-	_dirty_deformers[id] = deformer
-	_dirty_deformer_indices[id] = _dirty_deformer_list.size()
-	_dirty_deformer_list.append(deformer)
+	if not _dirty_deformers.has(deformer):
+		_dirty_deformers.append(deformer)
 
 
 func _unregister_deformer(deformer: Deformer) -> void:
 	if is_instance_valid(deformer):
-		_remove_dirty_deformer(deformer.get_instance_id())
+		_remove_dirty_deformer(deformer)
 
 
-func _remove_dirty_deformer(id: int) -> void:
-	if not _dirty_deformers.has(id):
+func _remove_dirty_deformer(deformer: Deformer) -> void:
+	var index := _dirty_deformers.find(deformer)
+	if index < 0:
 		return
-	var index := int(_dirty_deformer_indices[id])
-	_dirty_deformers.erase(id)
-	_dirty_deformer_indices.erase(id)
-	if index >= 0 and index < _dirty_deformer_list.size() and _dirty_deformer_list[index] != null:
-		_dirty_deformer_list[index] = null
-		_dirty_deformer_tombstones += 1
-
-
-func _compact_dirty_deformers() -> void:
-	if _dirty_deformer_tombstones < 32 \
-			and _dirty_deformer_tombstones * 2 < _dirty_deformer_list.size():
-		return
-	var compacted: Array[Deformer] = []
-	_dirty_deformer_indices.clear()
-	for deformer in _dirty_deformer_list:
-		if deformer == null or not is_instance_valid(deformer):
-			continue
-		_dirty_deformer_indices[deformer.get_instance_id()] = compacted.size()
-		compacted.append(deformer)
-	_dirty_deformer_list = compacted
-	_dirty_deformer_tombstones = 0
-	_rr = 0
+	_dirty_deformers.remove_at(index)
+	if index < _dirty_deformer_cursor:
+		_dirty_deformer_cursor -= 1
+	if _dirty_deformer_cursor >= _dirty_deformers.size():
+		_dirty_deformer_cursor = 0
 
 
 func _mark_deformer_dirty(deformer: Deformer) -> void:
@@ -290,40 +275,52 @@ func apply_surface_settings(profile: DeformableSurfaceType, settings: Deformable
 		_clear_map()
 
 
-## Assigns a quality (the node keeps a clamped copy). Reconfiguring preserves trails unless the
-## map resolution changes.
+## Assigns a quality resource. Reconfiguring preserves trails unless the map resolution changes.
 func set_quality(q: DeformableSurfaceQuality) -> void:
+	if quality == q:
+		return
+	_disconnect_quality_changed()
 	quality = q
 	if not _runtime:
 		return
-	var previous := _active_quality_settings
 	if not _set_active_quality(q):
 		return
-	if previous != null and _quality_settings_equal(previous, _active_quality_settings):
+	_connect_quality_changed()
+	_on_quality_resource_changed()
+
+
+func _connect_quality_changed() -> void:
+	if _active_quality_settings != null \
+			and not _active_quality_settings.changed.is_connected(_on_quality_resource_changed):
+		_active_quality_settings.changed.connect(_on_quality_resource_changed)
+
+
+func _disconnect_quality_changed() -> void:
+	if _active_quality_settings != null \
+			and _active_quality_settings.changed.is_connected(_on_quality_resource_changed):
+		_active_quality_settings.changed.disconnect(_on_quality_resource_changed)
+
+
+func _on_quality_resource_changed() -> void:
+	if not _runtime or _active_quality_settings == null or _updating_quality:
 		return
+	_updating_quality = true
+	_active_quality_settings.clamp_values()
 	_apply_profile_values(_active_quality_settings)
-	_configure_quality(previous)
-	if previous == null or previous.res != _active_quality_settings.res:
+	var previous_res := _configured_quality_res
+	_configure_quality()
+	if previous_res != 0 and previous_res != _active_quality_settings.res:
 		_clear_map()
 	quality_changed.emit(_active_quality_settings)
+	_updating_quality = false
 
 
-func _quality_settings_equal(a: DeformableSurfaceQuality, b: DeformableSurfaceQuality) -> bool:
-	return a.res == b.res and a.subdiv == b.subdiv \
-		and a.max_stamps_per_frame == b.max_stamps_per_frame \
-		and a.refill_interval == b.refill_interval \
-		and a.puff == b.puff \
-		and a.puff_min_interval == b.puff_min_interval \
-		and a.sparkle == b.sparkle
-
-
-## Takes a clamped private copy of `q` (Medium when null).
 func _set_active_quality(q: DeformableSurfaceQuality) -> bool:
 	var source := q if q != null else DeformableSurfaceQuality.medium()
 	if source == null:
 		push_error("DeformableSurface: quality preset could not be loaded.")
 		return false
-	_active_quality_settings = source.duplicate() as DeformableSurfaceQuality
+	_active_quality_settings = source
 	_active_quality_settings.clamp_values()
 	return true
 
@@ -343,14 +340,9 @@ func _effective_surface_type() -> DeformableSurfaceType:
 	return _default_surface_type
 
 
-## The node's view of the surface type: the snapshot once running, else the type itself.
+## The assigned surface type, or the node's built-in default.
 func _values() -> DeformableSurfaceType:
-	return _mp if _mp != null else _effective_surface_type()
-
-
-func _apply_surface_type_values() -> void:
-	_mp = _effective_surface_type().duplicate() as DeformableSurfaceType
-	_mp.clamp_values()
+	return _effective_surface_type()
 
 
 ## Stamps drawn this frame, out of `max_stamps_per_frame` (for performance readouts).
@@ -402,7 +394,7 @@ func warm_up_effects(tread: Texture2D, puff_position: Vector3) -> void:
 	max_stamps_per_frame = budget
 	_submit_stamp_batches()
 	_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
-	if _mp.puffs_enabled:
+	if _values().puffs_enabled:
 		_ensure_puff_pool()
 		_puffs.warm_up(puff_position)
 
@@ -557,16 +549,13 @@ func _flush_pending_stamps(res: Vector2, px_per_m: float) -> void:
 
 
 func set_recovery_intensity(value: float) -> void:
-	if _mp != null:
-		_mp.recovery_intensity = clampf(value, 0.0, 1.0)
+	if _runtime:
+		_values().recovery_intensity = clampf(value, 0.0, 1.0)
 
 
 func set_wrapped_diffuse_lighting(enabled: bool) -> void:
-	if _mp == null or _mp.wrapped_diffuse_lighting == enabled:
-		return
-	_mp.wrapped_diffuse_lighting = enabled
-	if _mat:
-		_mat.set_shader_parameter("wrapped_diffuse_lighting", enabled)
+	if _runtime:
+		_values().wrapped_diffuse_lighting = enabled
 
 
 func set_render_mesh(value: bool) -> void:
@@ -619,7 +608,9 @@ func set_material(m: ShaderMaterial) -> void:
 	if Engine.is_editor_hint():
 		_refresh_preview()
 	elif _runtime:
+		_connect_surface_material_changed()
 		_adopt_material()
+		_configured_material_source = _source_material()
 		_configure_material()
 		_configure_particles()
 		_sun_dir = Vector3.ZERO   # force the sun direction to be re-applied
@@ -683,27 +674,109 @@ func _source_material() -> ShaderMaterial:
 func set_surface_type(p: DeformableSurfaceType) -> void:
 	if surface_type == p:
 		return
-	var previous_source := _source_material()
-	var previous_depth := max_depth
-	var previous_berm_height := _values().berm_height
-	var previous_noise_key := _starting_surface_key()
+	_disconnect_surface_type_changed()
 	surface_type = p
 	if Engine.is_editor_hint():
 		_refresh_preview()
 		return
 	if not _runtime:
 		return
-	_apply_surface_type_values()
-	if _source_material() != previous_source:
+	_on_surface_type_changed()
+
+
+func _connect_surface_type_changed() -> void:
+	var profile := _effective_surface_type()
+	if _observed_surface_type != profile:
+		_disconnect_surface_type_changed()
+		_observed_surface_type = profile
+	if not profile.changed.is_connected(_on_surface_type_changed):
+		profile.changed.connect(_on_surface_type_changed)
+	if _observed_noise != profile.initial_noise:
+		if _observed_noise != null and _observed_noise.changed.is_connected(_on_initial_noise_changed):
+			_observed_noise.changed.disconnect(_on_initial_noise_changed)
+		_observed_noise = profile.initial_noise
+		if _observed_noise != null:
+			_observed_noise.changed.connect(_on_initial_noise_changed)
+	if _observed_puff_ramp != profile.puff_color_ramp:
+		if _observed_puff_ramp != null and _observed_puff_ramp.changed.is_connected(_on_puff_ramp_changed):
+			_observed_puff_ramp.changed.disconnect(_on_puff_ramp_changed)
+		_observed_puff_ramp = profile.puff_color_ramp
+		if _observed_puff_ramp != null:
+			_observed_puff_ramp.changed.connect(_on_puff_ramp_changed)
+	_connect_surface_material_changed()
+
+
+func _disconnect_surface_type_changed() -> void:
+	if _observed_surface_type != null \
+			and _observed_surface_type.changed.is_connected(_on_surface_type_changed):
+		_observed_surface_type.changed.disconnect(_on_surface_type_changed)
+	if _observed_noise != null and _observed_noise.changed.is_connected(_on_initial_noise_changed):
+		_observed_noise.changed.disconnect(_on_initial_noise_changed)
+	if _observed_puff_ramp != null and _observed_puff_ramp.changed.is_connected(_on_puff_ramp_changed):
+		_observed_puff_ramp.changed.disconnect(_on_puff_ramp_changed)
+	_observed_surface_type = null
+	_observed_noise = null
+	_observed_puff_ramp = null
+	_disconnect_surface_material_changed()
+
+
+func _connect_surface_material_changed() -> void:
+	var source := _source_material()
+	if _observed_material == source:
+		return
+	_disconnect_surface_material_changed()
+	_observed_material = source
+	if source != null:
+		source.changed.connect(_on_surface_material_changed)
+
+
+func _disconnect_surface_material_changed() -> void:
+	if _observed_material != null \
+			and _observed_material.changed.is_connected(_on_surface_material_changed):
+		_observed_material.changed.disconnect(_on_surface_material_changed)
+	_observed_material = null
+
+
+func _on_surface_type_changed() -> void:
+	if not _runtime or _applying_surface_type:
+		return
+	_applying_surface_type = true
+	_values().clamp_values()
+	_connect_surface_type_changed()
+	if _configured_material_source != _source_material():
 		_adopt_material()
+		_configured_material_source = _source_material()
 	_configure_material()
 	_configure_stamp_material(_stamp_add_material)
 	_configure_particles()
-	_sun_dir = Vector3.ZERO   # force the sun direction to be re-applied
-	if not is_equal_approx(previous_depth, max_depth) \
-			or not is_equal_approx(previous_berm_height, _mp.berm_height) \
-			or previous_noise_key != _starting_surface_key():
+	_sun_dir = Vector3.ZERO
+	var current_state := _surface_type_state()
+	if (not _applied_surface_state.is_empty()
+			and (not is_equal_approx(_applied_surface_state[0], current_state[0])
+				or not is_equal_approx(_applied_surface_state[1], current_state[1])
+				or _applied_surface_state[2] != current_state[2])):
 		_clear_map()
+	_applied_surface_state = current_state
+	_applying_surface_type = false
+
+
+func _on_initial_noise_changed() -> void:
+	if _runtime:
+		_clear_map()
+
+
+func _on_puff_ramp_changed() -> void:
+	if _runtime:
+		_apply_puff_look()
+
+
+func _on_surface_material_changed() -> void:
+	if not _runtime:
+		return
+	_adopt_material()
+	_configure_material()
+	_configure_particles()
+	_connect_surface_material_changed()
 
 
 func _starting_surface_key() -> Array:
@@ -712,6 +785,11 @@ func _starting_surface_key() -> Array:
 		p.initial_noise_invert, p.initial_noise_height, p.initial_noise_detail,
 		p.initial_noise_detail_scale, p.initial_noise_mound_height,
 		p.initial_noise_mound_frequency]
+
+
+func _surface_type_state() -> Array:
+	var p := _values()
+	return [p.max_depth, p.berm_height, _starting_surface_key()]
 
 
 func _make_refill_rect(shader: Shader) -> ColorRect:
@@ -746,30 +824,17 @@ func _make_brushes() -> void:
 	_stamp_multimesh.visible_instance_count = 0
 
 ## Applies the quality preset: map size, mesh density, shader params, particle counts.
-func _configure_quality(previous: DeformableSurfaceQuality) -> void:
+func _configure_quality() -> void:
 	var current := _active_quality_settings
-	var map_changed := previous == null or previous.res != current.res
-	if map_changed:
+	if _vp.size != Vector2i(current.res, current.res):
 		_configure_deformation_map()
-
-	var plane := _mesh.mesh as PlaneMesh if is_instance_valid(_mesh) else null
-	if (is_instance_valid(_mesh) and (plane == null
-			or not plane.size.is_equal_approx(area_size)
-			or plane.subdivide_width != current.subdiv
-			or plane.subdivide_depth != current.subdiv)):
+	if is_instance_valid(_mesh):
 		_configure_mesh()
-
-	if (previous == null
-			or map_changed
-			or not is_equal_approx(previous.sparkle, current.sparkle)):
-		_configure_material()
-	if previous == null or map_changed:
-		_configure_stamp_material(_stamp_add_material)
-	if (previous == null
-			or previous.max_stamps_per_frame != current.max_stamps_per_frame):
-		_configure_stamp_capacity()
-	if previous == null or previous.puff != current.puff:
-		_configure_particles()
+	_configure_material()
+	_configure_stamp_material(_stamp_add_material)
+	_configure_stamp_capacity()
+	_configure_particles()
+	_configured_quality_res = current.res
 
 
 func _configure_deformation_map() -> void:
@@ -832,7 +897,7 @@ func _positive_hash_mod(value: int) -> int:
 
 
 func _configure_particles() -> void:
-	if not _mp.puffs_enabled:
+	if not _values().puffs_enabled:
 		if is_instance_valid(_puffs):
 			_puffs.queue_free()
 			_puffs = null
@@ -882,8 +947,8 @@ func _configure_stamp_capacity() -> void:
 
 
 func _configure_stamp_material(stamp_material: ShaderMaterial) -> void:
-	stamp_material.set_shader_parameter("berm_strength", _mp.berm_strength)
-	stamp_material.set_shader_parameter("berm_height_ratio", _mp.berm_height / maxf(max_depth, 0.01))
+	stamp_material.set_shader_parameter("berm_strength", _values().berm_strength)
+	stamp_material.set_shader_parameter("berm_height_ratio", _values().berm_height / maxf(max_depth, 0.01))
 	stamp_material.set_shader_parameter("map_resolution", float(_vp.size.x))
 	stamp_material.set_shader_parameter(
 		"textured_berm_dilation_enabled", DeformableSurfaceQuality.platform_tier() > 0)
@@ -898,18 +963,18 @@ func _clear_map() -> void:
 		_bg.queue_free()
 	var background := ColorRect.new()
 	background.size = Vector2(_vp.size)
-	if _mp.initial_noise_enabled:
+	if _values().initial_noise_enabled:
 		var background_material := ShaderMaterial.new()
 		background_material.shader = INITIAL_NOISE_SHADER
-		_configure_initial_noise_shader(background_material, _mp, global_position)
+		_configure_initial_noise_shader(background_material, _values(), global_position)
 		background.material = background_material
 		background.color = Color.WHITE
 	else:
 		background.color = Color(MAP_NEUTRAL, MAP_NEUTRAL, MAP_NEUTRAL)
 	_bg = background
-	_refill_material.set_shader_parameter("initial_noise_enabled", _mp.initial_noise_enabled)
-	if _mp.initial_noise_enabled:
-		_configure_initial_noise_shader(_refill_material, _mp, global_position)
+	_refill_material.set_shader_parameter("initial_noise_enabled", _values().initial_noise_enabled)
+	if _values().initial_noise_enabled:
+		_configure_initial_noise_shader(_refill_material, _values(), global_position)
 	_vp.add_child(_bg)
 	_vp.move_child(_bg, 0)
 	_prime_frames = 3
@@ -917,10 +982,9 @@ func _clear_map() -> void:
 	_refill_idle = 0.0
 	_puff_acc.clear()
 	_last.clear()
-	for deformer in Deformer.unassigned:
-		_register_deformer(deformer)
-	for deformer in Deformer.assigned.get(get_instance_id(), []):
-		_register_deformer(deformer)
+	for deformer in Deformer.instances:
+		if deformer.field == null or deformer.field == self:
+			_register_deformer(deformer)
 
 
 func _configure_initial_noise_shader(shader_material: ShaderMaterial,
@@ -946,10 +1010,12 @@ func _configure_initial_noise_shader(shader_material: ShaderMaterial,
 	shader_material.set_shader_parameter("initial_noise_invert", profile.initial_noise_invert)
 
 
-func _forget(id: int) -> void:
+
+func _forget(deformer: Deformer) -> void:
+	var id := deformer.get_instance_id()
 	_known.erase(id)
 	_last.erase(id)
-	_remove_dirty_deformer(id)
+	_remove_dirty_deformer(deformer)
 	_puff_last.erase(id)
 	_puff_acc.erase(id)
 
@@ -971,8 +1037,9 @@ func _process(delta: float) -> void:
 	_cost_puffs_us = 0
 	_cost_refill_px = 0.0
 
-	var list := _dirty_deformer_list
+	var list := _dirty_deformers.duplicate()
 	var n := list.size()
+	var cursor := _dirty_deformer_cursor
 	var res := Vector2(_vp.size)
 	var px_per_m := res.x / area_size.x
 	var queued_start := Time.get_ticks_usec()
@@ -981,24 +1048,24 @@ func _process(delta: float) -> void:
 	_cost_queued_us = Time.get_ticks_usec() - queued_start
 	var deformers_start := Time.get_ticks_usec()
 	for k in n:
-		var d := list[(k + _rr) % n] as Deformer
+		var d := list[(k + cursor) % n] as Deformer
 		if d == null or not is_instance_valid(d):
 			continue
 		var id := d.get_instance_id()
 		if not _known.has(id):
 			_known[id] = true
-			d.tree_exiting.connect(_forget.bind(id), CONNECT_ONE_SHOT)
+			d.tree_exiting.connect(_forget.bind(d), CONNECT_ONE_SHOT)
 
 		if _prime_frames > 0:
 			continue   # the clear background is still being rendered
 
 		if not d.active:
 			_last.erase(id)   # lifted: next touchdown starts a fresh print
-			_remove_dirty_deformer(id)
+			_remove_dirty_deformer(d)
 			continue
 		if d.strength <= 0.0:
 			_last.erase(id)
-			_remove_dirty_deformer(id)
+			_remove_dirty_deformer(d)
 			continue
 		var local := to_local(d.global_position)
 		# Include the whole elongated brush and its berms, even when the center is
@@ -1006,7 +1073,7 @@ func _process(delta: float) -> void:
 		var reach := d.radius * sqrt(clampf(d.aspect, 1.0, STAMP_MAX_ASPECT)) * (BERM_REACH + BERM_FORWARD)
 		if (render_mesh and local.y > max_depth) or absf(local.x) > area_size.x * 0.5 + reach or absf(local.z) > area_size.y * 0.5 + reach:
 			_last.erase(id)
-			_remove_dirty_deformer(id)
+			_remove_dirty_deformer(d)
 			continue
 		var depth_ratio := clampf(1.0 - (local.y / max_depth), 0.1, 1.0) if render_mesh else 1.0
 		var effective_strength := d.strength * depth_ratio
@@ -1026,7 +1093,7 @@ func _process(delta: float) -> void:
 			var prev: Vector2 = _last[id]
 			var dist := prev.distance_to(pos)
 			if dist < r_px * 0.15:
-				_remove_dirty_deformer(id)
+				_remove_dirty_deformer(d)
 				continue
 			# Keep elongated prints (boots/skis) aligned to node heading; orient round prints to travel
 			var move_heading := heading if (aspect > 1.05 or d.stamp_texture != null) else (pos - prev).angle()
@@ -1068,14 +1135,13 @@ func _process(delta: float) -> void:
 				_emit_contact(d.global_position, effective_strength, d.mode, d, d.radius, d.puff_on_touchdown)
 		_last[id] = done
 		if done.distance_to(pos) < 0.001:
-			_remove_dirty_deformer(id)
+			_remove_dirty_deformer(d)
 
 	# Puffs spawned inside the loop are timed separately, so take them out of this figure.
 	_cost_deformers_us = maxi(Time.get_ticks_usec() - deformers_start - _cost_puffs_us, 0)
 
-	if n > 0:
-		_rr = (_rr + 1) % n
-	_compact_dirty_deformers()
+	if not _dirty_deformers.is_empty():
+		_dirty_deformer_cursor = (_dirty_deformer_cursor + 1) % _dirty_deformers.size()
 
 	_submit_stamp_batches()
 
@@ -1087,8 +1153,8 @@ func _process(delta: float) -> void:
 		_refill_idle += delta
 	var refill_now := false
 	var refill_dt := 0.0
-	var heal_rate := 4.0 * _mp.recovery_intensity * _mp.refill_levels_per_sec / 255.0
-	if heal_rate > 0.0001 and _mp.recovery_intensity > 0.001 and _prime_frames == 0 \
+	var heal_rate := 4.0 * _values().recovery_intensity * _values().refill_levels_per_sec / 255.0
+	if heal_rate > 0.0001 and _values().recovery_intensity > 0.001 and _prime_frames == 0 \
 			and _refill_idle < 5.5 / heal_rate:
 		_refill_timer += delta
 		if _refill_timer >= refill_interval:
@@ -1100,7 +1166,7 @@ func _process(delta: float) -> void:
 		_cost_refill_px = res.x * res.y
 
 	# Only spend GPU time when something actually changed
-	if _prime_frames > 0 and InitialNoiseTextures.ready_for_profile(_mp):
+	if _prime_frames > 0 and InitialNoiseTextures.ready_for_profile(_values()):
 		_prime_frames -= 1
 		if _prime_frames == 0 and is_instance_valid(_bg):
 			_bg.queue_free()
@@ -1128,7 +1194,7 @@ func _run_refill(now: bool, dt: float) -> void:
 		_refill.visible = now
 	if not now:
 		return
-	var levels := _mp.recovery_intensity * _mp.refill_levels_per_sec * dt
+	var levels := _values().recovery_intensity * _values().refill_levels_per_sec * dt
 	var recovery_alpha := 1.0 - exp(-4.0 * levels / 255.0)
 	_refill_material.set_shader_parameter("recovery_alpha", recovery_alpha)
 	_refill_material.set_shader_parameter("seed", randf() * 1000.0)
@@ -1139,7 +1205,7 @@ func _try_puff(d: Deformer, _id: int, push: Vector3) -> void:
 
 ## Spawns a puff at a contact. Deformer sources are rate-limited by puff_min_interval.
 func _spawn_puff(world_pos: Vector3, radius: float, push: Vector3, source: Node) -> void:
-	if not _mp.puffs_enabled:
+	if not _values().puffs_enabled:
 		return
 	var puff_start := Time.get_ticks_usec()
 	var now := Time.get_ticks_msec() * 0.001
@@ -1189,9 +1255,9 @@ func _stamp(
 	var stamp_aspect := clampf(aspect, 0.001, STAMP_MAX_ASPECT)
 	var len_r := stamp_radius_px * sqrt(stamp_aspect)
 	var wid_r := stamp_radius_px / sqrt(stamp_aspect)
-	var berm_radius := Vector2(len_r, wid_r) * BERM_REACH if _mp.berm_strength > 0.0 else Vector2.ZERO
+	var berm_radius := Vector2(len_r, wid_r) * BERM_REACH if _values().berm_strength > 0.0 else Vector2.ZERO
 	var berm_offset_x := len_r * BERM_FORWARD * clampf(stamp_aspect - 1.0, 0.0, 1.0) \
-		if _mp.berm_strength > 0.0 else 0.0
+		if _values().berm_strength > 0.0 else 0.0
 	var outer_half_extent := Vector2(
 		maxf(len_r, absf(berm_offset_x) + berm_radius.x),
 		maxf(wid_r, berm_radius.y)

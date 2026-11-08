@@ -174,9 +174,9 @@ The snow surface. Keep it unrotated and unscaled; the surface is at its Y.
 | `surface_type` | Optional `DeformableSurfaceType`: what the surface is made of (see below). Presets in `resources/materials/*_profile.tres`. |
 | `render_mesh` | On (default): draws the built-in flat plane. Off: only the deformation map is kept, and deformers are no longer culled or weakened by their height above the node, so it works as a deformation server for hills (see "Custom terrain and foliage"). |
 | `sun` | Optional light the sparkle follows. |
-| `quality` | A `DeformableSurfaceQuality` resource (technical settings below). Use `DeformableSurfaceQuality.low()`, `medium()`, `high()` or `for_platform()`, or your own. The node keeps its own copy; assign a changed resource again to apply it. Empty = Medium. |
+| `quality` | A `DeformableSurfaceQuality` resource (technical settings below). Use `DeformableSurfaceQuality.low()`, `medium()`, `high()` or `for_platform()`, or your own. The node listens for resource changes; duplicate shared presets before editing one surface. Empty = Medium. |
 
-Technical settings live in `DeformableSurfaceQuality` (not on the node; the node copies them when assigned):
+Technical settings live in `DeformableSurfaceQuality` (not on the node). In-place edits update the surface; changing map resolution clears its trails.
 
 | Setting | Meaning |
 |---|---|

@@ -8,23 +8,58 @@ extends Resource
 ##
 ## Presets are plain resources: `low()`, `medium()`, `high()` (copies of
 ## `resources/quality/*.tres`), or `for_platform()` to pick one automatically. A settings
-## menu edits a copy of one of these and assigns it to `DeformableSurface.quality`.
+## menu duplicates one before editing it, then assigns it to `DeformableSurface.quality`.
 
 const PRESET_DIR := "res://addons/deformable_surface/resources/quality/"
 
 @export_group("Surface")
-@export_range(128, 2048, 128) var res := 512
-@export_range(1, 512, 1) var subdiv := 127
+@export_range(128, 2048, 128) var res := 512:
+	set(value):
+		if res == value:
+			return
+		res = value
+		emit_changed()
+@export_range(1, 512, 1) var subdiv := 127:
+	set(value):
+		if subdiv == value:
+			return
+		subdiv = value
+		emit_changed()
 
 @export_group("Budgets")
-@export_range(1, 512, 1) var max_stamps_per_frame := 64
-@export_range(0.05, 5.0, 0.05) var refill_interval := 0.25
-@export_range(1, 64, 1) var puff := 8
-@export_range(0.0, 10.0, 0.05) var puff_min_interval := 0.2
+@export_range(1, 512, 1) var max_stamps_per_frame := 64:
+	set(value):
+		if max_stamps_per_frame == value:
+			return
+		max_stamps_per_frame = value
+		emit_changed()
+@export_range(0.05, 5.0, 0.05) var refill_interval := 0.25:
+	set(value):
+		if is_equal_approx(refill_interval, value):
+			return
+		refill_interval = value
+		emit_changed()
+@export_range(1, 64, 1) var puff := 8:
+	set(value):
+		if puff == value:
+			return
+		puff = value
+		emit_changed()
+@export_range(0.0, 10.0, 0.05) var puff_min_interval := 0.2:
+	set(value):
+		if is_equal_approx(puff_min_interval, value):
+			return
+		puff_min_interval = value
+		emit_changed()
 
 @export_group("Effects")
 ## Quality scale for the material's sparkle.
-@export_range(0.0, 3.0, 0.1) var sparkle := 1.0
+@export_range(0.0, 3.0, 0.1) var sparkle := 1.0:
+	set(value):
+		if is_equal_approx(sparkle, value):
+			return
+		sparkle = value
+		emit_changed()
 
 
 static func low() -> DeformableSurfaceQuality:

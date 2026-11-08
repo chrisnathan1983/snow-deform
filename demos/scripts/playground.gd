@@ -525,7 +525,7 @@ func _process(delta: float) -> void:
         _hud_t = 0.4
         ui.set_info("%d FPS  |  %s  |  map %d  |  %d deformers" % [
             Engine.get_frames_per_second(), DemoSettings.QUALITY_NAMES[settings.quality_index],
-            snow.quality.res, Deformer.unassigned.size()])
+            snow.quality.res, Deformer.instances.size()])
 
 
 ## The explorer moves kinematically without a physics body.

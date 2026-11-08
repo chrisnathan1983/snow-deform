@@ -4,10 +4,8 @@ extends Node3D
 ## Add as a child of anything that should leave marks on the surface.
 ## X/Z determines the print position; DeformableSurface ignores deformers above max_depth.
 
-## Deformers without a field assignment affect each DeformableSurface.
-static var unassigned: Array[Deformer] = []
-## DeformableSurface instance ID -> explicitly assigned deformers.
-static var assigned: Dictionary = {}
+## Active deformers are registered once; each surface filters by `field` when it enters.
+static var instances: Array[Deformer] = []
 
 ## Which DeformableSurface this affects. Leave empty to affect every DeformableSurface.
 @export var field: DeformableSurface : set = set_field
@@ -31,17 +29,17 @@ var stamp_flip_x := false : set = set_stamp_flip_x
 @export var puff_on_touchdown := true   # puff when contact starts (footfalls)
 @export var puff_distance := 0.0        # >0: also spray a puff every N meters while moving
 
-var _registered_field_id := 0
-
-
 func _enter_tree() -> void:
 	set_notify_transform(true)
+	if not instances.has(self):
+		instances.append(self)
 	_register()
 	_mark_changed()
 
 
 func _exit_tree() -> void:
 	_unregister()
+	instances.erase(self)
 
 
 func _notification(what: int) -> void:
@@ -113,40 +111,21 @@ func set_mode(value: DeformableSurface.StampMode) -> void:
 
 
 func _register() -> void:
-	if field == null:
-		_registered_field_id = 0
-		if not unassigned.has(self):
-			unassigned.append(self)
-		for surface in DeformableSurface.instances:
-			surface._register_deformer(self)
+	if field != null:
+		if is_instance_valid(field):
+			field._register_deformer(self)
 		return
-
-	var field_id := field.get_instance_id()
-	_registered_field_id = field_id
-	var field_deformers: Array = assigned.get(field_id, [])
-	if not field_deformers.has(self):
-		field_deformers.append(self)
-	assigned[field_id] = field_deformers
-	field._register_deformer(self)
+	for surface in DeformableSurface.instances:
+		surface._register_deformer(self)
 
 
 func _unregister() -> void:
-	if _registered_field_id == 0:
-		unassigned.erase(self)
-		for surface in DeformableSurface.instances:
-			surface._unregister_deformer(self)
+	if field != null:
+		if is_instance_valid(field):
+			field._unregister_deformer(self)
 		return
-
-	var field_id := _registered_field_id
-	_registered_field_id = 0
-	var field_deformers: Array = assigned.get(field_id, [])
-	field_deformers.erase(self)
-	if field_deformers.is_empty():
-		assigned.erase(field_id)
-	else:
-		assigned[field_id] = field_deformers
-	if is_instance_valid(field):
-		field._unregister_deformer(self)
+	for surface in DeformableSurface.instances:
+		surface._unregister_deformer(self)
 
 
 func _mark_changed() -> void:
@@ -156,9 +135,6 @@ func _mark_changed() -> void:
 		if is_instance_valid(field):
 			field._mark_deformer_dirty(self)
 		return
-	if _registered_field_id != 0:
-		_unregister()
-		_register()
 	for surface in DeformableSurface.instances:
 		surface._mark_deformer_dirty(self)
 

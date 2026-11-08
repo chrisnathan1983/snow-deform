@@ -58,9 +58,9 @@ position; the field is always square (`size` is a single float on the node).
 | `size` | `40.0` | Width and depth in meters. Smaller areas give sharper prints at the same quality (density is `res / size`). Changing it at runtime rebuilds the mesh and clears tracks. |
 | `surface_type` | Empty | Optional `DeformableSurfaceType` describing what the surface is made of: depth, berms, recovery, puffs, lighting, default material. Ready-made `snow`, `sand`, `mud`, `dirt` and `ash` profiles are in `resources/materials/`. Without one, snow-like defaults apply. |
 | `sun` | Empty | Optional directional light that controls sparkle direction. |
-| `quality` | Medium | A `DeformableSurfaceQuality` resource: resolution, mesh density and budgets. Use `DeformableSurfaceQuality.low()`, `medium()`, `high()` or `for_platform()`, or your own saved resource. The node keeps its own clamped copy, so assigning one resource to many nodes is safe; to change a value at runtime, edit a duplicate and assign it again. Changes preserve tracks unless the map resolution changes. |
+| `quality` | Medium | A `DeformableSurfaceQuality` resource: resolution, mesh density and budgets. Use `DeformableSurfaceQuality.low()`, `medium()`, `high()` or `for_platform()`, or your own saved resource. The node listens to resource changes; duplicate shared presets before editing one surface. Changes preserve tracks unless the map resolution changes. |
 
-The following technical settings live in `DeformableSurfaceQuality`; the node copies them when the resource is assigned.
+The following technical settings live in `DeformableSurfaceQuality` and update the surface when changed.
 
 | Setting | Default | Description |
 |---|---:|---|
@@ -70,7 +70,7 @@ The following technical settings live in `DeformableSurfaceQuality`; the node co
 | `puff`, `puff_min_interval` | `8`, `0.2` | Puff particle budget and minimum seconds between puffs from one deformer. |
 | `sparkle` | `1.0` | Quality scale applied on top of the material's `sparkle_strength`. |
 
-The following material settings live in a `DeformableSurfaceType` (`surface_type`). Without one, these defaults apply. The node copies profile values when assigned, so edit a copy of the type and assign it again to apply changes. The node exposes `max_depth` (read-only) and `recovery_intensity` and `wrapped_diffuse_lighting` (assignable at runtime); replacing the surface type restores the type's values.
+The following material settings live in a `DeformableSurfaceType` (`surface_type`). Without one, these defaults apply. The node listens to profile changes; duplicate a shared type before editing one surface. The node exposes `max_depth` (read-only) and `recovery_intensity` and `wrapped_diffuse_lighting` (assignable at runtime); replacing the surface type uses the new profile's values.
 
 | Setting | Default | Description |
 |---|---:|---|
