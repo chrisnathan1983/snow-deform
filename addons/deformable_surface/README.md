@@ -45,6 +45,11 @@ runner.aspect = 3.0
 $Sled.add_child(runner)
 ```
 
+Keep a surface stationary after setup when using initial noise. The starting
+noise is baked from its world position when the map is initialized; if you move
+the surface later, call `reset_trails()` to clear and rebake the map at its new
+position. Surface parents should remain unrotated and unscaled.
+
 ## Nodes
 
 ### DeformableSurface
@@ -297,6 +302,9 @@ its scale and strength with `bevel_noise_scale` and `bevel_noise_strength`.
 ## Files
 
 - `scripts/deformable_surface.gd` defines `DeformableSurface`.
+- `scripts/deformation_map.gd` manages map rendering, initial noise, refill, and stamps.
+- `scripts/deformers/stamp_batch_renderer.gd` batches stamp materials and draw calls.
+- `scripts/initial_noise_textures.gd` creates and caches seamless initial-noise textures.
 - `scripts/deformers/deformer.gd` defines `Deformer`.
 - `scripts/deformers/deformer_footsteps.gd` defines `DeformerFootsteps`.
 - `scripts/deformers/deformer_tracks.gd` defines `DeformerTracks`.
@@ -305,8 +313,7 @@ its scale and strength with `bevel_noise_scale` and `bevel_noise_strength`.
 - `scripts/deformable_surface_type.gd` defines `DeformableSurfaceType`.
 - `resources/quality/` contains the Low, Medium and High quality presets.
 - `resources/materials/` contains the snow, sand, mud, dirt and ash surface types and their materials.
-- `shaders/` contains the surface, additive/subtractive stamp, and map
-  refill shaders.
+- `shaders/` contains the surface, analytic and sprite stamp, initial-noise, and refill shaders.
 - `icons/` contains the node icons.
 - `plugin.cfg` and `plugin.gd` make the addon visible in Godot's plugin list;
   no editor integration is required for the nodes to work.
