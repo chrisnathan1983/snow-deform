@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://bqqfop2b0q3dw"]
 
-[ext_resource type="Script" uid="uid://de6yemhfjer2w" path="res://demos/scripts/launcher.gd" id="1"]
+[ext_resource type="Script" uid="uid://de6yemhfjer2w" path="res://demos/launcher.gd" id="1"]
 
 [node name="DemoLauncher" type="Control" unique_id=534542167]
 layout_mode = 3

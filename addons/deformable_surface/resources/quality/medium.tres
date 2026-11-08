@@ -1,7 +1,6 @@
-[gd_resource type="Resource" script_class="DeformableSurfaceQuality" format=3]
+[gd_resource type="Resource" script_class="DeformableSurfaceQuality" format=3 uid="uid://bxai5c0mqhyvp"]
 
 [ext_resource type="Script" uid="uid://cbdtvxxisq48g" path="res://addons/deformable_surface/scripts/deformable_surface_quality.gd" id="1"]
 
 [resource]
 script = ExtResource("1")
-subdiv = 127

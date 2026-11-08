@@ -5,11 +5,17 @@ extends Node3D
 ##          wheel = zoom, M = menu, R = reset tracks, 1/2/3 = quality.
 ## Touch:   left half drag = move joystick, right half drag = camera joystick, tap = throw.
 
-const Props := preload("res://demos/scripts/demo_props.gd")
-const DemoCharacter := preload("res://demos/scripts/demo_character.gd")
-const DemoSled := preload("res://demos/scripts/demo_sled.gd")
-const DemoBall := preload("res://demos/scripts/demo_ball.gd")
-const Snowangel := preload("res://demos/scripts/snow_angel.gd")
+const Props := preload("res://demos/props/demo_props.gd")
+const DemoSled := preload("res://demos/props/sled.gd")
+const BouncingBallScene := preload("res://demos/props/bouncing_ball.tscn")
+const SnowballScene := preload("res://demos/props/snowball.tscn")
+const Snowangel := preload("res://demos/actors/snow_angel.gd")
+const FENCE_SCENE := preload("res://demos/props/fence.tscn")
+const HILLS_SCENE := preload("res://demos/props/hills.tscn")
+const FOREST_SCENE := preload("res://demos/props/pine_forest.tscn")
+const ROCK_SCENE := preload("res://demos/props/rock.tscn")
+const SNOWMAN_SCENE := preload("res://demos/props/snowman.tscn")
+const ENVIRONMENT_SCENE := preload("res://demos/shared/demo_environment.tscn")
 
 const FIELD_SIZE := 32.0
 const GROUND_Y := -0.3
@@ -37,8 +43,7 @@ var snow: DeformableSurface
 var snow_fields: Array[DeformableSurface] = []
 var weather: SnowWorldManager
 var sun: DirectionalLight3D
-var env: Environment
-var sky_mat: ProceduralSkyMaterial
+var _environment: DemoEnvironment
 var camera: DemoCamera
 var _ground: MeshInstance3D
 var _snow_root: Node3D
@@ -53,7 +58,7 @@ var _shell: DemoShell
 
 var _rng := RandomNumberGenerator.new()
 var _obstacles: Array[Vector3] = []
-var _balls: Array[DemoBall] = []
+var _balls: Array[BouncingBall] = []
 var _penguins: Array[DemoCharacter] = []
 var _yeti: DemoCharacter
 
@@ -98,26 +103,12 @@ func _ready() -> void:
 # ================================================================ world setup
 
 func _build_environment() -> void:
-    sky_mat = ProceduralSkyMaterial.new()
-    var sky := Sky.new()
-    sky.sky_material = sky_mat
-    env = Environment.new()
-    env.background_mode = Environment.BG_SKY
-    env.sky = sky
-    env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-    env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-    env.fog_enabled = true
-    env.fog_density = 0.008
-    var we := WorldEnvironment.new()
-    we.environment = env
-    add_child(we)
-
-    sun = DirectionalLight3D.new()
-    sun.shadow_enabled = not _touch_ui
-    sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
-    sun.directional_shadow_max_distance = 40.0
-    sun.shadow_bias = 0.05
-    add_child(sun)
+    _environment = ENVIRONMENT_SCENE.instantiate() as DemoEnvironment
+    _environment.shadows_enabled = not _touch_ui
+    _environment.sun_height = _sun_height
+    _environment.sun_azimuth = 35.0
+    add_child(_environment)
+    sun = _environment.sun
 
     camera = DemoCamera.new()
     camera.auto_update = false
@@ -130,7 +121,6 @@ func _build_environment() -> void:
     camera.far = 400.0
     camera.current = true
     add_child(camera)
-
 
 func _build_snow(profile: DeformableSurfaceType, quality: DeformableSurfaceQuality) -> void:
     if infinite:
@@ -200,13 +190,12 @@ func _update_arena() -> void:
 
     var arena_scale := 1.0 if infinite else minf(1.0, _arena_size / FIELD_SIZE)
     sled.amp = SLED_PATH * arena_scale
-    _yeti.circle_center = Vector3(-2.0, 0, -10.5) * arena_scale
-    _yeti.circle_radius = 3.2 * arena_scale
+    _yeti.set_wander_route(Vector3(-2.0, 0, -10.5) * arena_scale, 3.2 * arena_scale)
     for ball in _balls:
         ball.half = (FIELD_SIZE * 0.5 if infinite else half) - 1.5
 
     var village_half := FIELD_SIZE * 0.5 if infinite else half
-    for person: SnowNPC in _people.get_children():
+    for person: DemoNPC in _people.get_children():
         person.bounds = Vector2.ONE * (village_half - 1.0)
     _mouse.set("bounds", Vector2.ONE * (village_half - 1.0))
     _update_fence(half)
@@ -246,10 +235,10 @@ func _update_fence(half: float) -> void:
     (_walls[0].shape as BoxShape3D).size.z = _arena_size + 1.0
     (_walls[2].shape as BoxShape3D).size.x = _arena_size + 1.0
 
-    _fence = Node3D.new()
+    _fence = FENCE_SCENE.instantiate() as Node3D
     _fence.name = "Fence"
+    _fence.call("configure", half, GROUND_Y)
     add_child(_fence)
-    Props.add_fence(_fence, half, GROUND_Y)
 
 
 func _snow_profile() -> DeformableSurfaceType:
@@ -260,11 +249,19 @@ func _snow_profile() -> DeformableSurfaceType:
 
 func _build_scenery() -> void:
     # Wide ground + distant hills + forests so the horizon looks natural.
-    _ground = Props.add_mesh(self, PlaneMesh.new(), Color(0.88, 0.91, 0.97), Vector3(0, GROUND_Y, 0))
-    (_ground.mesh as PlaneMesh).size = Vector2(800, 800)
+    var ground_mesh := PlaneMesh.new()
+    ground_mesh.size = Vector2(800, 800)
+    _ground = MeshInstance3D.new()
+    _ground.name = "Ground"
+    _ground.mesh = ground_mesh
+    _ground.position = Vector3(0, GROUND_Y, 0)
     _ground.material_override = Props.mat(Color(0.88, 0.91, 0.97), 1.0)
     _ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-    Props.add_hills(self, _rng, GROUND_Y)
+    add_child(_ground)
+    var hills := HILLS_SCENE.instantiate()
+    hills.set("ground_y", GROUND_Y)
+    hills.set("random_seed", 691)
+    add_child(hills)
     _add_forest(46, Vector2(1.5, 12.0), Vector2(0.8, 1.5), true)
     _add_forest(170, Vector2(22.0, 75.0), Vector2(1.2, 2.6), false)
 
@@ -276,18 +273,25 @@ func _build_scenery() -> void:
     for i in 7:
         var p := _free_spot(keep, 2.4, 11.5)
         var r := _rng.randf_range(0.5, 1.1)
-        Props.add_rock(self, Vector3(p.x, 0, p.y), r, _rng.randf() * 360.0)
+        var rock := ROCK_SCENE.instantiate() as Node3D
+        rock.position = Vector3(p.x, 0, p.y)
+        rock.scale = Vector3.ONE * r
+        rock.rotation_degrees.y = _rng.randf() * 360.0
+        add_child(rock)
         _obstacles.append(Vector3(p.x, r * 0.9, p.y))
         keep.append(p)
     for i in 4:
         var p := _free_spot(keep, 2.4, 11.5)
-        Props.add_snowman(self, Vector3(p.x, 0, p.y), _rng.randf() * 360.0)
+        var snowman := SNOWMAN_SCENE.instantiate() as Node3D
+        snowman.position = Vector3(p.x, 0, p.y)
+        snowman.rotation_degrees.y = _rng.randf() * 360.0
+        add_child(snowman)
         _obstacles.append(Vector3(p.x, 0.65, p.y))
         keep.append(p)
 
 
 func _add_forest(count: int, band: Vector2, tree_scale: Vector2, cast_shadows: bool) -> void:
-    var forest := PineForest.new()
+    var forest := FOREST_SCENE.instantiate() as PineForest
     forest.position.y = GROUND_Y
     forest.visual_only = true
     forest.cast_shadows = cast_shadows
@@ -313,7 +317,7 @@ func _free_spot(keep: PackedVector2Array, margin: float, extent: float) -> Vecto
 
 
 func _build_actors() -> void:
-    player = _make_character("explorer", DemoCharacter.Role.PLAYER)
+    player = _make_character("explorer")
     player.position = Vector3(0, 0, 4.0)
     player.obstacles = _obstacles
     add_child(player)
@@ -338,14 +342,13 @@ func _build_actors() -> void:
     var snowangel := Snowangel.make(self, Vector3(5.0, 0.0, 5.0))
     snowangel.cycles = 10
 
-    _yeti = _make_character("yeti", DemoCharacter.Role.WANDERER)
+    _yeti = _make_character("yeti")
     add_child(_yeti)
 
     var prev: Node3D = player
     for i in 3:
-        var pg := _make_character("penguin", DemoCharacter.Role.FOLLOWER)
-        pg.follow_target = prev
-        pg.follow_distance = 1.1 + 0.1 * float(i)
+        var pg := _make_character("penguin")
+        pg.set_follow_target(prev, 1.1 + 0.1 * float(i))
         pg.obstacles = _obstacles
         pg.position = Vector3(0.4 * float(i + 1) - 1.0, 0, 5.8 + 0.9 * float(i))
         add_child(pg)
@@ -355,8 +358,7 @@ func _build_actors() -> void:
     var cols := [Color(0.9, 0.2, 0.2), Color(0.2, 0.5, 0.95), Color(0.95, 0.6, 0.1),
             Color(0.2, 0.75, 0.4), Color(0.8, 0.3, 0.85), Color(0.95, 0.85, 0.2)]
     for i in 6:
-        var b := (load("res://demos/props/ball.tscn") as PackedScene).instantiate() as DemoBall
-        b.kind = DemoBall.Kind.BOUNCER
+        var b := BouncingBallScene.instantiate() as BouncingBall
         b.radius = _rng.randf_range(0.3, 0.45)
         b.color = cols[i]
         b.bounce_speed = _rng.randf_range(6.5, 9.0)
@@ -367,9 +369,8 @@ func _build_actors() -> void:
         _balls.append(b)
 
 
-func _make_character(character_scene: String, role: int) -> DemoCharacter:
-    var c := (load("res://demos/characters/%s.tscn" % character_scene) as PackedScene).instantiate() as DemoCharacter
-    c.role = role as DemoCharacter.Role
+func _make_character(character_scene: String) -> DemoCharacter:
+    var c := (load("res://demos/actors/%s.tscn" % character_scene) as PackedScene).instantiate() as DemoCharacter
     return c
 
 
@@ -404,20 +405,7 @@ func _build_ui() -> void:
 
 func _set_sun(height_deg: float) -> void:
     _sun_height = height_deg
-    sun.rotation_degrees = Vector3(-height_deg, 35.0, 0.0)
-    var k := inverse_lerp(6.0, 70.0, height_deg)
-    sun.light_color = Color(1.0, 0.76, 0.58).lerp(Color(1.0, 0.97, 0.93), clampf(k * 1.6, 0.0, 1.0))
-    sun.light_energy = lerpf(0.65, 0.85, k)
-    var horizon := Color(0.93, 0.70, 0.58).lerp(Color(0.74, 0.85, 0.96), clampf(k * 1.5, 0.0, 1.0))
-    var top := Color(0.24, 0.32, 0.58).lerp(Color(0.33, 0.57, 0.9), k)
-    sky_mat.sky_top_color = top
-    sky_mat.sky_horizon_color = horizon
-    sky_mat.ground_horizon_color = horizon
-    sky_mat.ground_bottom_color = horizon.darkened(0.1)
-    env.fog_light_color = horizon
-    env.ambient_light_color = Color(0.55, 0.64, 0.85).lerp(Color(0.62, 0.72, 0.92), k)
-    env.ambient_light_energy = lerpf(0.5, 0.6, k)
-
+    _environment.sun_height = height_deg
 
 func _on_ui(key: String, value: Variant) -> void:
     match key:
@@ -472,8 +460,7 @@ func _storm() -> void:
         var d := _rng.randf_range(1.5, 9.0)
         var t := player.position + Vector3(cos(a) * d, 0, sin(a) * d)
         t = _constrain_target(t, 0.8)
-        var ball := (load("res://demos/props/ball.tscn") as PackedScene).instantiate() as DemoBall
-        ball.kind = DemoBall.Kind.THROWN
+        var ball := SnowballScene.instantiate() as DemoSnowball
         ball.radius = 0.28
         ball.position = t + Vector3(0, _rng.randf_range(9.0, 15.0), 0)
         add_child(ball)
@@ -488,13 +475,12 @@ func _throw_at(screen_pos: Vector2) -> void:
         return
     var target: Vector3 = hit
     target = _constrain_target(target, 0.6)
-    var ball := (load("res://demos/props/ball.tscn") as PackedScene).instantiate() as DemoBall
-    ball.kind = DemoBall.Kind.THROWN
+    var ball := SnowballScene.instantiate() as DemoSnowball
     ball.radius = 0.28
     var start := player.global_position + Vector3(0, 1.4, 0)
     var dist := Vector2(target.x - start.x, target.z - start.z).length()
     var t := clampf(dist / 13.0, 0.45, 1.4)
-    var g := DemoBall.GRAVITY
+    var g := DemoSnowball.GRAVITY
     ball.velocity = Vector3((target.x - start.x) / t,
             (ball.radius - start.y + 0.5 * g * t * t) / t,
             (target.z - start.z) / t)

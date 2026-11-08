@@ -23,44 +23,10 @@ Items are ordered by priority. Findings marked *(audit)* come from a read-throug
 
 ## P5 — Finish demo scene and folder cleanup
 
-### Replace code-built content with scenes
-
-- **`DemoCharacter` roles:** one script handles PLAYER, WANDERER and FOLLOWER via a `role` enum. Split it into small behavior scripts (`PlayerController`, `Wander`, `Follow`) attached to the same character scene.
-- **Scenery:** Move the shared `PineForest` and the Playground fence and hills into reusable scenes.
-- **Soccer ball vs. `demo_ball`:** two ball systems (RigidBody vs. fake bouncer/thrown). Split `demo_ball.gd` into `bouncing_ball.tscn` and `snowball.tscn` instead of a `Kind` enum.
-- **Scene hygiene:** `penguin.tscn` and `yeti.tscn` have stray baked root transforms (position about (3,0,0), rotated), and many nodes are named `@MeshInstance3D@35`. Reset the transforms and give the nodes real names (Body, Head, Beak…).
-- **`npc.tscn`:** Replace the capsule NPC with an explorer using the Wander behavior while retaining its soccer-ball interaction.
-
-After this, `demo_props.gd` should shrink to nothing or a single `mat()` helper.
-
-### Extract the shared rig
-
-The demos share the camera, brush, shell, grid, and preset resources. Environment setup still varies by demo. Move the shared sun, sky, and fog setup into `demo_environment.tscn` with a `sun_height` export.
-
-### Organize the demo folders
-
-Organize by feature, with scripts next to their scenes:
-
-```text
-demos/
-  launcher.tscn/.gd
-  playground.tscn   powder_run.tscn   materials.tscn   custom_terrain.tscn
-  shared/   demo_shell, demo_hud, demo_settings, demo_nav, demo_fps,
-			demo_theme, touch_sticks, demo_camera, demo_environment,
-			brush_deformer, surface_grid
-  actors/   explorer, yeti, penguin, mouse (+ behavior scripts)
-  props/    sled, bouncing_ball, snowball, soccer_ball, rock, snowman,
-			pine_tree, forest, fence, hills, jump_ramp, blob_shadow
-  slope/    skier, guests/
-  shaders/
-```
-
-This removes the flat `demos/scripts/` dump. The demo HUD, FPS, and settings scaffolding already live under `demos/`, so the addons do not depend on them.
-
 ### Finish export and runtime checks
 
-- [ ] Compile and browser-test the optional custom template using `tools/godot_web_profile.py`.
-- [ ] Time a preset switch and a first-footprint refill in a real browser (see the P0 priming and refill items).
+- [ ] Compile and browser-test the optional custom template using `tools/godot_web_profile.py`. This environment has no Godot executable or installed Web export templates.
+- [ ] Time a preset switch and a first-footprint refill in a real browser (see the P0 priming and refill items). Requires a Godot Web export.
 
 ## Optional, if gameplay needs it
 
@@ -70,6 +36,14 @@ This removes the flat `demos/scripts/` dump. The demo HUD, FPS, and settings sca
 
 ### Completed TODO items
 
+- [x] Replaced `DemoCharacter`'s role enum with player, wander, and follow behavior scripts attached to the character scenes.
+- [x] Moved PineForest, the Playground fence, and hills into reusable scenes.
+- [x] Split bouncing balls and thrown snowballs into dedicated scenes and scripts.
+- [x] Reset the baked root and visual transforms in `penguin.tscn` and `yeti.tscn`, named their body parts, and gave the explorer meshes real names.
+- [x] Replaced the capsule `npc.tscn` with an explorer using random Wander behavior and a soccer-ball contact area.
+- [x] Reduced the demo prop helper to `mat()` and moved the shared sun, sky, and fog setup into `demo_environment.tscn` with a `sun_height` export.
+- [x] Organized demo files by feature, moved scripts alongside their scenes, renamed the demo scenes to `powder_run`, `materials`, and `custom_terrain`, and removed the flat `demos/scripts/` folder.
+- [x] Fixed editor errors exposed after the scene move: corrected the NPC script resource ID, removed preload aliases that shadowed the `DemoCharacter` and `DemoSnowball` global classes, updated NPC speed overrides to `move_speed`, and removed the unused cached footsteps field.
 - [x] **Repair `tests/ski_free_profile.gd` parse error.** Fixed the stray indentation on `batch_count`.
 - [x] **Rerun the ski benchmark.** Ran all nine native cases and updated `tests/SKI_PERFORMANCE.md`; frame times varied, while draw-call counts remained consistent.
 - [x] **Stop `set_recovery_intensity()` and `set_wrapped_diffuse_lighting()` from mutating the shared resource.** The first runtime override now duplicates the assigned `DeformableSurfaceType` for this node, and the recovery property comment describes the per-node behavior.

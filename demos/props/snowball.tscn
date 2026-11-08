@@ -1,0 +1,21 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://demos/props/snowball.gd" id="1_script"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_snowball"]
+radius = 1.0
+height = 2.0
+radial_segments = 12
+rings = 6
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_snowball"]
+roughness = 0.85
+
+[node name="Snowball" type="Node3D"]
+script = ExtResource("1_script")
+
+[node name="Visual" type="Node3D" parent="."]
+
+[node name="Sphere" type="MeshInstance3D" parent="Visual"]
+material_override = SubResource("StandardMaterial3D_snowball")
+mesh = SubResource("SphereMesh_snowball")

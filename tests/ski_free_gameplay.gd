@@ -10,7 +10,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	var scene = load("res://demos/ski_free.tscn").instantiate()
+	var scene = load("res://demos/powder_run.tscn").instantiate()
 	root.add_child(scene)
 	scene.set_physics_process(false)
 	await process_frame
@@ -88,7 +88,7 @@ func _run() -> void:
 	scene.free()
 	await _check_launcher_layout()
 	if "--capture" in OS.get_cmdline_user_args() and DisplayServer.get_name() != "headless":
-		scene = load("res://demos/ski_free.tscn").instantiate()
+		scene = load("res://demos/powder_run.tscn").instantiate()
 		root.add_child(scene)
 		scene.set_physics_process(false)
 		for i in 210:

@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://c01t78ey68jer"]
 
-[ext_resource type="Script" uid="uid://bo76ho2fjygyr" path="res://demos/scripts/mouse.gd" id="1_mouse"]
+[ext_resource type="Script" uid="uid://bo76ho2fjygyr" path="res://demos/actors/mouse.gd" id="1_mouse"]
 [ext_resource type="Script" uid="uid://cgrvvu3m15p4j" path="res://addons/deformable_surface/scripts/deformers/deformer_footsteps.gd" id="3_footsteps"]
 
 [sub_resource type="SphereMesh" id="SphereMesh_mouse"]

@@ -1,8 +1,8 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://demos/scripts/playground.gd" id="1_playground"]
-[ext_resource type="PackedScene" path="res://demos/characters/npc.tscn" id="2_npc"]
-[ext_resource type="PackedScene" path="res://demos/characters/mouse.tscn" id="3_mouse"]
+[ext_resource type="Script" path="res://demos/playground.gd" id="1_playground"]
+[ext_resource type="PackedScene" path="res://demos/actors/npc.tscn" id="2_npc"]
+[ext_resource type="PackedScene" path="res://demos/actors/mouse.tscn" id="3_mouse"]
 [ext_resource type="PackedScene" path="res://demos/props/soccer_ball.tscn" id="4_ball"]
 
 [sub_resource type="WorldBoundaryShape3D" id="WorldBoundaryShape3D_floor"]
@@ -45,21 +45,21 @@ shape = SubResource("BoxShape3D_north_south")
 
 [node name="Person1" parent="Actors/People" instance=ExtResource("2_npc")]
 position = Vector3(-6, 0, -7)
-speed = 2.0
+move_speed = 2.0
 
 [node name="Person2" parent="Actors/People" instance=ExtResource("2_npc")]
 position = Vector3(-2, 0, -7)
-speed = 2.4
+move_speed = 2.4
 body_color = Color(0.3, 0.75, 0.4, 1)
 
 [node name="Person3" parent="Actors/People" instance=ExtResource("2_npc")]
 position = Vector3(2, 0, -7)
-speed = 2.8
+move_speed = 2.8
 body_color = Color(0.9, 0.75, 0.2, 1)
 
 [node name="Person4" parent="Actors/People" instance=ExtResource("2_npc")]
 position = Vector3(6, 0, -7)
-speed = 3.2
+move_speed = 3.2
 body_color = Color(0.7, 0.4, 0.85, 1)
 
 [node name="Mouse" parent="Actors" instance=ExtResource("3_mouse")]

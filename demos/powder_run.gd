@@ -4,7 +4,7 @@ extends Node3D
 
 const SNOW_QUALITY := preload("res://demos/resources/powder_run/quality.tres")
 const SNOW_PROFILE := preload("res://demos/resources/powder_run/snow_profile.tres")
-const SlopeGuest := preload("res://demos/scripts/slope_guest.gd")
+const SlopeGuest := preload("res://demos/slope/slope_guest.gd")
 const SKIER_SCENE := preload("res://demos/slope/skier.tscn")
 const GUEST_SCENES: Array[PackedScene] = [
 	preload("res://demos/slope/guests/guest_skier.tscn"),
@@ -81,22 +81,15 @@ func _ready() -> void:
 
 
 func _build_world() -> void:
-	var environment := Environment.new()
-	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color("dbeaf2")
-	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color("c7ddec")
-	environment.ambient_light_energy = 0.55 if mobile_lighting else 0.45
-	var world := WorldEnvironment.new()
-	world.environment = environment
-	add_child(world)
-	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-42, -35, 0)
-	sun.light_color = Color("fff0da")
-	sun.light_energy = 0.65 if mobile_lighting else 0.75
-	sun.shadow_enabled = not mobile_lighting
-	sun.directional_shadow_max_distance = 110.0
-	add_child(sun)
+	var demo_environment := preload("res://demos/shared/demo_environment.tscn").instantiate() as DemoEnvironment
+	demo_environment.powder_run_style = true
+	demo_environment.sun_height = 42.0
+	demo_environment.shadows_enabled = not mobile_lighting
+	demo_environment.shadow_distance = 110.0
+	demo_environment.powder_ambient_energy = 0.55 if mobile_lighting else 0.45
+	demo_environment.powder_sun_energy = 0.65 if mobile_lighting else 0.75
+	add_child(demo_environment)
+	var sun := demo_environment.sun
 	var snow := SNOW_PROFILE
 	if mobile_lighting:
 		snow = SNOW_PROFILE.duplicate() as DeformableSurfaceType

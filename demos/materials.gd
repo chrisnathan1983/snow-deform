@@ -15,6 +15,7 @@ var _surface: DeformableSurface
 var _deformer: BrushDeformer
 var _camera: DemoCamera
 var _sun: DirectionalLight3D
+var _demo_environment: DemoEnvironment
 var _material: ShaderMaterial
 var _preset := "snow"
 var _use_albedo := false
@@ -45,20 +46,11 @@ func _ready() -> void:
 
 
 func _build_world() -> void:
-	var sky := Sky.new()
-	sky.sky_material = ProceduralSkyMaterial.new()
-	var environment := Environment.new()
-	environment.background_mode = Environment.BG_SKY
-	environment.sky = sky
-	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	var world_environment := WorldEnvironment.new()
-	world_environment.environment = environment
-	add_child(world_environment)
-
-	_sun = DirectionalLight3D.new()
-	_sun.rotation_degrees = Vector3(-50.0, -35.0, 0.0)
-	_sun.shadow_enabled = true
-	add_child(_sun)
+	_demo_environment = preload("res://demos/shared/demo_environment.tscn").instantiate() as DemoEnvironment
+	_demo_environment.sun_height = 50.0
+	_demo_environment.shadows_enabled = true
+	add_child(_demo_environment)
+	_sun = _demo_environment.sun
 
 	_surface = DeformableSurface.new()
 	_surface.sun = _sun

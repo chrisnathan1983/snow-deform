@@ -1,6 +1,6 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://demos/scripts/demo_sled.gd" id="1_kopyj"]
+[ext_resource type="Script" path="res://demos/props/sled.gd" id="1_kopyj"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_h6u4y"]
 albedo_color = Color(0.5, 0.33, 0.2, 1)

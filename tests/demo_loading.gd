@@ -4,9 +4,9 @@ extends SceneTree
 const Loader := preload("res://demos/shared/demo_loader.gd")
 const LAUNCHER := "res://demos/launcher.tscn"
 const PLAYGROUND := "res://demos/playground.tscn"
-const MATERIALS := "res://demos/materials_demo.tscn"
-const POWDER_RUN := "res://demos/ski_free.tscn"
-const CUSTOM_TERRAIN := "res://demos/custom_terrain_demo.tscn"
+const MATERIALS := "res://demos/materials.tscn"
+const POWDER_RUN := "res://demos/powder_run.tscn"
+const CUSTOM_TERRAIN := "res://demos/custom_terrain.tscn"
 
 var _failures := 0
 

@@ -1,8 +1,8 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://demos/shared/demo_shell.gd" id="1_shell"]
-[ext_resource type="Script" path="res://demos/scripts/demo_nav.gd" id="2_nav"]
-[ext_resource type="Script" path="res://demos/scripts/demo_hud.gd" id="3_hud"]
+[ext_resource type="Script" path="res://demos/shared/demo_nav.gd" id="2_nav"]
+[ext_resource type="Script" path="res://demos/shared/demo_hud.gd" id="3_hud"]
 
 [node name="DemoShell" type="Node"]
 script = ExtResource("1_shell")

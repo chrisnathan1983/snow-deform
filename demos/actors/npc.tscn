@@ -1,7 +1,12 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://demos/scripts/demo_character.gd" id="1_k14td"]
+[ext_resource type="Script" path="res://demos/actors/npc.gd" id="1_npc"]
 [ext_resource type="Script" uid="uid://cgrvvu3m15p4j" path="res://addons/deformable_surface/scripts/deformers/deformer_footsteps.gd" id="2_footsteps"]
+[ext_resource type="Script" path="res://demos/actors/wander.gd" id="3_behavior"]
+[ext_resource type="Script" path="res://demos/actors/npc_ball_interaction.gd" id="4_push"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_push"]
+radius = 0.85
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_l5j2b"]
 albedo_color = Color(0.82, 0.16, 0.18, 1)
@@ -115,84 +120,94 @@ roughness = 0.85
 [sub_resource type="BoxMesh" id="BoxMesh_8yqon"]
 size = Vector3(0.3, 0.4, 0.15)
 
-[node name="Explorer" type="Node3D" unique_id=1350772052]
-script = ExtResource("1_k14td")
+[node name="NPC" type="Node3D" unique_id=1350772052]
+script = ExtResource("1_npc")
 body_radius = 0.3
-move_speed = 3.2
+move_speed = 2.5
 bob_amplitude = 0.07
 roll_amplitude = 0.05
 
 [node name="Visual" type="Node3D" parent="." unique_id=1256347856]
 
-[node name="@MeshInstance3D@2" type="MeshInstance3D" parent="Visual" unique_id=1804176497]
+[node name="Body" type="MeshInstance3D" parent="Visual" unique_id=1804176497]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
 material_override = SubResource("StandardMaterial3D_l5j2b")
 mesh = SubResource("CapsuleMesh_hs37w")
 
-[node name="@MeshInstance3D@3" type="MeshInstance3D" parent="Visual" unique_id=852225591]
+[node name="LeftLeg" type="MeshInstance3D" parent="Visual" unique_id=852225591]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.1, 0.25, 0)
 material_override = SubResource("StandardMaterial3D_a4yvs")
 mesh = SubResource("CylinderMesh_lhrr0")
 
-[node name="@MeshInstance3D@4" type="MeshInstance3D" parent="Visual" unique_id=1849008707]
+[node name="RightLeg" type="MeshInstance3D" parent="Visual" unique_id=1849008707]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.1, 0.25, 0)
 material_override = SubResource("StandardMaterial3D_a4yvs")
 mesh = SubResource("CylinderMesh_cc2w6")
 
-[node name="@MeshInstance3D@5" type="MeshInstance3D" parent="Visual" unique_id=366685312]
+[node name="LeftBoot" type="MeshInstance3D" parent="Visual" unique_id=366685312]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.1, 0.05, -0.04)
 material_override = SubResource("StandardMaterial3D_vbt6o")
 mesh = SubResource("BoxMesh_o2aay")
 
-[node name="@MeshInstance3D@6" type="MeshInstance3D" parent="Visual" unique_id=152431898]
+[node name="RightBoot" type="MeshInstance3D" parent="Visual" unique_id=152431898]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.1, 0.05, -0.04)
 material_override = SubResource("StandardMaterial3D_vbt6o")
 mesh = SubResource("BoxMesh_xsmue")
 
-[node name="@MeshInstance3D@7" type="MeshInstance3D" parent="Visual" unique_id=963673904]
+[node name="Head" type="MeshInstance3D" parent="Visual" unique_id=963673904]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.57, 0)
 material_override = SubResource("StandardMaterial3D_0yxjg")
 mesh = SubResource("SphereMesh_wb2ls")
 
-[node name="@MeshInstance3D@8" type="MeshInstance3D" parent="Visual" unique_id=852012755]
+[node name="Hat" type="MeshInstance3D" parent="Visual" unique_id=852012755]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.9, 0)
 material_override = SubResource("StandardMaterial3D_4a8vt")
 mesh = SubResource("CylinderMesh_ueq7g")
 
-[node name="@MeshInstance3D@9" type="MeshInstance3D" parent="Visual" unique_id=906824226]
+[node name="HatPom" type="MeshInstance3D" parent="Visual" unique_id=906824226]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.08, 0)
 material_override = SubResource("StandardMaterial3D_uy4sf")
 mesh = SubResource("SphereMesh_2qr1f")
 
-[node name="@MeshInstance3D@10" type="MeshInstance3D" parent="Visual" unique_id=710500152]
+[node name="Belt" type="MeshInstance3D" parent="Visual" unique_id=710500152]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.34, 0)
 material_override = SubResource("StandardMaterial3D_ni8by")
 mesh = SubResource("CylinderMesh_fwccj")
 
-[node name="@MeshInstance3D@11" type="MeshInstance3D" parent="Visual" unique_id=1654763470]
+[node name="LeftEye" type="MeshInstance3D" parent="Visual" unique_id=1654763470]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.08, 1.6, -0.19)
 material_override = SubResource("StandardMaterial3D_kvihb")
 mesh = SubResource("SphereMesh_qj75n")
 
-[node name="@MeshInstance3D@12" type="MeshInstance3D" parent="Visual" unique_id=100927840]
+[node name="RightEye" type="MeshInstance3D" parent="Visual" unique_id=100927840]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.08, 1.6, -0.19)
 material_override = SubResource("StandardMaterial3D_kvihb")
 mesh = SubResource("SphereMesh_wu7ny")
 
-[node name="@MeshInstance3D@13" type="MeshInstance3D" parent="Visual" unique_id=843726387]
+[node name="Nose" type="MeshInstance3D" parent="Visual" unique_id=843726387]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.55, -0.21)
 material_override = SubResource("StandardMaterial3D_vb8tf")
 mesh = SubResource("SphereMesh_ireek")
 
-[node name="@MeshInstance3D@14" type="MeshInstance3D" parent="Visual" unique_id=334142730]
+[node name="Backpack" type="MeshInstance3D" parent="Visual" unique_id=334142730]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0.27)
 material_override = SubResource("StandardMaterial3D_2khuj")
 mesh = SubResource("BoxMesh_8yqon")
 
+[node name="Behavior" type="Node" parent="."]
+script = ExtResource("3_behavior")
+
+[node name="BallInteraction" type="Area3D" parent="."]
+script = ExtResource("4_push")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="BallInteraction"]
+shape = SubResource("SphereShape3D_push")
+
 [node name="DeformerFootsteps" type="Node3D" parent="."]
 script = ExtResource("2_footsteps")
-foot_radius = 0.2
-foot_aspect = 2.2
-spread = 0.12
+foot_radius = 0.17
+foot_aspect = 2.0
+spread = 0.15
 stride_min = 0.14
 stride_max = 0.38
+

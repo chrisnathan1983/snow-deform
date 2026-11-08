@@ -16,7 +16,7 @@ func _run() -> void:
 	for variant in ["baseline", "shared_mask", "no_tracks", "sled_brushes", "no_shadows", "smooth_only", "batched_only", "optimized", "mobile"]:
 		if "--mobile-only" in OS.get_cmdline_user_args() and variant != "mobile":
 			continue
-		var scene = load("res://demos/ski_free.tscn").instantiate()
+		var scene = load("res://demos/powder_run.tscn").instantiate()
 		scene.batch_scenery = variant in ["batched_only", "optimized", "mobile"]
 		scene.mobile_lighting = variant == "mobile"
 		root.add_child(scene)

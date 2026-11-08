@@ -27,10 +27,10 @@ func _run() -> void:
 		_check(load(path) is PackedScene, "Launcher scene should load: %s" % path)
 	paths.sort()
 	_check(paths == [
-		"res://demos/custom_terrain_demo.tscn",
-		"res://demos/materials_demo.tscn",
+		"res://demos/custom_terrain.tscn",
+		"res://demos/materials.tscn",
 		PLAYGROUND,
-		"res://demos/ski_free.tscn",
+		"res://demos/powder_run.tscn",
 	], "Launcher should list the four current demos")
 	var playground_button: Button
 	for node in launcher._panel.find_children("*", "Button", true, false):

@@ -18,6 +18,7 @@ var _terrain_material: ShaderMaterial
 var _grass_material: ShaderMaterial
 var _grass: MultiMeshInstance3D
 var _sun: DirectionalLight3D
+var _demo_environment: DemoEnvironment
 var _camera: DemoCamera
 var _walker: Node3D
 var _brush: BrushDeformer
@@ -47,23 +48,11 @@ static func terrain_height(x: float, z: float) -> float:
 
 
 func _build_world() -> void:
-	var sky_material := ProceduralSkyMaterial.new()
-	sky_material.sky_top_color = Color(0.32, 0.5, 0.8)
-	sky_material.sky_horizon_color = Color(0.75, 0.82, 0.9)
-	var sky := Sky.new()
-	sky.sky_material = sky_material
-	var environment := Environment.new()
-	environment.background_mode = Environment.BG_SKY
-	environment.sky = sky
-	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	var world_environment := WorldEnvironment.new()
-	world_environment.environment = environment
-	add_child(world_environment)
-
-	_sun = DirectionalLight3D.new()
-	_sun.rotation_degrees = Vector3(-48.0, -35.0, 0.0)
-	_sun.shadow_enabled = true
-	add_child(_sun)
+	_demo_environment = preload("res://demos/shared/demo_environment.tscn").instantiate() as DemoEnvironment
+	_demo_environment.sun_height = 48.0
+	_demo_environment.shadows_enabled = true
+	add_child(_demo_environment)
+	_sun = _demo_environment.sun
 
 	# render_mesh = false: no snow plane, the node only keeps the deformation map up to date.
 	_surface = DeformableSurface.new()

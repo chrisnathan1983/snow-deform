@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://bdagugdsyyn7l" path="res://addons/deformable_surface/scripts/deformers/deformer.gd" id="1_deformer"]
 [ext_resource type="Shader" uid="uid://6biw83eoj0xo" path="res://demos/shaders/soccer_ball.gdshader" id="2_ball_shader"]
-[ext_resource type="Script" uid="uid://cyxqpmcn3fr3q" path="res://demos/scripts/soccer_ball.gd" id="3_ball"]
+[ext_resource type="Script" uid="uid://cyxqpmcn3fr3q" path="res://demos/props/soccer_ball.gd" id="3_ball"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_ball"]
 render_priority = 0

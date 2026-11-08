@@ -7,7 +7,7 @@ const DEMOS := [
 	{
 		"title": "Powder Run — SkiFree in 3D",
 		"description": "Carve endless ski tracks, dodge pines, jump rocks, and chase slalom gates.",
-		"scene": "res://demos/ski_free.tscn",
+		"scene": "res://demos/powder_run.tscn",
 	},
 	{
 		"title": "Playground",
@@ -17,12 +17,12 @@ const DEMOS := [
 	{
 		"title": "Material Showcase",
 		"description": "Snow, sand, mud, dirt and ash presets with albedo/normal textures and triplanar mode.",
-		"scene": "res://demos/materials_demo.tscn",
+		"scene": "res://demos/materials.tscn",
 	},
 	{
 		"title": "Custom Terrain & Grass",
 		"description": "Hilly terrain and grass with their own shaders, driven by a surface with render_mesh off.",
-		"scene": "res://demos/custom_terrain_demo.tscn",
+		"scene": "res://demos/custom_terrain.tscn",
 	},
 ]
 

@@ -29,10 +29,10 @@ Compatibility renderer. Open a demo scene and press F6 to run it directly.
 
 | Demo | What to try |
 | --- | --- |
-| [Powder Run](demos/ski_free.tscn) | Ski an endless slope, jump ramps, dodge obstacles, and score slalom gates alongside ten slope guests. |
+| [Powder Run](demos/powder_run.tscn) | Ski an endless slope, jump ramps, dodge obstacles, and score slalom gates alongside ten slope guests. |
 | [Playground](demos/playground.tscn) | Leave footprints, push the soccer ball, throw snowballs, or explore a recycled snowfield. |
-| [Material Showcase](demos/materials_demo.tscn) | Compare snow, sand, mud, dirt, and ash. Try albedo and normal textures, triplanar mapping, brush modes, and vehicle tracks. |
-| [Custom Terrain & Grass](demos/custom_terrain_demo.tscn) | Deform hilly terrain and bend grass using a shared deformation map with `render_mesh` disabled. |
+| [Material Showcase](demos/materials.tscn) | Compare snow, sand, mud, dirt, and ash. Try albedo and normal textures, triplanar mapping, brush modes, and vehicle tracks. |
+| [Custom Terrain & Grass](demos/custom_terrain.tscn) | Deform hilly terrain and bend grass using a shared deformation map with `render_mesh` disabled. |
 
 ### Playground
 
