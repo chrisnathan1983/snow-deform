@@ -5,9 +5,9 @@ Items are ordered by priority. Findings marked *(audit)* come from a read-throug
 ## Verify rendering and engine behavior
 
 - [ ] **Add optional vertex displacement.** Check whether the surface can use its fragment height and slope data without a subdivided mesh. A top-down or orthographic camera (Powder Run) may look fine with normal and darkening alone. If the result holds up, let Low quality skip mesh subdivisions and vertex texture sampling.
-- [ ] **Check HDR render targets on Compatibility.** On Godot 4.7, verify `use_hdr_2d` and RGBA16F support on the browser and mobile targets. Only consider dropping baked slopes and 8-bit refill encoding if the target platforms support it reliably.
+- [x] **Check HDR render targets on Compatibility.** Godot 4.7 documents 2D HDR as unsupported in the Compatibility renderer (RGBA8); RGBA16F 2D targets are available with HDR 2D in the Mobile renderer. This project selects Compatibility for mobile and uses Compatibility on Web, so retain baked slopes and the 8-bit refill encoding.
 - [ ] **Recheck the threaded ResourceLoader leak.** Once Godot includes the upstream LoadToken fix, rerun `tests/demo_loading.gd` with threaded loading. Until then, keep the reproduction and workaround documented in `THREADING_LEAK_INVESTIGATION.md` and decide whether the headless test should use synchronous loading.
-- [ ] **Decide how to handle carve blending.** The current blend can partially refill a deeper trench when a lighter stamp overlaps it. Document this behavior and keep it as a known limit unless gameplay requires true minimum-height carving and a suitably cheap implementation is available.
+- [x] **Decide how to handle carve blending.** Documented that alpha blending can partially refill a deeper trench when a weaker or shallower stamp overlaps it. Keep this as a known limit unless gameplay requires true minimum-height carving and a suitably cheap implementation is available.
 - [ ] **Test the GPU noise path on real devices.** Confirm the generated shaders use `highp` on a low-end Android browser, and run the rendered seam check in `initial_noise_seams.gd` (headless runs only verify caching).
 
 ### Finish export and runtime checks

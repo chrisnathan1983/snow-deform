@@ -301,6 +301,9 @@ its scale and strength with `bevel_noise_scale` and `bevel_noise_strength`.
 - Deformation stamps bake height and its slopes into the map. A single
   `MultiMeshInstance2D` batches the brushes; the viewport updates when the map
   changes, rather than rendering continuously.
+- Carve stamps use alpha blending, so a later weaker or shallower stamp can
+  partially blend a deeper trench back toward its own target height. This is a
+  known limitation; carving does not currently enforce the minimum height.
 - Deformers notify their assigned field when their transform or stamp properties
   change, so stationary objects do not need per-frame deformation calculations.
   Unassigned deformers are shared across DeformableSurfaces.
