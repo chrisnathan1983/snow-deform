@@ -805,7 +805,7 @@ func prepare_initial_noise_at(world_position: Vector3, profile: DeformableSurfac
 			_prepared_noise_key = key
 			return true
 	var origin := Vector2(world_position.x, world_position.z) - area_size * 0.5
-	if not OS.can_use_threads() or _initial_noise_force_sliced:
+	if OS.has_feature("nothreads") or _initial_noise_force_sliced:
 		if _initial_noise_generator == null or _initial_noise_generator_key != key:
 			var snapshot := target.duplicate(true) as DeformableSurfaceType
 			snapshot.clamp_values()

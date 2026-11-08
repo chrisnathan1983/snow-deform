@@ -1,6 +1,6 @@
 Here are the web-specific improvements I'd make, roughly in priority order.
 
-## 1. Fix the thread dependency (likely a real bug on web)
+## ~~1. Fix the thread dependency (likely a real bug on web)~~
 
 `prepare_initial_noise_at()` relies on `Thread`, but the README recommends single-threaded web exports for phone compatibility. Without thread support, `Thread.start()` fails, the code does `push_error` and returns `false`, and every caller polls until it returns `true`. That means:
 
@@ -24,7 +24,7 @@ The per-pixel GDScript loop is the biggest CPU cost: up to 514² samples × 2–
 - **Cheaper:** pre-bake one tileable noise texture and sample it with a world-space offset in the refill and background pass.
 - **If you keep the CPU path:** write into a `PackedByteArray` and use `Image.create_from_data`, and use `ImageTexture.update()` on an existing texture instead of allocating a new one per relocation.
 
-## 3. Fix platform detection
+## ~~3. Fix platform detection~~
 
 `JavaScriptBridge.eval` with a user-agent regex has two problems. It can be blocked by CSP in embedded pages, and iPadOS reports a Mac user agent, so iPads get Medium. Godot 4 has feature tags for this:
 
