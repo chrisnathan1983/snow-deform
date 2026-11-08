@@ -5,6 +5,7 @@ uniform float berm_strength = 0.15;
 uniform float berm_height_ratio = 0.32;
 uniform float normal_strength = 10.0;
 uniform float map_resolution = 512.0;
+uniform bool textured_berm_dilation_enabled = true;
 
 const float MAP_NEUTRAL = 128.0 / 255.0;
 const float BERM_REACH = 2.0;
@@ -53,13 +54,15 @@ void fragment() {
 	float has_sprite = step(0.5, stamp_data.w);
 
 	vec2 pit_rad = vec2(radius_px * sqrt(aspect), radius_px / sqrt(aspect));
-	vec2 berm_rad = pit_rad * BERM_REACH;
-	vec2 berm_off = vec2(pit_rad.x * BERM_FORWARD * clamp(aspect - 1.0, 0.0, 1.0), 0.0);
+	float berm_enabled = step(0.0001, berm_strength);
+	vec2 berm_rad = pit_rad * BERM_REACH * berm_enabled;
+	vec2 berm_off = vec2(pit_rad.x * BERM_FORWARD * clamp(aspect - 1.0, 0.0, 1.0), 0.0) * berm_enabled;
 	vec2 outer_ext = max(pit_rad, abs(berm_off) + berm_rad);
 	if (is_capsule > 0.5) {
 		// pit_rad = (half length, brush radius); must match DeformableSurface._stamp.
 		berm_off = vec2(0.0);
-		outer_ext = vec2(pit_rad.x + berm_rad.y, berm_rad.y);
+		float capsule_margin = max(berm_rad.y, pit_rad.y);
+		outer_ext = vec2(pit_rad.x + capsule_margin, capsule_margin);
 	}
 	vec2 pos_px = (UV - vec2(0.5)) * (2.0 * outer_ext);
 	// Segments cover exactly [-length/2, length/2) so neighbours abut without overlap.
@@ -87,7 +90,7 @@ void fragment() {
 			sprite_alpha(TEXTURE, pos_px + vec2(0.0, eps), pit_rad, is_segment, stamp_data.w, stamp_phase)
 				- sprite_alpha(TEXTURE, pos_px - vec2(0.0, eps), pit_rad, is_segment, stamp_data.w, stamp_phase)
 		) / (2.0 * eps);
-		if (mode < 0.5) {
+		if (mode < 0.5 && berm_strength > 0.0 && textured_berm_dilation_enabled) {
 			// Dilated alpha: the berm only exists near the sprite's footprint, not as a full oval.
 			sprite_cover = sprite_mask;
 			for (int i = 0; i < 8; i++) {

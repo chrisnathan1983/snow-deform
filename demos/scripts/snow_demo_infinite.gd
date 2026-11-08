@@ -16,7 +16,9 @@ var _has_player_sample := false
 
 
 func _make_quality_presets() -> Array[DeformableSurfaceQuality]:
-	return [_make_profile(192, 48, 4, 0.3, 64), _make_profile(256, 64, 8, 1.0, 96),
+	var low := _make_profile(192, 48, 4, 0.3, 64)
+	low.refill_interval = 0.5
+	return [low, _make_profile(256, 64, 8, 1.0, 96),
 			_make_profile(320, 80, 12, 1.5, 128)]
 
 

@@ -301,10 +301,10 @@ func _process(delta: float) -> void:
 
 func _process_walker(delta: float) -> void:
 	var move := Vector2(
-		float(Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT))
-				- float(Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT)),
-		float(Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN))
-				- float(Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP)))
+		float(Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT))
+				- float(Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT)),
+		float(Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN))
+				- float(Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP)))
 	var pos := _walker.position
 	var heading := _walker.rotation.y
 	if move != Vector2.ZERO:
@@ -313,7 +313,7 @@ func _process_walker(delta: float) -> void:
 			_hud.set_value("autopilot", false)
 		# Movement is relative to the camera's yaw.
 		var direction := Vector3(move.x, 0.0, move.y).normalized().rotated(Vector3.UP, _orbit.y)
-		var speed := 5.5 if Input.is_physical_key_pressed(KEY_SHIFT) else 3.0
+		var speed := 5.5 if Input.is_key_pressed(KEY_SHIFT) else 3.0
 		pos += direction * speed * delta
 		heading = atan2(-direction.x, -direction.z)
 	elif _autopilot:

@@ -22,6 +22,8 @@ func _init() -> void:
 
 
 func _ready() -> void:
+	if DeformableSurfaceQuality.platform_tier() == 0:
+		get_viewport().scaling_3d_scale = 0.7
 	add_child(DemoFps.new())
 	var button := Button.new()
 	button.text = "Launcher (Esc)"

@@ -723,6 +723,8 @@ func _configure_stamp_material(stamp_material: ShaderMaterial) -> void:
 	stamp_material.set_shader_parameter("berm_strength", _mp.berm_strength)
 	stamp_material.set_shader_parameter("berm_height_ratio", _mp.berm_height / maxf(max_depth, 0.01))
 	stamp_material.set_shader_parameter("map_resolution", float(_vp.size.x))
+	stamp_material.set_shader_parameter(
+		"textured_berm_dilation_enabled", DeformableSurfaceQuality.platform_tier() > 0)
 
 
 ## Restores the starting surface and clears tracks.
@@ -1142,15 +1144,16 @@ func _stamp(
 	var stamp_aspect := clampf(aspect, 0.001, STAMP_MAX_ASPECT)
 	var len_r := stamp_radius_px * sqrt(stamp_aspect)
 	var wid_r := stamp_radius_px / sqrt(stamp_aspect)
-	var berm_radius := Vector2(len_r, wid_r) * BERM_REACH
-	var berm_offset_x := len_r * BERM_FORWARD * clampf(stamp_aspect - 1.0, 0.0, 1.0)
+	var berm_radius := Vector2(len_r, wid_r) * BERM_REACH if _mp.berm_strength > 0.0 else Vector2.ZERO
+	var berm_offset_x := len_r * BERM_FORWARD * clampf(stamp_aspect - 1.0, 0.0, 1.0) \
+		if _mp.berm_strength > 0.0 else 0.0
 	var outer_half_extent := Vector2(
 		maxf(len_r, absf(berm_offset_x) + berm_radius.x),
 		maxf(wid_r, berm_radius.y)
 	)
 	if capsule:
 		# For a capsule len_r is the half length and wid_r the brush radius (see the shader).
-		outer_half_extent = Vector2(len_r + berm_radius.y, berm_radius.y)
+		outer_half_extent = Vector2(len_r + maxf(berm_radius.y, wid_r), maxf(berm_radius.y, wid_r))
 
 	var instance: int = batch["used"]
 	multimesh.set_instance_transform_2d(

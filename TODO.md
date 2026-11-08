@@ -23,10 +23,10 @@ static func platform_tier() -> int:
 
 ## 4. Reduce fill and render cost
 
-- **3D resolution scale:** `canvas_items` stretch with `expand` renders 3D at full window pixels, which is heavy on high-DPI phones. Set `get_viewport().scaling_3d_scale` to 0.6–0.75 on tier 0, since the Compatibility renderer supports bilinear scaling.
+- ~~**3D resolution scale:** `canvas_items` stretch with `expand` renders 3D at full window pixels, which is heavy on high-DPI phones. Set `get_viewport().scaling_3d_scale` to 0.6–0.75 on tier 0, since the Compatibility renderer supports bilinear scaling.~~
 - **Replace the 3×3 tile recycling with a single toroidal map.** Nine SubViewports mean nine render passes, nine refill passes, and nine noise generations. The README already lists this as unimplemented. One scrolling map would also remove most of the prefetch logic.
-- **Stamp shader:** the textured path does four gradient samples plus eight dilation samples per fragment, and the quad includes the full berm margin (`outer_half_extent`), so overdraw is large. Shrink the quad when `berm_strength == 0`, and skip dilation on tier 0.
-- **Refill pass:** it renders the full map every `refill_interval`. On low quality, raise the interval or refill in strips.
+- ~~**Stamp shader:** the textured path does four gradient samples plus eight dilation samples per fragment, and the quad includes the full berm margin (`outer_half_extent`), so overdraw is large. Shrink the quad when `berm_strength == 0`, and skip dilation on tier 0.~~
+- ~~**Refill pass:** it renders the full map every `refill_interval`. On low quality, raise the interval or refill in strips.~~
 - **Sparkle:** on tier 0, compile a shader variant without it. A runtime `if` on a uniform still costs registers on mobile GPUs.
 
 ## 5. Precision issues on mobile GPUs

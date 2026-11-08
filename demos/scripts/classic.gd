@@ -34,6 +34,9 @@ var _run_button := false
 
 func _ready() -> void:
 	DemoNav.attach(self)
+	# The scene stores this script property, but assigning it here keeps the
+	# player controllable even if an export drops the non-exported scene value.
+	player.role = DemoCharacter.Role.PLAYER
 	snow.quality = DeformableSurfaceQuality.high()
 
 	var weather_profile := WEATHER_PROFILES[2].duplicate() as SnowWeatherSettings

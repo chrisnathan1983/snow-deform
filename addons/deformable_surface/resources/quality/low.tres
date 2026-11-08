@@ -8,3 +8,4 @@ sparkle = 0.5
 puff = 4
 res = 256
 subdiv = 64
+refill_interval = 0.5

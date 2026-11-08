@@ -153,6 +153,7 @@ func _make_profile(res: int, subdiv: int, puff: int,
     p.puff = puff
     p.sparkle = sparkle
     p.max_stamps_per_frame = stamps
+    p.refill_interval = 0.5 if res <= 384 else 0.25
     return p
 
 
