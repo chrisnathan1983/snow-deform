@@ -1,6 +1,6 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://bqg7r1heehgr5"]
 
 [ext_resource type="Script" path="res://demos/scripts/snow_demo_infinite.gd" id="1"]
 
-[node name="SnowDemoInfinite" type="Node3D"]
+[node name="SnowDemoInfinite" type="Node3D" unique_id=738612697]
 script = ExtResource("1")

@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="DeformableSurfaceType" format=3]
+[gd_resource type="Resource" script_class="DeformableSurfaceType" format=3 uid="uid://dseafnq6frj62"]
 
-[ext_resource type="Script" path="res://addons/deformable_surface/scripts/deformable_surface_type.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://chfywvi45sxh3" path="res://addons/deformable_surface/scripts/deformable_surface_type.gd" id="1_script"]
 
 [sub_resource type="Gradient" id="Gradient_dust"]
 colors = PackedColorArray(0.55, 0.46, 0.34, 0.7, 0.55, 0.46, 0.34, 0)

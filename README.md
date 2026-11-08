@@ -4,8 +4,7 @@ Deformable, sparkly snow built for the **Compatibility renderer**, so it can run
 in a browser (WebGL2) and on phones. Characters leave boot prints, sleds leave
 runner grooves, snow piles up in berms, snowfall slowly heals the trails, and
 kicked-up snow puffs fly. World-space noise breaks up smooth stamp bevels into
-subtle clumpy edges. The demo also includes a fast-scurrying mouse that travels
-underground while hidden, briefly popping out to leave footprints.
+subtle clumpy edges. The Playground also has a mouse that leaves tiny footprints as it scurries.
 
 > **Status: pre-release (0.1.0).** It was written without access to a Godot
 > runtime, so it has not been verified on a range of devices. Please test early
@@ -22,13 +21,15 @@ Requires **Godot 4.3 or newer**.
 
 Run the project to open the demo launcher, or run `demos/launcher.tscn`
 directly. All runnable demo scenes sit directly in `demos/`, beside the launcher.
-All demo scripts live in `demos/scripts/`, and shaders live in `demos/shaders/`.
+Demo scripts live in `demos/scripts/` and `demos/shared/`. Shaders live in `demos/shaders/`.
 Reusable sub-scenes are grouped in `demos/characters/` and `demos/props/`.
 The custom terrain demo (`demos/custom_terrain_demo.tscn`) turns off `render_mesh`
 and drives a hilly terrain and bending grass from the deformation map (see "Custom terrain and foliage").
-The infinite snow example (`demos/infinite_snow.tscn`) recycles
-a 3x3 grid of independent DeformableSurfaces around the player while one
-SnowWorldManager supplies shared weather.
+**Playground** (`demos/playground.tscn`) starts as a fenced snow arena. Open **Menu → Scene**
+and turn on **Infinite** to explore a recycled 3×3 grid with shared weather. Both modes have
+wandering NPCs, a mouse, a soccer ball, bouncing balls, a sled, a yeti, and a penguin parade.
+Switching modes rebuilds the snow and clears tracks while keeping the current material and
+actor settings. Use **Surface → Area size** to resize the fenced arena.
 The **Powder Run** demo (`demos/ski_free.tscn`) is a SkiFree-inspired
 3D arcade slope with an angled orthographic camera, endless recycled snow,
 continuous carved ski tracks, trees, rocks, jump ramps, and scored slalom gates.
@@ -46,14 +47,8 @@ Ten slope guests join the run: six skiers, two snowboarders, a sled rider,
 and a belly-sliding penguin. They carve narrow twin grooves or wide sweeping
 trails, steer around scenery and each other, and hop rocks and ramps. Traffic
 recycles outside the camera, pauses with P, and yields to the player.
-The procedural playground also has an infinite, fence-free variant at
-`demos/snow_demo_infinite.tscn`, with the same actors,
-controls, and quality settings as the original playground.
-Move with WASD, arrow keys, a gamepad stick, or the on-screen touch stick.
-Jump with Space, gamepad A, or the on-screen **Jump** button. The player can
-move in the air; footprints pause while airborne and resume on landing.
-The demo world, DeformableSurface, player, NPC placements, and sled are
-authored in `demos/classic.tscn`; forest layout settings are available on the Forest node.
+In Playground, move with WASD, arrow keys, or the on-screen touch stick. Jump with Space
+or the on-screen **Jump** button. Footprints pause while airborne and resume on landing.
 The surface showcase demos share one HUD (`demos/scripts/demo_hud.gd`) and one theme: press **Menu** (or **M**)
 to open a tabbed settings panel. The standard tabs come from `demos/scripts/demo_settings.gd` and
 apply live:
@@ -61,19 +56,16 @@ apply live:
 - **Surface**: Low / Medium / High / Custom quality, material preset (snow, sand, mud, dirt, ash),
   recovery, max depth, berm strength and height, puffs, wrapped lighting, reset tracks, and the
   technical settings (map resolution, mesh subdivisions, stamp budget, refill interval, puff
-  budget and interval, sparkle; area size in the classic demo). Editing a technical setting
+  budget and interval, sparkle; area size in the fenced Playground). Editing a technical setting
   switches the quality to **Custom** (it edits a copy, never an addon preset).
 - **Weather** (demos with a SnowWorldManager): snowfall, wind, flakes, near flakes, fall height.
 - **Graphics**: sun shadows and MSAA (Off, 2x, 4x), plus sun height in the playground.
-- **Scene**: demo-specific controls (classic: people, mice, weather follow target; playground:
-  sled, balls, yeti, penguins, snowball storm; materials: textures, triplanar, brush, vehicle).
+- **Scene**: Playground mode, actor toggles, and snowball storm. Materials has texture,
+  triplanar, brush, and vehicle controls.
 
-The DeformableSurface's `quality` is a `DeformableSurfaceQuality` resource; each demo assigns
-its own Low / Medium / High resources (the classic demo uses `DeformableSurfaceQuality.high()`),
-and the menu's Custom entry is any edited copy. The classic demo's weather
-profiles use the snowfall addon resources. Follow-target mode remains a
-classic-demo setting. Shadows and MSAA are demo render options, not
-quality settings.
+Demos load their Low / Medium / High quality resources from the addon or `demos/resources/`.
+Editing technical settings creates a Custom copy. Playground uses smaller map presets in
+Infinite mode to keep the nine-tile grid within budget.
 
 ## Quick start
 
@@ -261,14 +253,12 @@ addons/snowfall/
   resources/weather/  Calm, Snowfall, and Blizzard presets
 demos/
   launcher.tscn       start screen for all demos
-  classic.tscn        classic snow demo
+  playground.tscn     fenced arena and infinite snowfields
   ski_free.tscn       Powder Run arcade skiing demo
-  infinite_snow.tscn  recycled grid of independent DeformableSurfaces
   materials_demo.tscn material preset showcase
   custom_terrain_demo.tscn hilly terrain and grass driven by the deformation map
-  snow_demo.tscn      finite procedural playground
-  snow_demo_infinite.tscn infinite procedural playground
-  scripts/           all demo controllers, actors, HUD, settings, and utilities
+  scripts/           demo controllers, actors, HUD, and settings
+  shared/            shared shell, brush, and tile grid
   shaders/           terrain, grass, tree snow, and soccer ball shaders
   characters/        explorer, penguin, yeti, NPC, and mouse sub-scenes
   props/             balls, trees, rocks, sleds, and snowman sub-scenes

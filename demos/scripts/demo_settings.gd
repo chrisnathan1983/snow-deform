@@ -10,7 +10,7 @@ extends Node
 const PRESET_DIR := "res://addons/deformable_surface/resources/materials/"
 const PRESETS := ["snow", "sand", "mud", "dirt", "ash"]
 const QUALITY_NAMES := ["Low", "Medium", "High", "Custom"]
-const RESOLUTIONS := [256, 384, 512, 768, 1024, 1536, 2048]
+const RESOLUTIONS := [192, 256, 320, 384, 512, 768, 1024, 1536, 2048]
 const MSAA_NAMES := ["Off", "2x", "4x"]
 const SNOW_PROFILE := preload("res://addons/deformable_surface/resources/materials/snow_profile.tres")
 const QUALITY_PRESETS: Array[DeformableSurfaceQuality] = [
@@ -30,7 +30,7 @@ var weather: SnowWorldManager
 var sun: DirectionalLight3D
 var preset_handler: Callable
 var sun_handler: Callable
-var allow_area := false
+var area_handler: Callable
 ## Low / Medium / High resources behind the menu (the demo may supply its own); index 3 is Custom.
 var quality_presets: Array[DeformableSurfaceQuality] = QUALITY_PRESETS
 var quality_index := 1
@@ -86,6 +86,27 @@ func _quality_of(f: DeformableSurface) -> DeformableSurfaceQuality:
 	return f.quality if f.quality != null else DeformableSurfaceQuality.medium()
 
 
+## Include edits still waiting to be applied when rebuilding the field layout.
+func current_profile() -> DeformableSurfaceType:
+	return _profile_of(_primary())
+
+
+func current_quality() -> DeformableSurfaceQuality:
+	return _quality_of(_primary())
+
+
+func replace_fields(new_fields: Array[DeformableSurface]) -> void:
+	if not fields.is_empty() and is_instance_valid(fields[0]):
+		if fields[0].quality_changed.is_connected(_on_quality_changed):
+			fields[0].quality_changed.disconnect(_on_quality_changed)
+	_pending_surface_updates.clear()
+	_surface_edit_delay = 0.0
+	fields = new_fields
+	if not fields.is_empty():
+		fields[0].quality_changed.connect(_on_quality_changed)
+	_sync_surface()
+
+
 func add_surface_tab() -> void:
 	var tab := hud.add_tab("Surface")
 	var f := _primary()
@@ -110,18 +131,18 @@ func add_surface_tab() -> void:
 	hud.add_toggle(tab, "surface.puffs", "Puff particles", profile.puffs_enabled)
 	hud.add_toggle(tab, "surface.wrapped", "Wrapped diffuse lighting", profile.wrapped_diffuse_lighting)
 	hud.add_button(tab, "surface.reset", "Reset tracks")
+	if area_handler.is_valid():
+		hud.add_slider(tab, "surface.area_size", "Area size (m)", 8, 80, 2, f.size)
 	hud.add_heading(tab, "Technical (switches to Custom)")
 	hud.add_option(tab, "surface.res", "Map resolution", RESOLUTIONS,
 			_nearest(RESOLUTIONS, active.res))
 	hud.add_slider(tab, "surface.subdiv", "Mesh subdivisions", 16, 256, 8, active.subdiv)
-	if allow_area:
-		hud.add_slider(tab, "surface.area_size", "Area size (m)", 8, 80, 2, f.size)
 	hud.add_slider(tab, "surface.max_stamps", "Max stamps / frame", 8, 256, 8, active.max_stamps_per_frame)
 	hud.add_slider(tab, "surface.refill_interval", "Refill interval (s)", 0.05, 1.0, 0.05, active.refill_interval)
 	hud.add_slider(tab, "surface.puff_budget", "Puff budget", 1, 64, 1, active.puff)
 	hud.add_slider(tab, "surface.puff_interval", "Puff interval (s)", 0.0, 0.5, 0.01, active.puff_min_interval)
 	hud.add_slider(tab, "surface.sparkle", "Sparkle", 0.0, 3.0, 0.1, active.sparkle)
-	f.quality_changed.connect(func(_q): _sync_surface())
+	f.quality_changed.connect(_on_quality_changed)
 
 
 func add_weather_tab(manager: SnowWorldManager) -> void:
@@ -166,8 +187,8 @@ func _on_changed(key: String, value: Variant) -> void:
 		"surface.res": _edit_technical("res", RESOLUTIONS[int(value)])
 		"surface.subdiv": _edit_technical("subdiv", value)
 		"surface.area_size":
-			for f in fields:
-				f.size = float(value)
+			if area_handler.is_valid():
+				area_handler.call(float(value))
 		"surface.max_stamps": _edit_technical("max_stamps_per_frame", value)
 		"surface.refill_interval": _edit_technical("refill_interval", value)
 		"surface.puff_budget": _edit_technical("puff", value)
@@ -288,6 +309,10 @@ func _sync_surface() -> void:
 	hud.set_value("surface.puff_budget", float(active.puff))
 	hud.set_value("surface.puff_interval", active.puff_min_interval)
 	hud.set_value("surface.sparkle", active.sparkle)
+
+
+func _on_quality_changed(_quality: DeformableSurfaceQuality) -> void:
+	_sync_surface()
 
 
 func _primary() -> DeformableSurface:

@@ -5,7 +5,11 @@ extends CharacterBody3D
 const BallPush = preload("ball_push.gd")
 
 @export var speed := 2.5
-@export var bounds := Vector2(11, 11)
+@export var bounds := Vector2(11, 11) :
+	set(value):
+		bounds = value
+		if is_node_ready():
+			_pick()
 @export var body_color := Color(0.2, 0.5, 0.9)
 
 var _target := Vector3.ZERO

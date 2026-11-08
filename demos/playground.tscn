@@ -1,0 +1,69 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://demos/scripts/playground.gd" id="1_playground"]
+[ext_resource type="PackedScene" path="res://demos/characters/npc.tscn" id="2_npc"]
+[ext_resource type="PackedScene" path="res://demos/characters/mouse.tscn" id="3_mouse"]
+[ext_resource type="PackedScene" path="res://demos/props/soccer_ball.tscn" id="4_ball"]
+
+[sub_resource type="WorldBoundaryShape3D" id="WorldBoundaryShape3D_floor"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_east_west"]
+resource_local_to_scene = true
+size = Vector3(0.5, 4, 33)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_north_south"]
+resource_local_to_scene = true
+size = Vector3(33, 4, 0.5)
+
+[node name="Playground" type="Node3D"]
+script = ExtResource("1_playground")
+
+[node name="ArenaCollision" type="StaticBody3D" parent="."]
+
+[node name="Floor" type="CollisionShape3D" parent="ArenaCollision"]
+shape = SubResource("WorldBoundaryShape3D_floor")
+
+[node name="EastWall" type="CollisionShape3D" parent="ArenaCollision"]
+position = Vector3(16.25, 2, 0)
+shape = SubResource("BoxShape3D_east_west")
+
+[node name="WestWall" type="CollisionShape3D" parent="ArenaCollision"]
+position = Vector3(-16.25, 2, 0)
+shape = SubResource("BoxShape3D_east_west")
+
+[node name="SouthWall" type="CollisionShape3D" parent="ArenaCollision"]
+position = Vector3(0, 2, 16.25)
+shape = SubResource("BoxShape3D_north_south")
+
+[node name="NorthWall" type="CollisionShape3D" parent="ArenaCollision"]
+position = Vector3(0, 2, -16.25)
+shape = SubResource("BoxShape3D_north_south")
+
+[node name="Actors" type="Node3D" parent="."]
+
+[node name="People" type="Node3D" parent="Actors"]
+
+[node name="Person1" parent="Actors/People" instance=ExtResource("2_npc")]
+position = Vector3(-6, 0, -7)
+speed = 2.0
+
+[node name="Person2" parent="Actors/People" instance=ExtResource("2_npc")]
+position = Vector3(-2, 0, -7)
+speed = 2.4
+body_color = Color(0.3, 0.75, 0.4, 1)
+
+[node name="Person3" parent="Actors/People" instance=ExtResource("2_npc")]
+position = Vector3(2, 0, -7)
+speed = 2.8
+body_color = Color(0.9, 0.75, 0.2, 1)
+
+[node name="Person4" parent="Actors/People" instance=ExtResource("2_npc")]
+position = Vector3(6, 0, -7)
+speed = 3.2
+body_color = Color(0.7, 0.4, 0.85, 1)
+
+[node name="Mouse" parent="Actors" instance=ExtResource("3_mouse")]
+position = Vector3(-3.27, 0, 0)
+
+[node name="SoccerBall" parent="Actors" instance=ExtResource("4_ball")]
+position = Vector3(2.5, 0.35, -3)

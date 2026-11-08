@@ -18,7 +18,8 @@ func _stats(samples: Array[float]) -> Dictionary:
 
 func _run() -> void:
 	Engine.max_fps = 120
-	var scene = load("res://demos/snow_demo_infinite.tscn").instantiate()
+	var scene = load("res://demos/playground.tscn").instantiate()
+	scene.start_infinite = true
 	root.add_child(scene)
 	while scene.settings.has_pending_surface_updates():
 		await process_frame

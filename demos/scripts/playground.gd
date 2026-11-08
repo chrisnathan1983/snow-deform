@@ -1,5 +1,5 @@
 extends Node3D
-## Deformable Snow - demo scene.
+## Fenced arena and streaming snow playground.
 ##
 ## Desktop: WASD/arrows move, Shift run, Space jump, drag = look, click = throw snowball,
 ##          wheel = zoom, M = menu, R = reset tracks, 1/2/3 = quality.
@@ -12,10 +12,27 @@ const DemoBall := preload("res://demos/scripts/demo_ball.gd")
 const Snowangel := preload("res://demos/scripts/snow_angel.gd")
 
 const FIELD_SIZE := 32.0
-const HALF := FIELD_SIZE * 0.5
 const GROUND_Y := -0.3
 const SNOWFALL := 0.4
+const SLED_PATH := Vector2(10.0, 6.5)
+const TILE_QUALITY_PRESETS: Array[DeformableSurfaceQuality] = [
+    preload("res://demos/resources/playground/low.tres"),
+    preload("res://demos/resources/playground/medium.tres"),
+    preload("res://demos/resources/playground/high.tres"),
+]
 
+@export var start_infinite := false
+
+@onready var _people: Node3D = $Actors/People
+@onready var _mouse: Node3D = $Actors/Mouse
+@onready var _soccer_ball: RigidBody3D = $Actors/SoccerBall
+@onready var _walls: Array[CollisionShape3D] = [
+    $ArenaCollision/EastWall, $ArenaCollision/WestWall,
+    $ArenaCollision/SouthWall, $ArenaCollision/NorthWall,
+]
+
+var infinite := false
+var grid: DeformableSurfaceGrid
 var snow: DeformableSurface
 var snow_fields: Array[DeformableSurface] = []
 var weather: SnowWorldManager
@@ -24,6 +41,9 @@ var env: Environment
 var sky_mat: ProceduralSkyMaterial
 var camera: DemoCamera
 var _ground: MeshInstance3D
+var _snow_root: Node3D
+var _fence: Node3D
+var _arena_size := FIELD_SIZE
 var player: DemoCharacter
 var sled: DemoSled
 var ui: DemoHud
@@ -33,13 +53,11 @@ var _shell: DemoShell
 
 var _rng := RandomNumberGenerator.new()
 var _obstacles: Array[Vector3] = []
-var _balls: Array[Node3D] = []
+var _balls: Array[DemoBall] = []
 var _penguins: Array[DemoCharacter] = []
-var _yeti: Node3D
-var _snowangel: Snowangel
+var _yeti: DemoCharacter
 
 var _quality := DeformableSurfaceQuality.platform_tier()
-var _quality_presets: Array[DeformableSurfaceQuality] = DemoSettings.QUALITY_PRESETS
 var _sun_height := 30.0
 var _run_button := false
 var _touch_ui := false
@@ -62,10 +80,12 @@ func _ready() -> void:
     _rng.seed = 1234
     _touch_ui = DisplayServer.is_touchscreen_available()
     _build_environment()
-    _build_snow()
     _build_scenery()
     _build_actors()
+    infinite = start_infinite
     camera.follow_target = player
+    _build_snow(_snow_profile(), _presets()[_quality])
+    _update_arena()
     camera.update_view()
     _build_ui()
     _set_sun(_sun_height)
@@ -112,15 +132,126 @@ func _build_environment() -> void:
     add_child(camera)
 
 
-func _build_snow() -> void:
-    snow = DeformableSurface.new()
-    snow.name = "DeformableSurface"
-    snow.quality = _quality_presets[_quality]
-    snow.size = FIELD_SIZE
-    snow.surface_type = _snow_profile()
-    snow.sun = sun
-    snow_fields.append(snow)
-    add_child(snow)
+func _build_snow(profile: DeformableSurfaceType, quality: DeformableSurfaceQuality) -> void:
+    if infinite:
+        grid = DeformableSurfaceGrid.new()
+        grid.name = "SurfaceGrid"
+        grid.tile_size = FIELD_SIZE
+        grid.surface_type = profile
+        grid.quality = quality
+        grid.sun = sun
+        grid.follow_target = player
+        grid.priority_camera = camera
+        add_child(grid)
+        _snow_root = grid
+        snow_fields = grid.fields
+        snow = grid.field_at(Vector2i.ZERO)
+    else:
+        grid = null
+        snow = DeformableSurface.new()
+        snow.name = "DeformableSurface"
+        snow.quality = quality
+        snow.size = _arena_size
+        snow.surface_type = profile
+        snow.sun = sun
+        add_child(snow)
+        _snow_root = snow
+        snow_fields = [snow]
+
+
+func _presets() -> Array[DeformableSurfaceQuality]:
+    return TILE_QUALITY_PRESETS if infinite else DemoSettings.QUALITY_PRESETS
+
+
+func set_infinite(enabled: bool) -> void:
+    if infinite == enabled:
+        return
+    var profile := settings.current_profile()
+    var quality := settings.current_quality()
+    infinite = enabled
+    settings.quality_presets = _presets()
+    if settings.quality_index < settings.quality_presets.size():
+        quality = settings.quality_presets[settings.quality_index]
+
+    _snow_root.free()
+    _build_snow(profile, quality)
+    settings.replace_fields(snow_fields)
+    if grid:
+        grid.relocation_blocked = settings.has_pending_surface_updates
+    _update_arena()
+    ui.set_value("infinite", infinite)
+    ui.set_slider_editable("surface.area_size", not infinite)
+    ui.set_hint("Infinite snowfields enabled. Tracks cleared." if infinite
+            else "Fenced arena enabled. Tracks cleared.", 3.0)
+
+
+func _resize_arena(size: float) -> void:
+    if infinite or is_equal_approx(size, _arena_size):
+        return
+    _arena_size = size
+    snow.size = size
+    _update_arena()
+
+
+func _update_arena() -> void:
+    var half := _arena_size * 0.5
+    var actor_extent := 1000000.0 if infinite else half - 0.8
+    player.half_extent = actor_extent
+    for penguin in _penguins:
+        penguin.half_extent = actor_extent
+
+    var scale := 1.0 if infinite else minf(1.0, _arena_size / FIELD_SIZE)
+    sled.amp = SLED_PATH * scale
+    _yeti.circle_center = Vector3(-2.0, 0, -10.5) * scale
+    _yeti.circle_radius = 3.2 * scale
+    for ball in _balls:
+        ball.half = (FIELD_SIZE * 0.5 if infinite else half) - 1.5
+
+    var village_half := FIELD_SIZE * 0.5 if infinite else half
+    for person: SnowNPC in _people.get_children():
+        person.bounds = Vector2.ONE * (village_half - 1.0)
+    _mouse.set("bounds", Vector2.ONE * (village_half - 1.0))
+    _update_fence(half)
+
+    if infinite:
+        return
+    var bounded := _constrain_target(player.position, 0.8)
+    if not bounded.is_equal_approx(player.position):
+        player.position = bounded
+        camera.update_view()
+    for penguin in _penguins:
+        penguin.position = _constrain_target(penguin.position, 0.8)
+    for person: Node3D in _people.get_children():
+        person.position = _constrain_target(person.position, 1.0)
+    _mouse.position = _constrain_target(_mouse.position, 1.0)
+    if not _constrain_target(_soccer_ball.position, 0.5).is_equal_approx(_soccer_ball.position):
+        _soccer_ball.position = Vector3(2.5, 0.35, -2.5)
+        _soccer_ball.linear_velocity = Vector3.ZERO
+        _soccer_ball.angular_velocity = Vector3.ZERO
+    _ground.position.x = 0.0
+    _ground.position.z = 0.0
+
+
+func _update_fence(half: float) -> void:
+    if _fence:
+        _fence.free()
+        _fence = null
+    for wall in _walls:
+        wall.disabled = infinite
+    if infinite:
+        return
+    var edge := half + 0.25
+    _walls[0].position.x = edge
+    _walls[1].position.x = -edge
+    _walls[2].position.z = edge
+    _walls[3].position.z = -edge
+    (_walls[0].shape as BoxShape3D).size.z = _arena_size + 1.0
+    (_walls[2].shape as BoxShape3D).size.x = _arena_size + 1.0
+
+    _fence = Node3D.new()
+    _fence.name = "Fence"
+    add_child(_fence)
+    Props.add_fence(_fence, half, GROUND_Y)
 
 
 func _snow_profile() -> DeformableSurfaceType:
@@ -136,13 +267,11 @@ func _build_scenery() -> void:
     _ground.material_override = Props.mat(Color(0.88, 0.91, 0.97), 1.0)
     _ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     Props.add_hills(self, _rng, GROUND_Y)
-    if _has_fence():
-        Props.add_fence(self, HALF, GROUND_Y)
     _add_forest(46, Vector2(1.5, 12.0), Vector2(0.8, 1.5), true)
     _add_forest(170, Vector2(22.0, 75.0), Vector2(1.2, 2.6), false)
 
     # Obstacles inside the field, kept away from the sled path, yeti loop and spawn point.
-    var keep := DemoSled.sample_path(Vector2(10.0, 6.5), 120)
+    var keep := DemoSled.sample_path(SLED_PATH)
     for i in 24:
         var a := TAU * float(i) / 24.0
         keep.append(Vector2(-2.0 + cos(a) * 3.2, -10.5 + sin(a) * 3.2))
@@ -164,12 +293,8 @@ func _add_forest(count: int, band: Vector2, tree_scale: Vector2, cast_shadows: b
     forest.position.y = GROUND_Y
     forest.visual_only = true
     forest.cast_shadows = cast_shadows
-    forest.scatter_ring(_rng, count, HALF, band, tree_scale)
+    forest.scatter_ring(_rng, count, FIELD_SIZE * 0.5, band, tree_scale)
     add_child(forest)
-
-
-func _has_fence() -> bool:
-    return true
 
 
 func _free_spot(keep: PackedVector2Array, margin: float, extent: float) -> Vector2:
@@ -193,7 +318,6 @@ func _build_actors() -> void:
     player = _make_character("explorer", DemoCharacter.Role.PLAYER)
     player.position = Vector3(0, 0, 4.0)
     player.obstacles = _obstacles
-    player.half_extent = _actor_half_extent()
     add_child(player)
 
     # weather follows the player
@@ -213,16 +337,10 @@ func _build_actors() -> void:
     sled = (load("res://demos/props/sled.tscn") as PackedScene).instantiate() as DemoSled
     add_child(sled)
 
-    # torso centre on the snow surface; yaw = rotation around Y, head points along -Z
-    var x := 5.0
-    var z := 5.0
-    var yaw := 0.0
-    _snowangel = Snowangel.make(self, Vector3(x, 0.0, z), yaw)
-    _snowangel.cycles = 10
+    var snowangel := Snowangel.make(self, Vector3(5.0, 0.0, 5.0))
+    snowangel.cycles = 10
 
     _yeti = _make_character("yeti", DemoCharacter.Role.WANDERER)
-    _yeti.circle_center = Vector3(-2.0, 0, -10.5)
-    _yeti.circle_radius = 3.2
     add_child(_yeti)
 
     var prev: Node3D = player
@@ -231,7 +349,6 @@ func _build_actors() -> void:
         pg.follow_target = prev
         pg.follow_distance = 1.1 + 0.1 * float(i)
         pg.obstacles = _obstacles
-        pg.half_extent = player.half_extent
         pg.position = Vector3(0.4 * float(i + 1) - 1.0, 0, 5.8 + 0.9 * float(i))
         add_child(pg)
         _penguins.append(pg)
@@ -244,17 +361,12 @@ func _build_actors() -> void:
         b.kind = DemoBall.Kind.BOUNCER
         b.radius = _rng.randf_range(0.3, 0.45)
         b.color = cols[i]
-        b.half = HALF - 1.5
         b.bounce_speed = _rng.randf_range(6.5, 9.0)
         var ang := _rng.randf() * TAU
         b.velocity = Vector3(cos(ang), 0, sin(ang)) * _rng.randf_range(1.5, 4.0)
         b.position = Vector3(_rng.randf_range(-10, 10), b.radius + _rng.randf() * 2.0, _rng.randf_range(-10, 10))
         add_child(b)
         _balls.append(b)
-
-
-func _actor_half_extent() -> float:
-    return HALF - 0.8
 
 
 func _make_character(kind: String, role: int) -> DemoCharacter:
@@ -266,15 +378,23 @@ func _make_character(kind: String, role: int) -> DemoCharacter:
 
 func _build_ui() -> void:
     ui = _shell.hud
-    ui.set_title("Snow Lab")
+    ui.set_title("Playground")
     settings = _shell.bind_surfaces(snow_fields)
-    settings.quality_presets = _quality_presets
+    settings.quality_presets = _presets()
     settings.quality_index = _quality
+    settings.area_handler = _resize_arena
     settings.sun_handler = _set_sun
     settings.add_surface_tab()
+    ui.set_slider_editable("surface.area_size", not infinite)
+    if grid:
+        grid.relocation_blocked = settings.has_pending_surface_updates
     settings.add_weather_tab(weather)
     settings.add_graphics_tab(sun, _sun_height)
     var scene_tab := ui.add_tab("Scene")
+    ui.add_toggle(scene_tab, "infinite", "Infinite", infinite)
+    ui.add_toggle(scene_tab, "people", "Wandering NPCs", true)
+    ui.add_toggle(scene_tab, "mouse", "Mouse", true)
+    ui.add_toggle(scene_tab, "soccer_ball", "Soccer ball", true)
     ui.add_toggle(scene_tab, "sled", "Sled (figure-8)", true)
     ui.add_toggle(scene_tab, "balls", "Bouncing balls", true)
     ui.add_toggle(scene_tab, "yeti", "Yeti", true)
@@ -306,26 +426,36 @@ func _set_sun(height_deg: float) -> void:
 
 func _on_ui(key: String, value: Variant) -> void:
     match key:
+        "infinite": set_infinite(bool(value))
+        "people": _set_actor(_people, bool(value))
+        "mouse": _set_actor(_mouse, bool(value))
+        "soccer_ball": _set_actor(_soccer_ball, bool(value))
         "sled":
             sled.visible = bool(value)
             sled.set_running(bool(value))
-        "balls": _set_group(_balls, bool(value))
-        "yeti": _set_group([_yeti], bool(value))
+        "balls":
+            for ball in _balls:
+                _set_actor(ball, bool(value))
+        "yeti": _set_actor(_yeti, bool(value))
         "penguins":
-            _set_group(_penguins, bool(value))
+            for penguin in _penguins:
+                _set_actor(penguin, bool(value))
             if bool(value):
                 for i in _penguins.size():
-                    _penguins[i].position = player.position + Vector3(0.5 * float(i + 1), 0, 1.5 + float(i))
+                    var spawn := player.position + Vector3(0.5 * float(i + 1), 0, 1.5 + float(i))
+                    _penguins[i].position = _constrain_target(spawn, 0.8)
         "storm": _storm()
         "jump": player.jump()
         "run": _run_button = bool(value)
 
 
-func _set_group(nodes: Array, on: bool) -> void:
-    for n in nodes:
-        var node := n as Node3D
-        node.visible = on
-        node.process_mode = Node.PROCESS_MODE_INHERIT if on else Node.PROCESS_MODE_DISABLED
+func _set_actor(actor: Node3D, enabled: bool) -> void:
+    actor.visible = enabled
+    actor.process_mode = Node.PROCESS_MODE_INHERIT if enabled else Node.PROCESS_MODE_DISABLED
+    if not enabled:
+        for child in actor.find_children("*", "Node3D", true, false):
+            if child is Deformer:
+                child.active = false
 
 
 func _reset_fields() -> void:
@@ -334,8 +464,10 @@ func _reset_fields() -> void:
 
 
 func _constrain_target(target: Vector3, margin: float) -> Vector3:
-    target.x = clampf(target.x, -HALF + margin, HALF - margin)
-    target.z = clampf(target.z, -HALF + margin, HALF - margin)
+    if not infinite:
+        var limit := _arena_size * 0.5 - margin
+        target.x = clampf(target.x, -limit, limit)
+        target.z = clampf(target.z, -limit, limit)
     return target
 
 
@@ -388,6 +520,9 @@ func _process(delta: float) -> void:
 
     camera.apply_stick(stick.look, delta)
     camera.update_view(delta)
+    if infinite:
+        _ground.position.x = player.position.x
+        _ground.position.z = player.position.z
 
     _hud_t -= delta
     if _hud_t <= 0.0:
@@ -395,6 +530,19 @@ func _process(delta: float) -> void:
         ui.set_info("%d FPS  |  %s  |  map %d  |  %d deformers" % [
             Engine.get_frames_per_second(), DemoSettings.QUALITY_NAMES[settings.quality_index],
             snow.quality.res, Deformer.unassigned.size()])
+
+
+## The explorer moves kinematically without a physics body.
+func _physics_process(delta: float) -> void:
+    if not _soccer_ball.can_process() or not player.on_ground:
+        return
+    var away := _soccer_ball.global_position - player.global_position
+    away.y = 0.0
+    if away.length_squared() > 0.000001 and away.length_squared() < 0.81:
+        var speed := player.move_input.length() * player.move_speed
+        if player.running:
+            speed *= player.run_mult
+        _soccer_ball.apply_central_impulse(away.normalized() * (2.0 + speed) * _soccer_ball.mass * delta * 8.0)
 
 
 func _key(a: Key, b: Key) -> float:

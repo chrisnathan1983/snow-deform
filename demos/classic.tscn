@@ -1,6 +1,6 @@
-[gd_scene format=3 uid="uid://dcfw1g7ipqiqo"]
+[gd_scene format=3 uid="uid://qbga780x2jww"]
 
-[ext_resource type="Script" uid="uid://bm2dt855iutns" path="res://demos/scripts/classic.gd" id="1_main"]
+[ext_resource type="Script" path="res://demos/scripts/classic.gd" id="1_main"]
 [ext_resource type="Script" uid="uid://3cab4qgnuplj" path="res://demos/scripts/pine_forest.gd" id="2_forest"]
 [ext_resource type="Script" uid="uid://di5wn2d4q6734" path="res://demos/scripts/demo_camera.gd" id="3_camera"]
 [ext_resource type="PackedScene" path="res://demos/characters/explorer.tscn" id="4_player"]
@@ -162,9 +162,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 0.35, -3)
 
 [node name="DeformableSurface" type="Node3D" parent="." unique_id=188116127 node_paths=PackedStringArray("sun")]
 script = ExtResource("8_snow")
-quality = ExtResource("15_quality")
 surface_type = ExtResource("16_profile")
 sun = NodePath("../Sun")
+quality = ExtResource("15_quality")
 
 [node name="SnowWorldManager" type="Node3D" parent="." unique_id=1437319999]
 script = ExtResource("13_weather")

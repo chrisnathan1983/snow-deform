@@ -2,7 +2,11 @@ extends Node3D
 ## Fast-moving demo mouse that scurries across the snow and leaves footprints.
 
 @export var speed := 5.5
-@export var bounds := Vector2(10.0, 10.0)
+@export var bounds := Vector2(10.0, 10.0) :
+	set(value):
+		bounds = value
+		if is_node_ready():
+			_pick_target()
 @export var footprint_radius := 0.025
 @export var scurry_wobble := 0.35
 @export var time_between_pauses := Vector2(4.0, 8.0)

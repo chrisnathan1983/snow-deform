@@ -286,6 +286,11 @@ func has_control(key: String) -> bool:
 	return _controls.has(key)
 
 
+func set_slider_editable(key: String, editable: bool) -> void:
+	var slider := _controls[key]["control"] as HSlider
+	slider.editable = editable
+
+
 ## Updates a control without emitting `changed`.
 func set_value(key: String, value: Variant) -> void:
 	if not _controls.has(key):

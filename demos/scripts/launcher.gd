@@ -8,14 +8,9 @@ const DEMOS := [
 		"scene": "res://demos/ski_free.tscn",
 	},
 	{
-		"title": "Classic Snow Demo",
-		"description": "Explore footprints, NPCs, sleds, snowballs, and weather controls.",
-		"scene": "res://demos/classic.tscn",
-	},
-	{
-		"title": "Infinite Snowfields",
-		"description": "Travel across a recycled grid of independent surfaces and shared weather.",
-		"scene": "res://demos/infinite_snow.tscn",
+		"title": "Playground",
+		"description": "Explore a fenced arena or infinite snowfields with NPCs, sleds, and snowballs.",
+		"scene": "res://demos/playground.tscn",
 	},
 	{
 		"title": "Material Showcase",
@@ -26,16 +21,6 @@ const DEMOS := [
 		"title": "Custom Terrain & Grass",
 		"description": "Hilly terrain and grass with their own shaders, driven by a surface with render_mesh off.",
 		"scene": "res://demos/custom_terrain_demo.tscn",
-	},
-	{
-		"title": "Procedural Snow Playground",
-		"description": "A self-contained playground with actors, props, and quality controls.",
-		"scene": "res://demos/snow_demo.tscn",
-	},
-	{
-		"title": "Infinite Snow Playground",
-		"description": "The procedural playground on a fence-free, recycled snowfield.",
-		"scene": "res://demos/snow_demo_infinite.tscn",
 	},
 ]
 

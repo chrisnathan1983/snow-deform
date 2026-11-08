@@ -10,26 +10,22 @@ built from code and primitive meshes.
    `demos/shared/`, shaders in `demos/shaders/`, and actor scenes in
    `demos/characters/` and `demos/props/`.
 3. Project Settings -> Rendering -> Renderer: **Compatibility** (needed for Web / mobile).
-4. Open `res://demos/snow_demo.tscn` and press **F6**
-   (or set it as the main scene for a Web export).
-   For the fence-free infinite version, open
-   `res://demos/snow_demo_infinite.tscn`.
+4. Open `res://demos/playground.tscn` and press **F6**, or choose **Playground** in the launcher.
+   Use **Menu → Scene → Infinite** to switch between the fenced arena and the recycled snowfields.
 
 The demos use the addon presets for standard quality, snow and weather settings. Demo-specific
-profiles, including the smaller tile maps for the infinite demos, live in `demos/resources/`.
+profiles, including the smaller tile maps for Infinite mode, live in `demos/resources/`.
 One `SnowWorldManager` handles atmospheric flakes, while each DeformableSurface handles its own
 recovery and contact puffs.
 
-The repository also includes `res://demos/infinite_snow.tscn`, a separate streaming-world
-example with nine recycled DeformableSurfaces and one shared SnowWorldManager. Run with WASD/arrows,
-hold Shift to run, press Space to jump, right-drag to look, use the mouse wheel to zoom, and
-press R to reset the currently loaded fields. Each surface has its own recovery profile; recycled
-tiles clear their deformation map when they are moved to a new world location.
+Switching modes keeps the actor and material settings and clears existing tracks.
+The **Area size** slider on the Surface tab applies to the fenced arena.
 
 ## What's in it
 | Thing | Shows off |
 |---|---|
 | Explorer (you) | Footprints, run/walk stride, pausing footsteps while jumping |
+| Wandering NPCs, mouse, soccer ball | Footsteps, tiny tracks, and a pushable physics ball |
 | Penguin parade | Tiny feet following you in a conga line |
 | Yeti | Heavy, wide, deep footprints on a patrol loop |
 | Sled | Long grooves with side berms, puffs while sliding (aspect + `puff_distance`) |
@@ -38,7 +34,7 @@ tiles clear their deformation map when they are moved to a new world location.
 | Snowball storm | 14 snowballs dropped around you |
 | Menu | Shared tabbed HUD: surface (quality, material preset, depth, berms, technical), weather, graphics, scene toggles |
 
-The infinite variant keeps the same playground controls and actors but removes
+Infinite mode keeps the same playground controls and actors but removes
 the fence and recycles a 3x3 grid of DeformableSurfaces around the player. Field
 relocations are spread across frames to avoid a large reset spike when crossing
 a tile boundary. Moving within eight meters of a boundary starts preparing the
@@ -57,6 +53,7 @@ brush center.
 ## Regression checks
 
 Run the scripts in `tests/` with `godot --headless --path . --script <script>`.
+`playground_modes.gd` checks the launcher, mode switches, and arena resizing.
 `infinite_snow_prefetch.gd` checks early preparation, resets during preparation,
 priority after teleports, and direction reversals. `infinite_snow_frame_times.gd`
 measures complete frame intervals during movement, noise edits, and quality
