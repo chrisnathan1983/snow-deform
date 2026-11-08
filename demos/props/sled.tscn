@@ -57,8 +57,16 @@ size = Vector3(0.47, 0.37, 0.08)
 [sub_resource type="BoxMesh" id="BoxMesh_fp0sq"]
 size = Vector3(0.08, 0.37, 0.47)
 
-[node name="Sled" type="Node3D" unique_id=1196882608]
+[sub_resource type="BoxShape3D" id="BoxShape3D_sled"]
+size = Vector3(1, 0.2, 1.8)
+
+[node name="Sled" type="AnimatableBody3D" unique_id=1196882608]
+sync_to_physics = false
 script = ExtResource("1_kopyj")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_sled")
+disabled = true
 
 [node name="Visual" type="Node3D" parent="." unique_id=1703262807]
 

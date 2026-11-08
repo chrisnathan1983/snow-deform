@@ -18,18 +18,8 @@ var _landed := false
 var _t := 0.0
 
 
-## Unit-radius sphere; authored in demos/props/ball.tscn.
-static func build_visual(parent: Node3D) -> void:
-    Props.add_mesh(parent, Props.sphere(1.0, 12), Color.WHITE).name = "Sphere"
-
-
 func _ready() -> void:
-    var visual := get_node_or_null("Visual") as Node3D
-    if visual == null:
-        visual = Node3D.new()
-        visual.name = "Visual"
-        add_child(visual)
-        build_visual(visual)
+    var visual: Node3D = $Visual
     visual.scale = Vector3.ONE * radius
     var tint := color if kind == Kind.BOUNCER else Color(0.97, 0.98, 1.0)
     for child in visual.get_children():

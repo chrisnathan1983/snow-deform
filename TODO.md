@@ -1,4 +1,4 @@
-## 1. Cut the demos from 7 to 2
+## 1. Cut the demos from 7 to 4
 
 | Keep | Absorbs |
 |---|---|
@@ -87,4 +87,3 @@ The Compatibility renderer compiles shaders on first draw, so the first footstep
 - Serve with Brotli or gzip.
 - Use a custom export template with unused modules disabled (for example 3D physics if you don't need it, but `RigidBody3D` and `AnimatableBody3D` are used in some demos).
 - Keep the single-threaded export unless you control the COOP/COEP headers.
-

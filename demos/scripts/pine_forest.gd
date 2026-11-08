@@ -5,7 +5,7 @@ extends Node3D
 ## Collision is a single StaticBody3D with one cylinder per tree.
 ##
 ## The demo forest is generated from exported settings when this node enters
-## the scene tree; add_tree() and build() remain available for custom layouts.
+## the scene tree unless a custom layout was populated before entering it.
 
 const SEGMENTS := 8
 
@@ -16,12 +16,15 @@ const SEGMENTS := 8
 @export var inner_clear_radius := 5.0
 @export_range(1.0, 12.0, 1.0) var edge_spacing := 2.0
 
+var visual_only := false
+var cast_shadows := true
 var blobs_visible := true
 var _spots: Array[Transform3D] = []
 
 
 func _ready() -> void:
-	_generate_spots()
+	if _spots.is_empty():
+		_generate_spots()
 	build()
 
 
@@ -46,8 +49,19 @@ func _generate_spots() -> void:
 		placed += 1
 
 
-func add_tree(pos: Vector3, s: float) -> void:
-	_spots.append(Transform3D(Basis.IDENTITY.scaled(Vector3.ONE * s), pos))
+func scatter_ring(rng: RandomNumberGenerator, count: int, half: float, band: Vector2,
+		tree_scale: Vector2) -> void:
+	for i in count:
+		var angle := rng.randf() * TAU
+		var direction := Vector2(cos(angle), sin(angle))
+		var edge := maxf(absf(direction.x), absf(direction.y))
+		var point := direction / edge * (half + rng.randf_range(band.x, band.y))
+		var s := rng.randf_range(tree_scale.x, tree_scale.y)
+		add_tree(Vector3(point.x, 0.0, point.y), s, rng.randf() * TAU)
+
+
+func add_tree(pos: Vector3, s: float, yaw := 0.0) -> void:
+	_spots.append(Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * s), pos))
 
 
 func build() -> void:
@@ -71,7 +85,11 @@ func build() -> void:
 		mm.set_instance_transform(i, _spots[i])
 	var mmi := MultiMeshInstance3D.new()
 	mmi.multimesh = mm
+	if not cast_shadows:
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mmi)
+	if visual_only:
+		return
 
 	# Blob shadows
 	var bmm := MultiMesh.new()

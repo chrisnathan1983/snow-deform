@@ -1,8 +1,14 @@
-extends Node3D
-## A sled that glides along a figure-8, carving two parallel grooves with berms.
-## Demonstrates elongated Deformers (aspect) and distance-based puffs.
+extends AnimatableBody3D
+## Carves parallel grooves along a figure eight or a wobbling orbit.
 
-const Props := preload("res://demos/scripts/demo_props.gd")
+enum PathMode { FIGURE_EIGHT, ORBIT }
+
+@export var path_mode := PathMode.FIGURE_EIGHT
+@export var orbit_radius := 7.0
+@export var orbit_speed := 0.6
+@export var height := 0.1
+@export_range(0.0, 2.0, 0.05, "or_greater") var wobble_amplitude := 0.3
+@export_range(0.0, 8.0, 0.1, "or_greater") var wobble_cycles := 3.0
 
 var amp := Vector2(10.0, 6.5)
 var rate := 0.45
@@ -12,41 +18,25 @@ var _t := 0.0
 var _runners: Array[Deformer] = []
 
 
-## Meshes of the sled. Authored in demos/props/sled.tscn; this builds the same
-## body in code when the script is used without that scene.
-static func build_visual(parent: Node3D) -> void:
-    var wood := Color(0.5, 0.33, 0.2)
-    Props.add_mesh(parent, Props.box(Vector3(0.9, 0.1, 1.7)), wood, Vector3(0, 0.22, 0))
-    Props.add_mesh(parent, Props.box(Vector3(0.9, 0.3, 0.08)), wood, Vector3(0, 0.38, 0.8))
-    for sx in [-1.0, 1.0]:
-        var x: float = sx * 0.32
-        Props.add_mesh(parent, Props.box(Vector3(0.07, 0.12, 2.0)), Color(0.35, 0.37, 0.42), Vector3(x, 0.1, -0.05))
-        Props.add_mesh(parent, Props.box(Vector3(0.07, 0.16, 0.2)), Color(0.35, 0.37, 0.42), Vector3(x, 0.2, -1.05), Vector3.ONE, Vector3(-30, 0, 0))
-        Props.add_mesh(parent, Props.box(Vector3(0.06, 0.14, 0.06)), wood, Vector3(x, 0.17, -0.5))
-        Props.add_mesh(parent, Props.box(Vector3(0.06, 0.14, 0.06)), wood, Vector3(x, 0.17, 0.5))
-    # a gift riding along
-    Props.add_mesh(parent, Props.box(Vector3(0.45, 0.35, 0.45)), Color(0.85, 0.15, 0.2), Vector3(0, 0.45, 0.15))
-    Props.add_mesh(parent, Props.box(Vector3(0.47, 0.37, 0.08)), Color(0.95, 0.8, 0.2), Vector3(0, 0.45, 0.15))
-    Props.add_mesh(parent, Props.box(Vector3(0.08, 0.37, 0.47)), Color(0.95, 0.8, 0.2), Vector3(0, 0.45, 0.15))
-
-
 func _ready() -> void:
-    if get_node_or_null("Visual") == null:
-        var visual := Node3D.new()
-        visual.name = "Visual"
-        add_child(visual)
-        build_visual(visual)
-    for sx in [-1.0, 1.0]:
-        var x: float = sx * 0.32
+    var orbiting := path_mode == PathMode.ORBIT
+    sync_to_physics = orbiting
+    set_physics_process(orbiting)
+    set_process(not orbiting)
+    $CollisionShape3D.disabled = not orbiting
+    for side in [-1.0, 1.0]:
+        var x: float = side * (0.35 if orbiting else 0.32)
         var d := Deformer.new()
         d.radius = 0.2
-        d.aspect = 5.0
-        d.strength = 0.9
-        d.puff_distance = 1.2
-        d.position = Vector3(x, 0.0, -0.1)
+        d.aspect = 3.0 if orbiting else 5.0
+        d.strength = 1.0 if orbiting else 0.9
+        d.puff_distance = 1.0 if orbiting else 1.2
+        d.position = Vector3(x, -0.1, 0.0) if orbiting else Vector3(x, 0.0, -0.1)
+        d.active = running
         add_child(d)
         _runners.append(d)
-    _place()
+    if not orbiting:
+        _place()
 
 
 func set_running(on: bool) -> void:
@@ -60,6 +50,21 @@ func _process(delta: float) -> void:
         return
     _t += delta * rate
     _place()
+
+
+func _physics_process(delta: float) -> void:
+    if not running:
+        return
+    _t += delta * orbit_speed
+    var wobble_angle := _t * wobble_cycles
+    var radius := orbit_radius + sin(wobble_angle) * wobble_amplitude
+    var radial_speed := cos(wobble_angle) * wobble_amplitude * wobble_cycles
+    var tangent := Vector2(
+        -sin(_t) * radius + cos(_t) * radial_speed,
+        cos(_t) * radius + sin(_t) * radial_speed)
+    var heading := atan2(-tangent.x, -tangent.y)
+    var next_position := Vector3(cos(_t) * radius, height, sin(_t) * radius)
+    global_transform = Transform3D(Basis(Vector3.UP, heading), next_position)
 
 
 func _place() -> void:

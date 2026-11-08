@@ -3,9 +3,9 @@
 [ext_resource type="Script" uid="uid://bm2dt855iutns" path="res://demos/scripts/classic.gd" id="1_main"]
 [ext_resource type="Script" uid="uid://3cab4qgnuplj" path="res://demos/scripts/pine_forest.gd" id="2_forest"]
 [ext_resource type="Script" uid="uid://di5wn2d4q6734" path="res://demos/scripts/demo_camera.gd" id="3_camera"]
-[ext_resource type="Script" uid="uid://bwxae5djbn1j6" path="res://demos/scripts/demo_character.gd" id="4_player"]
+[ext_resource type="PackedScene" path="res://demos/characters/explorer.tscn" id="4_player"]
 [ext_resource type="PackedScene" path="res://demos/characters/npc.tscn" id="5_npc"]
-[ext_resource type="PackedScene" uid="uid://c1qxwd3hn6anl" path="res://demos/props/classic_sled.tscn" id="6_sled"]
+[ext_resource type="PackedScene" path="res://demos/props/sled.tscn" id="6_sled"]
 [ext_resource type="Script" uid="uid://c01n4wbhvbn0m" path="res://addons/deformable_surface/scripts/deformable_surface.gd" id="8_snow"]
 [ext_resource type="PackedScene" uid="uid://c01t78ey68jer" path="res://demos/characters/mouse.tscn" id="12_mouse"]
 [ext_resource type="Script" uid="uid://deupmvloejyfn" path="res://addons/snowfall/scripts/core/snow_world_manager.gd" id="13_weather"]
@@ -121,8 +121,7 @@ script = ExtResource("2_forest")
 
 [node name="Actors" type="Node3D" parent="." unique_id=908769467]
 
-[node name="Player" type="Node3D" parent="Actors" unique_id=2115864717]
-script = ExtResource("4_player")
+[node name="Player" parent="Actors" unique_id=2115864717 instance=ExtResource("4_player")]
 
 [node name="NPCs" type="Node3D" parent="Actors" unique_id=1585499757]
 
@@ -150,6 +149,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.2694845, 0, 0)
 
 [node name="Sled" parent="Actors" unique_id=529600014 instance=ExtResource("6_sled")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.730018, 0, 0)
+path_mode = 1
 orbit_speed = 0.1
 height = 0.2
 wobble_amplitude = 0.95

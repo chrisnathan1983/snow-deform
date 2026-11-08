@@ -2,8 +2,6 @@ extends Node3D
 ## A simple primitive-mesh character that leaves footprints via DeformerFootsteps.
 ## kind: "explorer" (player), "yeti", "penguin". Origin is at the feet, facing -Z.
 
-const Props := preload("res://demos/scripts/demo_props.gd")
-
 enum Role { PLAYER, WANDERER, FOLLOWER }
 
 const GRAVITY := 16.0
@@ -33,7 +31,6 @@ var obstacles: Array[Vector3] = []   # (x, radius, z)
 
 var on_ground := true
 var _vy := 0.0
-var _visual: Node3D
 var _foot: DeformerFootsteps
 var _speed := 0.0
 var _bob := 0.0
@@ -41,16 +38,10 @@ var _last_pos := Vector3.ZERO
 var _bob_amp := 0.07
 var _roll_amp := 0.05
 
+@onready var _visual: Node3D = $Visual
+
 
 func _ready() -> void:
-    # Character scenes (demos/characters/) ship their meshes under "Visual";
-    # without one the body is built in code.
-    _visual = get_node_or_null("Visual") as Node3D
-    var has_authored_visual := _visual != null
-    if not has_authored_visual:
-        _visual = Node3D.new()
-        _visual.name = "Visual"
-        add_child(_visual)
     var foot_radius := 0.2
     var foot_aspect := 2.2
     var spread := 0.12
@@ -59,8 +50,6 @@ func _ready() -> void:
     var strength := 1.0
     match kind:
         "yeti":
-            if not has_authored_visual:
-                _build_yeti()
             foot_radius = 0.4
             foot_aspect = 1.7
             spread = 0.34
@@ -71,8 +60,6 @@ func _ready() -> void:
             _bob_amp = 0.12
             _roll_amp = 0.04
         "penguin":
-            if not has_authored_visual:
-                _build_penguin()
             foot_radius = 0.13
             foot_aspect = 1.6
             spread = 0.08
@@ -83,9 +70,6 @@ func _ready() -> void:
             move_speed = 3.0
             _bob_amp = 0.03
             _roll_amp = 0.24
-        _:
-            if not has_authored_visual:
-                _build_explorer()
     _foot = DeformerFootsteps.new()
     _foot.foot_radius = foot_radius
     _foot.foot_aspect = foot_aspect
@@ -194,59 +178,3 @@ func _animate(delta: float) -> void:
     _bob += _speed * delta * 3.2
     _visual.position.y = absf(sin(_bob)) * _bob_amp * k
     _visual.rotation.z = sin(_bob) * _roll_amp * k
-
-
-# ---------------------------------------------------------------- visuals
-
-func _build_explorer() -> void:
-    var v := _visual
-    var dark := Color(0.14, 0.14, 0.2)
-    Props.add_mesh(v, Props.capsule(0.27, 1.05), Color(0.82, 0.16, 0.18), Vector3(0, 0.8, 0))
-    Props.add_mesh(v, Props.cylinder(0.09, 0.5, 8), dark, Vector3(-0.1, 0.25, 0))
-    Props.add_mesh(v, Props.cylinder(0.09, 0.5, 8), dark, Vector3(0.1, 0.25, 0))
-    Props.add_mesh(v, Props.box(Vector3(0.14, 0.1, 0.3)), Color(0.3, 0.2, 0.12), Vector3(-0.1, 0.05, -0.04))
-    Props.add_mesh(v, Props.box(Vector3(0.14, 0.1, 0.3)), Color(0.3, 0.2, 0.12), Vector3(0.1, 0.05, -0.04))
-    Props.add_mesh(v, Props.sphere(0.21), Color(0.96, 0.78, 0.65), Vector3(0, 1.57, 0))
-    Props.add_mesh(v, Props.cone(0.24, 0.34, 10), Color(0.2, 0.4, 0.85), Vector3(0, 1.9, 0))
-    Props.add_mesh(v, Props.sphere(0.07, 8), Color(1, 1, 1), Vector3(0, 2.08, 0))
-    Props.add_mesh(v, Props.cylinder(0.3, 0.1, 10), Color(0.95, 0.8, 0.2), Vector3(0, 1.34, 0))
-    Props.add_mesh(v, Props.sphere(0.03, 6), Color(0.05, 0.05, 0.08), Vector3(-0.08, 1.6, -0.19))
-    Props.add_mesh(v, Props.sphere(0.03, 6), Color(0.05, 0.05, 0.08), Vector3(0.08, 1.6, -0.19))
-    Props.add_mesh(v, Props.sphere(0.035, 6), Color(1.0, 0.55, 0.2), Vector3(0, 1.55, -0.21))
-    Props.add_mesh(v, Props.box(Vector3(0.3, 0.4, 0.15)), Color(0.45, 0.3, 0.15), Vector3(0, 0.95, 0.27))
-
-
-func _build_yeti() -> void:
-    var v := _visual
-    var fur := Color(0.82, 0.88, 0.97)
-    var dark := Color(0.2, 0.25, 0.38)
-    Props.add_mesh(v, Props.cylinder(0.17, 0.7, 8), fur, Vector3(-0.3, 0.4, 0))
-    Props.add_mesh(v, Props.cylinder(0.17, 0.7, 8), fur, Vector3(0.3, 0.4, 0))
-    Props.add_mesh(v, Props.box(Vector3(0.3, 0.12, 0.5)), dark, Vector3(-0.3, 0.06, -0.05))
-    Props.add_mesh(v, Props.box(Vector3(0.3, 0.12, 0.5)), dark, Vector3(0.3, 0.06, -0.05))
-    Props.add_mesh(v, Props.sphere(0.62), fur, Vector3(0, 1.3, 0), Vector3(1.0, 1.15, 0.95))
-    Props.add_mesh(v, Props.capsule(0.15, 0.95), fur, Vector3(-0.78, 1.2, -0.05), Vector3.ONE, Vector3(0, 0, 14))
-    Props.add_mesh(v, Props.capsule(0.15, 0.95), fur, Vector3(0.78, 1.2, -0.05), Vector3.ONE, Vector3(0, 0, -14))
-    Props.add_mesh(v, Props.sphere(0.38), fur, Vector3(0, 2.15, -0.05))
-    Props.add_mesh(v, Props.sphere(0.26, 10), Color(0.7, 0.8, 0.95), Vector3(0, 2.1, -0.22), Vector3(1.0, 0.85, 0.6))
-    Props.add_mesh(v, Props.sphere(0.05, 6), Color(0.04, 0.04, 0.08), Vector3(-0.13, 2.2, -0.34))
-    Props.add_mesh(v, Props.sphere(0.05, 6), Color(0.04, 0.04, 0.08), Vector3(0.13, 2.2, -0.34))
-    Props.add_mesh(v, Props.box(Vector3(0.22, 0.05, 0.05)), Color(0.15, 0.08, 0.1), Vector3(0, 2.02, -0.36))
-    Props.add_mesh(v, Props.cone(0.07, 0.25, 6), Color(0.95, 0.95, 0.9), Vector3(-0.22, 2.5, 0), Vector3.ONE, Vector3(0, 0, 20))
-    Props.add_mesh(v, Props.cone(0.07, 0.25, 6), Color(0.95, 0.95, 0.9), Vector3(0.22, 2.5, 0), Vector3.ONE, Vector3(0, 0, -20))
-
-
-func _build_penguin() -> void:
-    var v := _visual
-    var dark := Color(0.1, 0.12, 0.18)
-    var orange := Color(1.0, 0.6, 0.15)
-    Props.add_mesh(v, Props.capsule(0.2, 0.7), dark, Vector3(0, 0.45, 0))
-    Props.add_mesh(v, Props.sphere(0.17, 10), Color(0.97, 0.97, 1.0), Vector3(0, 0.45, -0.09), Vector3(1.0, 1.3, 0.6))
-    Props.add_mesh(v, Props.sphere(0.14, 10), dark, Vector3(0, 0.88, 0))
-    Props.add_mesh(v, Props.cone(0.04, 0.12, 6), orange, Vector3(0, 0.85, -0.18), Vector3.ONE, Vector3(-90, 0, 0))
-    Props.add_mesh(v, Props.sphere(0.025, 6), Color(1, 1, 1), Vector3(-0.06, 0.92, -0.11))
-    Props.add_mesh(v, Props.sphere(0.025, 6), Color(1, 1, 1), Vector3(0.06, 0.92, -0.11))
-    Props.add_mesh(v, Props.box(Vector3(0.04, 0.28, 0.12)), dark, Vector3(-0.22, 0.5, 0), Vector3.ONE, Vector3(0, 0, 15))
-    Props.add_mesh(v, Props.box(Vector3(0.04, 0.28, 0.12)), dark, Vector3(0.22, 0.5, 0), Vector3.ONE, Vector3(0, 0, -15))
-    Props.add_mesh(v, Props.box(Vector3(0.1, 0.03, 0.16)), orange, Vector3(-0.08, 0.02, -0.04))
-    Props.add_mesh(v, Props.box(Vector3(0.1, 0.03, 0.16)), orange, Vector3(0.08, 0.02, -0.04))

@@ -1,9 +1,6 @@
 extends Node3D
 ## Deformable Snow - demo scene.
 ##
-## Everything is built from code and primitive meshes, so the only requirement is the
-## addon at res://addons/deformable_surface/ and the Compatibility renderer.
-##
 ## Desktop: WASD/arrows move, Shift run, Space jump, drag = look, click = throw snowball,
 ##          wheel = zoom, M = menu, R = reset tracks, 1/2/3 = quality.
 ## Touch:   left half drag = move joystick, right half drag = camera joystick, tap = throw.
@@ -37,7 +34,7 @@ var stick: TouchSticks
 var _rng := RandomNumberGenerator.new()
 var _obstacles: Array[Vector3] = []
 var _balls: Array[Node3D] = []
-var _penguins: Array[Node3D] = []
+var _penguins: Array[DemoCharacter] = []
 var _yeti: Node3D
 var _snowangel: Snowangel
 
@@ -166,8 +163,8 @@ func _build_scenery() -> void:
     Props.add_hills(self, _rng, GROUND_Y)
     if _has_fence():
         Props.add_fence(self, HALF, GROUND_Y)
-    Props.add_forest(self, _rng, 46, HALF, 1.5, 12.0, 0.8, 1.5, GROUND_Y, true)
-    Props.add_forest(self, _rng, 170, HALF, 22.0, 75.0, 1.2, 2.6, GROUND_Y, false)
+    _add_forest(46, Vector2(1.5, 12.0), Vector2(0.8, 1.5), true)
+    _add_forest(170, Vector2(22.0, 75.0), Vector2(1.2, 2.6), false)
 
     # Obstacles inside the field, kept away from the sled path, yeti loop and spawn point.
     var keep := DemoSled.sample_path(Vector2(10.0, 6.5), 120)
@@ -185,6 +182,15 @@ func _build_scenery() -> void:
         Props.add_snowman(self, Vector3(p.x, 0, p.y), _rng.randf() * 360.0)
         _obstacles.append(Vector3(p.x, 0.65, p.y))
         keep.append(p)
+
+
+func _add_forest(count: int, band: Vector2, tree_scale: Vector2, cast_shadows: bool) -> void:
+    var forest := PineForest.new()
+    forest.position.y = GROUND_Y
+    forest.visual_only = true
+    forest.cast_shadows = cast_shadows
+    forest.scatter_ring(_rng, count, HALF, band, tree_scale)
+    add_child(forest)
 
 
 func _has_fence() -> bool:
@@ -212,6 +218,7 @@ func _build_actors() -> void:
     player = _make_character("explorer", DemoCharacter.Role.PLAYER)
     player.position = Vector3(0, 0, 4.0)
     player.obstacles = _obstacles
+    player.half_extent = _actor_half_extent()
     add_child(player)
 
     # weather follows the player
@@ -230,7 +237,6 @@ func _build_actors() -> void:
     var yaw := 0.0
     _snowangel = Snowangel.make(self, Vector3(x, 0.0, z), yaw)
     _snowangel.cycles = 10
-    #await _snowangel.finished    # limbs have finished sweeping; the node then frees itself
 
     _yeti = _make_character("yeti", DemoCharacter.Role.WANDERER)
     _yeti.circle_center = Vector3(-2.0, 0, -10.5)
@@ -243,6 +249,7 @@ func _build_actors() -> void:
         pg.follow_target = prev
         pg.follow_distance = 1.1 + 0.1 * float(i)
         pg.obstacles = _obstacles
+        pg.half_extent = player.half_extent
         pg.position = Vector3(0.4 * float(i + 1) - 1.0, 0, 5.8 + 0.9 * float(i))
         add_child(pg)
         _penguins.append(pg)
@@ -262,6 +269,10 @@ func _build_actors() -> void:
         b.position = Vector3(_rng.randf_range(-10, 10), b.radius + _rng.randf() * 2.0, _rng.randf_range(-10, 10))
         add_child(b)
         _balls.append(b)
+
+
+func _actor_half_extent() -> float:
+    return HALF - 0.8
 
 
 func _make_character(kind: String, role: int) -> DemoCharacter:

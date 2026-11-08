@@ -93,40 +93,6 @@ static func _multimesh(parent: Node3D, mesh: Mesh, color: Color, xforms: Array[T
     parent.add_child(mi)
 
 
-## Pine trees scattered in a square ring outside the snow field.
-## Each tree = trunk + 3 green tiers + 3 white snow caps, drawn with 7 MultiMeshes.
-static func add_forest(parent: Node3D, rng: RandomNumberGenerator, count: int, half: float,
-        band_min: float, band_max: float, scale_min: float, scale_max: float,
-        ground_y: float, cast_shadows: bool) -> void:
-    var trunks: Array[Transform3D] = []
-    var tiers: Array[Array] = [[], [], []]
-    var caps: Array[Array] = [[], [], []]
-    # tier radius, height, center-y (per unit scale)
-    var spec := [Vector3(1.5, 2.4, 1.9), Vector3(1.15, 2.0, 3.0), Vector3(0.8, 1.7, 4.25)]
-    for i in count:
-        var a := rng.randf() * TAU
-        var dir := Vector2(cos(a), sin(a))
-        var m := maxf(absf(dir.x), absf(dir.y))
-        var p := dir / m * (half + rng.randf_range(band_min, band_max))
-        var s := rng.randf_range(scale_min, scale_max)
-        var base := Vector3(p.x, ground_y, p.y)
-        var yaw := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s, s))
-        trunks.append(Transform3D(yaw, base + Vector3(0, 0.6 * s, 0)))
-        for t in 3:
-            var sp: Vector3 = spec[t]
-            tiers[t].append(Transform3D(yaw, base + Vector3(0, sp.z * s, 0)))
-            caps[t].append(Transform3D(yaw, base + Vector3(0, (sp.z + 0.25 * sp.y) * s, 0)))
-    _multimesh(parent, cylinder(0.18, 1.2, 6), Color(0.33, 0.22, 0.14), trunks, cast_shadows)
-    for t in 3:
-        var sp: Vector3 = spec[t]
-        var tier_xf: Array[Transform3D] = []
-        tier_xf.assign(tiers[t])
-        var cap_xf: Array[Transform3D] = []
-        cap_xf.assign(caps[t])
-        _multimesh(parent, cone(sp.x, sp.y, 7), Color(0.10, 0.27, 0.20), tier_xf, cast_shadows)
-        _multimesh(parent, cone(sp.x * 0.62, sp.y * 0.5, 7), Color(0.93, 0.96, 1.0), cap_xf, cast_shadows)
-
-
 static func add_hills(parent: Node3D, rng: RandomNumberGenerator, ground_y: float) -> void:
     for i in 14:
         var a := TAU * float(i) / 14.0 + rng.randf() * 0.3
