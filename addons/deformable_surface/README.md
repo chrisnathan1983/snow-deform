@@ -5,7 +5,8 @@ deformers, builds small berms beside tracks, gradually heals tracks over time,
 and can emit puffs from surface contact.
 
 The addon is designed for the **Compatibility renderer** (WebGL2 and mobile
-friendly) and requires **Godot 4.3 or newer**.
+friendly). This release targets and is tested on **Godot 4.7**; earlier minor
+versions are not verified.
 
 ## Installation
 

@@ -36,12 +36,12 @@ Items are ordered by priority. Findings marked *(audit)* come from a read-throug
 ## P2 — Bring docs back in sync
 
 - [ ] **Separate project and addon documentation.** Keep installation and demo instructions in the root README. Keep the deformable-surface API in `addons/deformable_surface/README.md`; remove duplicated API sections from the root README after checking that links still work.
-- [ ] **Fix the contact signal in the changelog.** It currently names the argument `surface_type`; the signal and addon README use `type_name`.
+- [x] **Fix the contact signal in the changelog.** The signal signature now names the argument `type_name`, matching the signal and addon README.
 - [ ] **Resolve the Medium subdivision mismatch.** `DeformableSurfaceQuality` and the docs use `subdiv = 127`, while `resources/quality/medium.tres` uses 128. Choose the intended value and update the preset and docs consistently.
 - [ ] **Remove stale README statements.**
   - The root README's "subtract-blend refill pass" is outdated; refill uses `blend_mix`.
   - The README layout omits `deformation_map.gd`, `stamp_batch_renderer.gd`, `initial_noise_textures.gd`, and the analytic stamp and initial-noise shaders, and still lists `snowfall/scripts/utilities/`.
-- [ ] **State the supported engine version honestly.** The addon README says "Godot 4.3 or newer", but the project only targets and tests 4.7. Either test on 4.3 or change the wording.
+- [x] **State the supported engine version honestly.** The addon README now says this release targets and is tested on Godot 4.7; earlier minor versions are unverified.
 - [ ] **Document moving a surface.** Moving a `DeformableSurface` after setup leaves the noise origin stale until `reset_trails()`. Document it or handle it in the node.
 
 ## P3 — Minor cleanups

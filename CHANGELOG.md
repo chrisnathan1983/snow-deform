@@ -18,7 +18,7 @@ First packaged release.
   snowfall healing, sparkle shader, Low / Medium / High presets, editor preview.
 - Deformer, DeformerFootsteps: anything can dent the snow; characters get
   alternating boot prints with speed-based stride.
-- `DeformableSurface.contact(position, depth, surface_type, source, radius, puff)` signal on footfalls and
+- `DeformableSurface.contact(position, depth, type_name, source, radius, puff)` signal on footfalls and
   `stamp_at` impacts; surface types gained a `type_name` label.
 - The launcher opens Playground, Powder Run, Material Showcase, and Custom Terrain & Grass.
   Playground combines the fenced arena and infinite snowfields. Its Scene tab switches modes and
