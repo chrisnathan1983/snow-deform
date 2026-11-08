@@ -75,8 +75,14 @@ func _drag(index: int, pos: Vector2) -> void:
 		if slot["id"] != index:
 			continue
 		var radius := RADIUS * stick_scale
-		var off: Vector2 = (pos - slot["origin"]).limit_length(radius)
-		slot["pos"] = slot["origin"] + off
+		var off: Vector2 = pos - slot["origin"]
+		if off.length() > radius:
+			# Let the floating base follow the finger after the knob reaches its edge.
+			# Keeping the knob one radius behind preserves full-strength input.
+			var direction := off.normalized()
+			slot["origin"] = pos - direction * radius
+			off = direction * radius
+		slot["pos"] = pos
 		if pos.distance_to(slot["origin"]) > TAP_SLOP * stick_scale:
 			slot["moved"] = true
 		var v := off / radius

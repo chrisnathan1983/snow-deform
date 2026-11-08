@@ -32,13 +32,13 @@ SnowWorldManager supplies shared weather.
 The **Powder Run** demo (`demos/ski_free.tscn`) is a SkiFree-inspired
 3D arcade slope with an angled orthographic camera, endless recycled snow,
 continuous carved ski tracks, trees, rocks, jump ramps, and scored slalom gates.
-Steer with A/D or Left/Right, tuck with W/Up, brake with S/Down, and jump with
+Steer with A/D or Left/Right, tuck with W/Down, brake with S/Up, and jump with
 Space. P pauses, R starts a fresh run, and Esc returns to the launcher.
 It has its own compact game HUD and touch controls.
 Its default mobile lighting uses a shadowless sun, cheap contact blobs, and
 matte snow without specular glare or sparkle; tracks retain their shaded grooves.
 On touchscreens, use the same floating joystick as the other demos: drag on the
-left half to steer, push forward to tuck, and pull back to brake. Tap **Jump**
+left half to steer, push forward to brake, and pull back to tuck. Tap **Jump**
 with another finger while steering. Pause and rotating the screen release the stick.
 Web builds support both portrait and landscape, with a scrolling launcher and
 a ski camera that adapts when the browser changes size.

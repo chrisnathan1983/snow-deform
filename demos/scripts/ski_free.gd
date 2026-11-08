@@ -273,8 +273,8 @@ func _physics_process(delta: float) -> void:
 		return
 	var steer := float(Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT)) - float(Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT))
 	steer = clampf(steer + touch_sticks.move.x, -1.0, 1.0)
-	var braking := touch_sticks.move.y > 0.35 or Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN)
-	var tuck := touch_sticks.move.y < -0.35 or Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP)
+	var braking := touch_sticks.move.y < -0.35 or Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_UP)
+	var tuck := touch_sticks.move.y > 0.35 or Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_DOWN)
 	invincible = maxf(0, invincible - delta)
 	crash_time = maxf(0, crash_time - delta)
 	if crash_time > 0:
@@ -435,7 +435,7 @@ func _build_hud() -> void:
 	var restart := _button("New run (R)", func(): get_tree().reload_current_scene())
 	buttons.add_child(restart)
 	_touch_blockers.append_array([pause_button, restart])
-	_hint = _label("A/D or ←/→ steer   W/↑ tuck   S/↓ brake   SPACE jump", 15)
+	_hint = _label("A/D or ←/→ steer   W/↓ tuck   S/↑ brake   SPACE jump", 15)
 	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	bottom.add_child(_hint)
@@ -449,7 +449,7 @@ func _build_hud() -> void:
 	_touch_ui.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_touch_ui.visible = OS.has_feature("web") or OS.has_feature("mobile") or DisplayServer.is_touchscreen_available()
 	layer.add_child(_touch_ui)
-	var instruction := _label("Drag left side to steer\nForward: tuck / Back: brake", 18)
+	var instruction := _label("Drag left side to steer\nForward: brake / Back: tuck", 18)
 	instruction.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	instruction.offset_left = 24
 	instruction.offset_top = -200
