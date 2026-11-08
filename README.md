@@ -185,6 +185,7 @@ Technical settings live in `DeformableSurfaceQuality` (not on the node). In-plac
 | `refill_interval` | Pass rate of the trail-healing refill. |
 | `puff`, `puff_min_interval` | Puff particle budget and per-deformer rate limit. |
 | `sparkle` | Quality scale for the material's `sparkle_strength`. |
+| `textured_berm_dilation` | Enable the eight-sample berm expansion around textured stamps (off by default). |
 
 Material-specific settings live in `DeformableSurfaceType` (`surface_type`); without one, snow-like defaults apply:
 

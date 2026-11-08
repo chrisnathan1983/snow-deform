@@ -5,7 +5,8 @@ uniform float berm_strength = 0.15;
 uniform float berm_height_ratio = 0.32;
 uniform float normal_strength = 10.0;
 uniform float map_resolution = 512.0;
-uniform bool textured_berm_dilation_enabled = true;
+uniform bool textured_berm_dilation_enabled = false;
+uniform sampler2D stamp_texture;
 
 const float MAP_NEUTRAL = 128.0 / 255.0;
 const float BERM_REACH = 2.0;
@@ -22,12 +23,12 @@ void vertex() {
 }
 
 // Alpha of the stamp sprite at a footprint-space pixel offset (0 outside the texture).
-float sprite_alpha(sampler2D tex, vec2 p, vec2 pit_rad, float is_segment, float flag, float phase) {
+float sprite_alpha(vec2 p, vec2 pit_rad, float is_segment, float flag, float phase) {
 	vec2 footprint_uv = p / (2.0 * pit_rad) + vec2(0.5);
 	vec2 sprite_uv = vec2(footprint_uv.y, 1.0 - footprint_uv.x);
 	if (is_segment > 0.5) {
 		// One tile is as long as the track is wide times the texture's height/width ratio.
-		vec2 tex_size = vec2(textureSize(tex, 0));
+		vec2 tex_size = vec2(textureSize(stamp_texture, 0));
 		float tile_px = 2.0 * pit_rad.y * tex_size.y / tex_size.x;
 		sprite_uv.y = 1.0 - fract(phase + p.x / tile_px);
 	}
@@ -37,7 +38,7 @@ float sprite_alpha(sampler2D tex, vec2 p, vec2 pit_rad, float is_segment, float 
 	if (any(lessThan(sprite_uv, vec2(0.0))) || any(greaterThan(sprite_uv, vec2(1.0)))) {
 		return 0.0;
 	}
-	return texture(tex, sprite_uv).a;
+	return texture(stamp_texture, sprite_uv).a;
 }
 
 void fragment() {
@@ -81,14 +82,14 @@ void fragment() {
 	vec2 sprite_grad = vec2(0.0);
 	float sprite_cover = 1.0;
 	if (has_sprite > 0.5) {
-		sprite_mask = sprite_alpha(TEXTURE, pos_px, pit_rad, is_segment, stamp_data.w, stamp_phase);
+		sprite_mask = sprite_alpha(pos_px, pit_rad, is_segment, stamp_data.w, stamp_phase);
 		// Alpha gradient (central differences) shapes the pit walls to the sprite outline.
 		float eps = max(0.04 * pit_rad.y, 1.0);
 		sprite_grad = vec2(
-			sprite_alpha(TEXTURE, pos_px + vec2(eps, 0.0), pit_rad, is_segment, stamp_data.w, stamp_phase)
-				- sprite_alpha(TEXTURE, pos_px - vec2(eps, 0.0), pit_rad, is_segment, stamp_data.w, stamp_phase),
-			sprite_alpha(TEXTURE, pos_px + vec2(0.0, eps), pit_rad, is_segment, stamp_data.w, stamp_phase)
-				- sprite_alpha(TEXTURE, pos_px - vec2(0.0, eps), pit_rad, is_segment, stamp_data.w, stamp_phase)
+			sprite_alpha(pos_px + vec2(eps, 0.0), pit_rad, is_segment, stamp_data.w, stamp_phase)
+				- sprite_alpha(pos_px - vec2(eps, 0.0), pit_rad, is_segment, stamp_data.w, stamp_phase),
+			sprite_alpha(pos_px + vec2(0.0, eps), pit_rad, is_segment, stamp_data.w, stamp_phase)
+				- sprite_alpha(pos_px - vec2(0.0, eps), pit_rad, is_segment, stamp_data.w, stamp_phase)
 		) / (2.0 * eps);
 		if (mode < 0.5 && berm_strength > 0.0 && textured_berm_dilation_enabled) {
 			// Dilated alpha: the berm only exists near the sprite's footprint, not as a full oval.
@@ -96,7 +97,7 @@ void fragment() {
 			for (int i = 0; i < 8; i++) {
 				float a = float(i) * 0.78539816339;
 				vec2 o = vec2(cos(a), sin(a)) * pit_rad * 0.4;
-				sprite_cover = max(sprite_cover, sprite_alpha(TEXTURE, pos_px + o, pit_rad, is_segment, stamp_data.w, stamp_phase));
+				sprite_cover = max(sprite_cover, sprite_alpha(pos_px + o, pit_rad, is_segment, stamp_data.w, stamp_phase));
 			}
 		}
 	}

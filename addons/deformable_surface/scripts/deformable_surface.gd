@@ -31,8 +31,8 @@ enum StampMode { CARVE, RAISE, SMOOTH }
 const SurfacePuffs = preload("deformers/deformer_particles.gd")
 const SURFACE_SHADER: Shader = preload("../shaders/deformable_surface.gdshader")
 const REFILL_SHADER: Shader = preload("../shaders/deformable_surface_refill.gdshader")
-const STAMP_SHADER: Shader = preload("../shaders/deformable_surface_stamp.gdshader")
-const INITIAL_NOISE_SHADER: Shader = preload("../shaders/deformable_surface_initial_noise.gdshader")
+const STAMP_ANALYTIC_SHADER: Shader = preload("../shaders/deformable_surface_stamp_analytic.gdshader")
+const STAMP_SPRITE_SHADER: Shader = preload("../shaders/deformable_surface_stamp.gdshader")
 const InitialNoiseTextures = preload("initial_noise_textures.gd")
 const BERM_REACH := 2.0     # berm ring radius, in brush radii
 const BERM_FORWARD := 0.3   # elongated prints push their berm ahead by this fraction
@@ -52,6 +52,22 @@ class PendingStamp:
 	var aspect := 1.0
 	var puff := false
 	var silent := false
+	var track := false
+	var phase := 0.0
+	var capsule := false
+
+
+class StampRequest:
+	extends RefCounted
+	var pos := Vector2.ZERO
+	var radius_px := 0.0
+	var heading := 0.0
+	var aspect := 1.0
+	var strength := 1.0
+	var sliding := false
+	var texture: Texture2D
+	var flip_x := false
+	var mode := 0
 	var track := false
 	var phase := 0.0
 	var capsule := false
@@ -122,27 +138,19 @@ var _updating_quality := false
 
 var _runtime := false          # true once running in the game (not the editor)
 var _mat: ShaderMaterial       # our private copy of the material
-var _vp: SubViewport
-var _bg: Control
+var _map: DeformationMap
+var _vp: SubViewport # Temporary compatibility alias for existing project scripts.
 var _batching_surface_settings := false
 var _surface_clear_pending := false
-var _refill: ColorRect
-var _refill_material: ShaderMaterial
 var _mesh: MeshInstance3D
-var _stamp_tex: GradientTexture2D
-var _stamp_add_material: ShaderMaterial
-var _stamp_multimesh: MultiMesh
-var _stamp_instance: MultiMeshInstance2D
-var _stamp_batches: Array[Dictionary] = []
-var _stamps_used := 0
 # Per-frame cost of each operation, read through get_frame_costs().
 var _cost_deformers_us := 0
 var _cost_queued_us := 0
 var _cost_puffs_us := 0
-var _cost_stamp_px := 0.0
 var _cost_refill_px := 0.0
 var _pending_stamps: Array[PendingStamp] = []
 var _pending_stamp_pool: Array[PendingStamp] = []
+var _stamp_scratch := StampRequest.new()
 var _dirty_deformers: Array[Deformer] = []
 var _known := {}       # deformer instance_id -> true (we've connected its tree_exiting)
 var _last := {}        # deformer instance_id -> last stamped pixel pos
@@ -190,28 +198,11 @@ func _ready() -> void:
 	_connect_surface_type_changed()
 	_applied_surface_state = _surface_type_state()
 
-	_make_brushes()
-
-	_vp = SubViewport.new()
-	_vp.disable_3d = true
-	_vp.transparent_bg = false
-	_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED   # _process requests UPDATE_ONCE
-	_vp.render_target_clear_mode = SubViewport.CLEAR_MODE_NEVER
-	add_child(_vp)
-
-	# Draw order inside the map: bg, refill pass, then stamps.
-	_refill = _make_refill_rect(REFILL_SHADER)
-	_stamp_instance = MultiMeshInstance2D.new()
-	_stamp_instance.multimesh = _stamp_multimesh
-	_stamp_instance.texture = _stamp_tex
-	_stamp_instance.material = _stamp_add_material
-	_vp.add_child(_stamp_instance)
-	_stamp_batches.append({
-		"texture": null,
-		"multimesh": _stamp_multimesh,
-		"instance": _stamp_instance,
-		"used": 0,
-	})
+	_map = DeformationMap.new()
+	add_child(_map)
+	_map.setup(REFILL_SHADER, STAMP_ANALYTIC_SHADER, STAMP_SPRITE_SHADER,
+			mini(max_stamps_per_frame, STAMP_CAPACITY))
+	_vp = _map.viewport
 
 	if render_mesh:
 		_create_runtime_mesh()
@@ -347,7 +338,17 @@ func _values() -> DeformableSurfaceType:
 
 ## Stamps drawn this frame, out of `max_stamps_per_frame` (for performance readouts).
 func get_stamps_used() -> int:
-	return _stamps_used
+	return _map.stamp_renderer.stamps_used if _map != null else 0
+
+
+## Number of stamp texture batches allocated by this surface.
+func get_stamp_batch_count() -> int:
+	return _map.stamp_renderer.get_batch_count() if _map != null else 0
+
+
+## Number of stamp texture batches used during the current frame.
+func get_active_stamp_batch_count() -> int:
+	return _map.stamp_renderer.get_active_batch_count() if _map != null else 0
 
 
 ## What this frame cost, per operation, for performance readouts. CPU values are milliseconds.
@@ -361,7 +362,7 @@ func get_frame_costs() -> Dictionary:
 		"deformers_ms": _cost_deformers_us / 1000.0,
 		"queued_ms": _cost_queued_us / 1000.0,
 		"puffs_ms": _cost_puffs_us / 1000.0,
-		"stamp_mpx": _cost_stamp_px / 1000000.0,
+		"stamp_mpx": (_map.stamp_renderer.cost_pixels if _map != null else 0.0) / 1000000.0,
 		"refill_mpx": _cost_refill_px / 1000000.0,
 		"mesh_kverts": verts / 1000.0,
 	}
@@ -384,16 +385,21 @@ func warm_up_effects(tread: Texture2D, puff_position: Vector3) -> void:
 		max_stamps_per_frame = 4
 		_configure_stamp_capacity()
 	_reset_stamp_counts()
-	var center := Vector2(_vp.size) * 0.5
-	_stamp(center + Vector2(-16, 0), 4.0, 0.0, 1.0, 0.5)
-	_stamp(center + Vector2(-5, 0), 4.0, 0.0, 2.0, 0.5, false,
-		null, false, StampMode.CARVE, false, 0.0, true)
-	_stamp(center + Vector2(5, 0), 4.0, 0.0, 1.0, 0.5, false, tread)
-	_stamp(center + Vector2(16, 0), 4.0, 0.0, 2.0, 0.5, false,
-		tread, false, StampMode.CARVE, true)
+	var center := Vector2(_map.viewport.size) * 0.5
+	_stamp(_prepare_stamp(center + Vector2(-16, 0), 4.0, 0.0, 1.0, 0.5))
+	var capsule := _prepare_stamp(center + Vector2(-5, 0), 4.0, 0.0, 2.0, 0.5)
+	capsule.capsule = true
+	_stamp(capsule)
+	var sprite := _prepare_stamp(center + Vector2(5, 0), 4.0, 0.0, 1.0, 0.5)
+	sprite.texture = tread
+	_stamp(sprite)
+	var track := _prepare_stamp(center + Vector2(16, 0), 4.0, 0.0, 2.0, 0.5)
+	track.texture = tread
+	track.track = true
+	_stamp(track)
 	max_stamps_per_frame = budget
 	_submit_stamp_batches()
-	_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	_map.request_render()
 	if _values().puffs_enabled:
 		_ensure_puff_pool()
 		_puffs.warm_up(puff_position)
@@ -409,7 +415,7 @@ func finish_effects_warmup() -> void:
 	_configure_stamp_capacity()
 	_submit_stamp_batches()
 	_clear_map()
-	_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	_map.request_render()
 
 
 ## One-shot stamp at a world position: explosions, impacts, falling objects, a snow plow
@@ -529,10 +535,13 @@ func _flush_pending_stamps(res: Vector2, px_per_m: float) -> void:
 		var s := _pending_stamps[read_index]
 		var local := s.local
 		var pos := (Vector2(local.x, local.z) / area_size + Vector2(0.5, 0.5)) * res
-		if _prime_frames > 0 or not _stamp(
-			pos, s.radius * px_per_m, s.heading, s.aspect, s.strength,
-			false, s.shape, false, s.mode, s.track, s.phase, s.capsule
-		):
+		var request := _prepare_stamp(
+			pos, s.radius * px_per_m, s.heading, s.aspect, s.strength, s.mode)
+		request.texture = s.shape
+		request.track = s.track
+		request.phase = s.phase
+		request.capsule = s.capsule
+		if _prime_frames > 0 or not _stamp(request):
 			_pending_stamps[write_index] = s
 			write_index += 1
 			continue
@@ -577,7 +586,7 @@ func set_render_mesh(value: bool) -> void:
 ## The live deformation map (R = height, G/B = X/Z slopes), or null before the surface is ready.
 ## Bind it in your own shader and decode it with deformable_surface.gdshaderinc.
 func get_deform_texture() -> Texture2D:
-	return _vp.get_texture() if _vp != null else null
+	return _map.get_texture() if _map != null else null
 
 
 ## (center_x, center_z, 1 / size_x, 1 / size_z) in world space, for deform_world_to_uv().
@@ -747,7 +756,7 @@ func _on_surface_type_changed() -> void:
 		_adopt_material()
 		_configured_material_source = _source_material()
 	_configure_material()
-	_configure_stamp_material(_stamp_add_material)
+	_map.configure_stamp_material(_values(), _active_quality_settings.textured_berm_dilation)
 	_configure_particles()
 	_sun_dir = Vector3.ZERO
 	var current_state := _surface_type_state()
@@ -792,46 +801,15 @@ func _surface_type_state() -> Array:
 	return [p.max_depth, p.berm_height, _starting_surface_key()]
 
 
-func _make_refill_rect(shader: Shader) -> ColorRect:
-	var r := ColorRect.new()
-	var m := ShaderMaterial.new()
-	m.shader = shader
-	r.material = m
-	_refill_material = m
-	r.visible = false
-	_vp.add_child(r)
-	return r
-
-
-func _make_brushes() -> void:
-	var g := Gradient.new()
-	g.set_color(0, Color.WHITE)
-	g.set_color(1, Color.WHITE)
-	_stamp_tex = GradientTexture2D.new()
-	_stamp_tex.gradient = g
-	_stamp_tex.width = 1
-	_stamp_tex.height = 1
-	_stamp_add_material = ShaderMaterial.new()
-	_stamp_add_material.shader = STAMP_SHADER
-	var quad := QuadMesh.new()
-	quad.size = Vector2(2.0, 2.0)
-	_stamp_multimesh = MultiMesh.new()
-	_stamp_multimesh.transform_format = MultiMesh.TRANSFORM_2D
-	_stamp_multimesh.use_colors = true
-	_stamp_multimesh.use_custom_data = true
-	_stamp_multimesh.mesh = quad
-	_stamp_multimesh.instance_count = mini(max_stamps_per_frame, STAMP_CAPACITY)
-	_stamp_multimesh.visible_instance_count = 0
-
 ## Applies the quality preset: map size, mesh density, shader params, particle counts.
 func _configure_quality() -> void:
 	var current := _active_quality_settings
-	if _vp.size != Vector2i(current.res, current.res):
+	if _map.viewport.size != Vector2i(current.res, current.res):
 		_configure_deformation_map()
 	if is_instance_valid(_mesh):
 		_configure_mesh()
 	_configure_material()
-	_configure_stamp_material(_stamp_add_material)
+	_map.configure_stamp_material(_values(), _active_quality_settings.textured_berm_dilation)
 	_configure_stamp_capacity()
 	_configure_particles()
 	_configured_quality_res = current.res
@@ -839,8 +817,7 @@ func _configure_quality() -> void:
 
 func _configure_deformation_map() -> void:
 	var res: int = _active_quality_settings.res
-	_vp.size = Vector2i(res, res)
-	_refill.size = Vector2(res, res)
+	_map.configure_resolution(res)
 
 
 func _configure_mesh() -> void:
@@ -854,7 +831,7 @@ func _configure_mesh() -> void:
 func _configure_material() -> void:
 	if is_instance_valid(_mesh):
 		_mesh.material_override = _mat
-	_mat.set_shader_parameter("deform_map", _vp.get_texture())
+	_mat.set_shader_parameter("deform_map", _map.get_texture())
 	_mat.set_shader_parameter("max_depth", max_depth)
 	_mat.set_shader_parameter("sparkle_intensity", _active_quality_settings.sparkle)
 	_mat.set_shader_parameter("wrapped_diffuse_lighting", wrapped_diffuse_lighting)
@@ -940,18 +917,7 @@ func _material_color(parameter: StringName, default: Color) -> Color:
 
 func _configure_stamp_capacity() -> void:
 	var capacity := mini(max_stamps_per_frame, STAMP_CAPACITY)
-	for batch in _stamp_batches:
-		var multimesh := batch["multimesh"] as MultiMesh
-		if multimesh.instance_count != capacity:
-			multimesh.instance_count = capacity
-
-
-func _configure_stamp_material(stamp_material: ShaderMaterial) -> void:
-	stamp_material.set_shader_parameter("berm_strength", _values().berm_strength)
-	stamp_material.set_shader_parameter("berm_height_ratio", _values().berm_height / maxf(max_depth, 0.01))
-	stamp_material.set_shader_parameter("map_resolution", float(_vp.size.x))
-	stamp_material.set_shader_parameter(
-		"textured_berm_dilation_enabled", DeformableSurfaceQuality.platform_tier() > 0)
+	_map.configure_stamp_capacity(capacity)
 
 
 ## Restores the starting surface and clears tracks.
@@ -959,24 +925,7 @@ func _clear_map() -> void:
 	if _batching_surface_settings:
 		_surface_clear_pending = true
 		return
-	if is_instance_valid(_bg):
-		_bg.queue_free()
-	var background := ColorRect.new()
-	background.size = Vector2(_vp.size)
-	if _values().initial_noise_enabled:
-		var background_material := ShaderMaterial.new()
-		background_material.shader = INITIAL_NOISE_SHADER
-		_configure_initial_noise_shader(background_material, _values(), global_position)
-		background.material = background_material
-		background.color = Color.WHITE
-	else:
-		background.color = Color(MAP_NEUTRAL, MAP_NEUTRAL, MAP_NEUTRAL)
-	_bg = background
-	_refill_material.set_shader_parameter("initial_noise_enabled", _values().initial_noise_enabled)
-	if _values().initial_noise_enabled:
-		_configure_initial_noise_shader(_refill_material, _values(), global_position)
-	_vp.add_child(_bg)
-	_vp.move_child(_bg, 0)
+	_map.clear(_values(), area_size, global_position)
 	_prime_frames = 3
 	_refill_timer = 0.0
 	_refill_idle = 0.0
@@ -985,32 +934,6 @@ func _clear_map() -> void:
 	for deformer in Deformer.instances:
 		if deformer.field == null or deformer.field == self:
 			_register_deformer(deformer)
-
-
-func _configure_initial_noise_shader(shader_material: ShaderMaterial,
-		profile: DeformableSurfaceType, world_position: Vector3) -> void:
-	var textures := InitialNoiseTextures.for_profile(profile)
-	shader_material.set_shader_parameter("initial_noise_texture", textures["base"])
-	shader_material.set_shader_parameter("initial_noise_detail_texture", textures["detail"])
-	shader_material.set_shader_parameter("initial_noise_mound_texture", textures["mound"])
-	shader_material.set_shader_parameter("initial_noise_origin",
-		Vector2(world_position.x, world_position.z) - area_size * 0.5)
-	shader_material.set_shader_parameter("initial_noise_area", area_size)
-	shader_material.set_shader_parameter("initial_noise_resolution", float(_vp.size.x))
-	shader_material.set_shader_parameter("initial_noise_depth", profile.max_depth)
-	shader_material.set_shader_parameter("initial_noise_world_period", InitialNoiseTextures.WORLD_PERIOD)
-	var noise_frequency := profile.initial_noise.frequency if profile.initial_noise != null \
-			else profile.initial_noise_frequency
-	shader_material.set_shader_parameter("initial_noise_frequency", noise_frequency)
-	shader_material.set_shader_parameter("initial_noise_height", profile.initial_noise_height)
-	shader_material.set_shader_parameter("initial_noise_detail", profile.initial_noise_detail)
-	shader_material.set_shader_parameter("initial_noise_detail_scale", profile.initial_noise_detail_scale)
-	shader_material.set_shader_parameter("initial_noise_mound_height", profile.initial_noise_mound_height)
-	shader_material.set_shader_parameter("initial_noise_mound_frequency", profile.initial_noise_mound_frequency)
-	shader_material.set_shader_parameter("initial_noise_invert", profile.initial_noise_invert)
-
-
-
 func _forget(deformer: Deformer) -> void:
 	var id := deformer.get_instance_id()
 	_known.erase(id)
@@ -1040,7 +963,7 @@ func _process(delta: float) -> void:
 	var list := _dirty_deformers.duplicate()
 	var n := list.size()
 	var cursor := _dirty_deformer_cursor
-	var res := Vector2(_vp.size)
+	var res := Vector2(_map.viewport.size)
 	var px_per_m := res.x / area_size.x
 	var queued_start := Time.get_ticks_usec()
 	if not _pending_stamps.is_empty():
@@ -1098,7 +1021,10 @@ func _process(delta: float) -> void:
 			# Keep elongated prints (boots/skis) aligned to node heading; orient round prints to travel
 			var move_heading := heading if (aspect > 1.05 or d.stamp_texture != null) else (pos - prev).angle()
 			if dist > r_px * 20.0:
-				if not _stamp(pos, r_px, heading, aspect, effective_strength, false, d.stamp_texture, d.stamp_flip_x, d.mode):
+				var jump_request := _prepare_stamp(pos, r_px, heading, aspect, effective_strength, d.mode)
+				jump_request.texture = d.stamp_texture
+				jump_request.flip_x = d.stamp_flip_x
+				if not _stamp(jump_request):
 					continue
 			else:
 				done = prev
@@ -1106,8 +1032,10 @@ func _process(delta: float) -> void:
 					# Round brush: one capsule (segment with a rounded front) per move, so the
 					# trail is a single continuous corridor at any speed.
 					var half_len := dist * 0.5
-					if not _stamp(prev.lerp(pos, 0.5), sqrt(half_len * r_px), move_heading,
-							half_len / r_px, effective_strength, false, null, false, d.mode, false, 0.0, true):
+					var capsule_request := _prepare_stamp(prev.lerp(pos, 0.5), sqrt(half_len * r_px),
+							move_heading, half_len / r_px, effective_strength, d.mode)
+					capsule_request.capsule = true
+					if not _stamp(capsule_request):
 						continue
 					done = pos
 				else:
@@ -1116,7 +1044,12 @@ func _process(delta: float) -> void:
 					var steps := clampi(ceili(dist / (r_px * 0.5)), 1, 40)
 					for s in range(1, steps + 1):
 						var sp := prev.lerp(pos, float(s) / steps)
-						if not _stamp(sp, r_px, move_heading, aspect, effective_strength, true, d.stamp_texture, d.stamp_flip_x, d.mode):
+						var step_request := _prepare_stamp(sp, r_px, move_heading, aspect,
+								effective_strength, d.mode)
+						step_request.sliding = true
+						step_request.texture = d.stamp_texture
+						step_request.flip_x = d.stamp_flip_x
+						if not _stamp(step_request):
 							break
 						done = sp
 					if done == prev:
@@ -1129,7 +1062,10 @@ func _process(delta: float) -> void:
 						_try_puff(d, id, -Vector3(stamped_move.x, 0.0, stamped_move.y))
 					_puff_acc[id] = acc
 		else:
-			if not _stamp(pos, r_px, heading, aspect, effective_strength, false, d.stamp_texture, d.stamp_flip_x, d.mode):
+			var touchdown_request := _prepare_stamp(pos, r_px, heading, aspect, effective_strength, d.mode)
+			touchdown_request.texture = d.stamp_texture
+			touchdown_request.flip_x = d.stamp_flip_x
+			if not _stamp(touchdown_request):
 				continue
 			if owns_contact:
 				_emit_contact(d.global_position, effective_strength, d.mode, d, d.radius, d.puff_on_touchdown)
@@ -1147,7 +1083,7 @@ func _process(delta: float) -> void:
 
 	# Surface recovery: a few times per second, not every frame, and only until the map has
 	# healed after the last stamp (about 5.5 time constants covers 8-bit precision).
-	if _stamps_used > 0 or _prime_frames > 0:
+	if get_stamps_used() > 0 or _prime_frames > 0:
 		_refill_idle = 0.0
 	else:
 		_refill_idle += delta
@@ -1161,43 +1097,26 @@ func _process(delta: float) -> void:
 			refill_dt = _refill_timer
 			_refill_timer = 0.0
 			refill_now = true
-	_run_refill(refill_now, refill_dt)
+	_map.run_refill(refill_now, refill_dt,
+		_values().recovery_intensity, _values().refill_levels_per_sec)
 	if refill_now:
 		_cost_refill_px = res.x * res.y
 
 	# Only spend GPU time when something actually changed
 	if _prime_frames > 0 and InitialNoiseTextures.ready_for_profile(_values()):
 		_prime_frames -= 1
-		if _prime_frames == 0 and is_instance_valid(_bg):
-			_bg.queue_free()
-	if _prime_frames > 0 or _stamps_used > 0 or refill_now:
-		_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+		if _prime_frames == 0:
+			_map.finish_priming()
+	if _prime_frames > 0 or get_stamps_used() > 0 or refill_now:
+		_map.request_render()
 
 
 func _reset_stamp_counts() -> void:
-	_stamps_used = 0
-	_cost_stamp_px = 0.0
-	for batch in _stamp_batches:
-		batch["used"] = 0
+	_map.stamp_renderer.reset_counts()
 
 
 func _submit_stamp_batches() -> void:
-	for batch in _stamp_batches:
-		var multimesh := batch["multimesh"] as MultiMesh
-		var visible_count: int = batch["used"]
-		if multimesh.visible_instance_count != visible_count:
-			multimesh.visible_instance_count = visible_count
-
-
-func _run_refill(now: bool, dt: float) -> void:
-	if _refill.visible != now:
-		_refill.visible = now
-	if not now:
-		return
-	var levels := _values().recovery_intensity * _values().refill_levels_per_sec * dt
-	var recovery_alpha := 1.0 - exp(-4.0 * levels / 255.0)
-	_refill_material.set_shader_parameter("recovery_alpha", recovery_alpha)
-	_refill_material.set_shader_parameter("seed", randf() * 1000.0)
+	_map.stamp_renderer.submit()
 
 func _try_puff(d: Deformer, _id: int, push: Vector3) -> void:
 	_spawn_puff(d.global_position, d.radius, push, d)
@@ -1228,31 +1147,31 @@ func _ensure_puff_pool() -> void:
 		_apply_puff_look()
 
 
+func _prepare_stamp(pos: Vector2, radius_px: float, heading: float, aspect: float,
+		strength: float, mode := StampMode.CARVE) -> StampRequest:
+	_stamp_scratch.pos = pos
+	_stamp_scratch.radius_px = radius_px
+	_stamp_scratch.heading = heading
+	_stamp_scratch.aspect = aspect
+	_stamp_scratch.strength = strength
+	_stamp_scratch.sliding = false
+	_stamp_scratch.texture = null
+	_stamp_scratch.flip_x = false
+	_stamp_scratch.mode = mode
+	_stamp_scratch.track = false
+	_stamp_scratch.phase = 0.0
+	_stamp_scratch.capsule = false
+	return _stamp_scratch
+
+
 ## Returns false if the per-frame stamp budget is exhausted.
-func _stamp(
-	pos: Vector2,
-	r_px: float,
-	heading: float,
-	aspect: float,
-	strength: float,
-	sliding := false,
-	stamp_texture: Texture2D = null,
-	flip_x := false,
-	mode := StampMode.CARVE,
-	track := false,
-	phase := 0.0,
-	capsule := false
-) -> bool:
-	if _stamps_used >= max_stamps_per_frame:
-		return false
-	var batch := _get_stamp_batch(stamp_texture)
-	var multimesh := batch["multimesh"] as MultiMesh
-	if int(batch["used"]) >= multimesh.instance_count:
+func _stamp(request: StampRequest) -> bool:
+	if get_stamps_used() >= max_stamps_per_frame:
 		return false
 
 	# Match the shader's radius floor and keep the packed aspect within its 0..1 range.
-	var stamp_radius_px := maxf(r_px, STAMP_MIN_RADIUS_PX)
-	var stamp_aspect := clampf(aspect, 0.001, STAMP_MAX_ASPECT)
+	var stamp_radius_px := maxf(request.radius_px, STAMP_MIN_RADIUS_PX)
+	var stamp_aspect := clampf(request.aspect, 0.001, STAMP_MAX_ASPECT)
 	var len_r := stamp_radius_px * sqrt(stamp_aspect)
 	var wid_r := stamp_radius_px / sqrt(stamp_aspect)
 	var berm_radius := Vector2(len_r, wid_r) * BERM_REACH if _values().berm_strength > 0.0 else Vector2.ZERO
@@ -1262,56 +1181,21 @@ func _stamp(
 		maxf(len_r, absf(berm_offset_x) + berm_radius.x),
 		maxf(wid_r, berm_radius.y)
 	)
-	if capsule:
+	if request.capsule:
 		# For a capsule len_r is the half length and wid_r the brush radius (see the shader).
 		outer_half_extent = Vector2(len_r + maxf(berm_radius.y, wid_r), maxf(berm_radius.y, wid_r))
 
-	var instance: int = batch["used"]
-	multimesh.set_instance_transform_2d(
-		instance,
-		Transform2D(heading, outer_half_extent, 0.0, pos)
+	var custom_data := Color(
+		stamp_aspect / STAMP_MAX_ASPECT,
+		3.0 if request.capsule else (2.0 if request.track else (1.0 if request.sliding else 0.0)),
+		wrapf(request.heading, -PI, PI) / TAU + 0.5,
+		(2.0 if request.flip_x else 1.0) if request.texture != null else 0.0
 	)
-	multimesh.set_instance_color(
-		instance,
-		Color(strength, stamp_radius_px / float(_vp.size.x), float(mode) * 0.25, fposmod(phase, 1.0))
+	return _map.stamp_renderer.stamp(
+		request.texture,
+		Transform2D(request.heading, outer_half_extent, 0.0, request.pos),
+		Color(request.strength, stamp_radius_px / float(_map.viewport.size.x),
+				float(request.mode) * 0.25, fposmod(request.phase, 1.0)),
+		custom_data,
+		4.0 * outer_half_extent.x * outer_half_extent.y
 	)
-	multimesh.set_instance_custom_data(
-		instance,
-		Color(
-			stamp_aspect / STAMP_MAX_ASPECT,
-			3.0 if capsule else (2.0 if track else (1.0 if sliding else 0.0)),
-			wrapf(heading, -PI, PI) / TAU + 0.5,
-			(2.0 if flip_x else 1.0) if stamp_texture != null else 0.0
-		)
-	)
-	batch["used"] = instance + 1
-	_stamps_used += 1
-	_cost_stamp_px += 4.0 * outer_half_extent.x * outer_half_extent.y
-	return true
-
-
-func _get_stamp_batch(stamp_texture: Texture2D) -> Dictionary:
-	for batch in _stamp_batches:
-		if batch["texture"] == stamp_texture:
-			return batch
-
-	var multimesh := MultiMesh.new()
-	multimesh.transform_format = MultiMesh.TRANSFORM_2D
-	multimesh.use_colors = true
-	multimesh.use_custom_data = true
-	multimesh.mesh = _stamp_multimesh.mesh
-	multimesh.instance_count = _stamp_multimesh.instance_count
-	multimesh.visible_instance_count = 0
-	var instance := MultiMeshInstance2D.new()
-	instance.multimesh = multimesh
-	instance.texture = stamp_texture
-	instance.material = _stamp_add_material
-	_vp.add_child(instance)
-	var batch := {
-		"texture": stamp_texture,
-		"multimesh": multimesh,
-		"instance": instance,
-		"used": 0,
-	}
-	_stamp_batches.append(batch)
-	return batch

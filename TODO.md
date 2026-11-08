@@ -1,14 +1,4 @@
-## 1. Cut the demos from 7 to 4
-
-Done. The launcher now opens Playground, Powder Run, Material Showcase, and Custom Terrain & Grass.
-Playground includes the fenced arena, Infinite mode, actor toggles, and the area-size slider.
-
-## 2. Extract the tile recycler
-
-Done. `demos/shared/deformable_surface_grid.gd` is shared by Playground and Powder Run.
-The recycling and settings tests exercise the grid directly.
-
-## 3. Replace the code-built content with scenes
+## 1. Replace the code-built content with scenes
 
 - **Footstep tuning per kind:** this is a `match kind` in `_ready()` that creates the `DeformerFootsteps` in code. `mouse.tscn` already does it right: the footsteps node sits in the scene with its values set. Do that for all characters and drop `kind`.
 - **`DemoCharacter` roles:** one script handles PLAYER, WANDERER and FOLLOWER via a `role` enum. Split it into small behavior scripts (`PlayerController`, `Wander`, `Follow`) attached to the same character scene.
@@ -19,13 +9,13 @@ The recycling and settings tests exercise the grid directly.
 
 After this, `demo_props.gd` should shrink to nothing or a single `mat()` helper.
 
-## 4. Extract the shared rig
+## 2. Extract the shared rig
 
 The demos share the camera, brush, shell, grid, and preset resources. Environment setup still
 varies by demo. Move the shared sun, sky, and fog setup into `demo_environment.tscn` with a
 `sun_height` export.
 
-## 5. Folder layout
+## 3. Folder layout
 
 Organize by feature, with scripts next to their scenes:
 
@@ -45,27 +35,7 @@ demos/
 
 This removes the flat `demos/scripts/` dump.
 
-## 6. Docs
-
-Done. The root README includes the demo guide and regression commands, and the changelog
-describes the current demos and shared components.
-
-## Suggested order
-
-- [x] Delete dead and duplicate code.
-- [x] Switch to the addon's `.tres` presets.
-- [x] Extract the shared camera, brush, shell, and grid.
-- [x] Merge the playgrounds.
-- [x] Move Powder Run actors and course props into scenes.
-- [x] Update the tests and docs.
-
-## 7. Avoid first-use hitches
-
-Done. The launcher displays a loading screen before requesting the scene, with a synchronous
-fallback on builds without threads. While the screen is up, it draws round, capsule, textured,
-and tread stamps and starts every puff emitter. It clears the samples before gameplay resumes.
-
-## 8. Export and load size
+## 4. Export and load size
 
 - [x] Filter tests, editor tooling, and unused demos out of the single-threaded Web export.
 - [x] Generate Brotli and gzip sidecars and document how to serve them.

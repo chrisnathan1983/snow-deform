@@ -69,6 +69,7 @@ The following technical settings live in `DeformableSurfaceQuality` and update t
 | `refill_interval` | `0.25` | Seconds between track-healing passes. |
 | `puff`, `puff_min_interval` | `8`, `0.2` | Puff particle budget and minimum seconds between puffs from one deformer. |
 | `sparkle` | `1.0` | Quality scale applied on top of the material's `sparkle_strength`. |
+| `textured_berm_dilation` | `false` | Extends berms around textured stamps with eight extra texture samples. Enable only when that look is needed. |
 
 The following material settings live in a `DeformableSurfaceType` (`surface_type`). Without one, these defaults apply. The node listens to profile changes; duplicate a shared type before editing one surface. The node exposes `max_depth` (read-only) and `recovery_intensity` and `wrapped_diffuse_lighting` (assignable at runtime); replacing the surface type uses the new profile's values.
 

@@ -72,14 +72,12 @@ func _run() -> void:
 				draws.append(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
 				var cpu := 0.0
 				var count := 0
-				var batch_count := 0
+					var batch_count := 0
 				for field in scene.fields:
 					var costs: Dictionary = field.get_frame_costs()
 					cpu += costs.deformers_ms + costs.queued_ms
 					count += field.get_stamps_used()
-					for batch in field._stamp_batches:
-						if batch.used > 0:
-							batch_count += 1
+					batch_count += field.get_active_stamp_batch_count()
 				stamps.append(count)
 				batches.append(batch_count)
 				surface_cpu.append(cpu)

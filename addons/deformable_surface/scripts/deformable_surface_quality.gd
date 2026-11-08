@@ -60,6 +60,13 @@ const PRESET_DIR := "res://addons/deformable_surface/resources/quality/"
 			return
 		sparkle = value
 		emit_changed()
+## Adds eight texture samples to extend berms around sprite stamps. Disabled by default.
+@export var textured_berm_dilation := false:
+	set(value):
+		if textured_berm_dilation == value:
+			return
+		textured_berm_dilation = value
+		emit_changed()
 
 
 static func low() -> DeformableSurfaceQuality:

@@ -43,7 +43,7 @@ func _run() -> void:
 				failures += 1
 		field._prime_frames = 0
 		field._process(0.016)
-		if field._stamp_batches.size() != 1:
+		if field.get_stamp_batch_count() != 1:
 			push_error("Smooth tracks should reuse the default stamp batch")
 			failures += 1
 		field.reset_trails()
