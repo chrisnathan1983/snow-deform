@@ -15,6 +15,7 @@ var pixel_world_size_x: float
 var pixel_world_size_z: float
 var stride: int
 var heights := PackedFloat32Array()
+var image_data := PackedByteArray()
 var image: Image
 var noise: FastNoiseLite
 var fine_noise: FastNoiseLite
@@ -32,7 +33,7 @@ func _init(p: DeformableSurfaceType, p_resolution: int, p_area: Vector2, p_origi
 	depth = p.max_depth
 	stride = resolution + 2
 	heights.resize(stride * stride)
-	image = Image.create(resolution, resolution, false, Image.FORMAT_RGB8)
+	image_data.resize(resolution * resolution * 3)
 	height_amplitude = clampf(p.initial_noise_height, 0.0, depth)
 	invert = p.initial_noise_invert
 	detail = clampf(p.initial_noise_detail, 0.0, 1.0)
@@ -74,6 +75,7 @@ func step(budget_usec: int) -> bool:
 		_image_row += 1
 		if Time.get_ticks_usec() - started >= budget_usec:
 			return false
+	image = Image.create_from_data(resolution, resolution, false, Image.FORMAT_RGB8, image_data)
 	done = true
 	return true
 
@@ -107,8 +109,11 @@ func _generate_image_row(y: int) -> void:
 		var height := heights[index]
 		var slope_x := (heights[index + 1] - heights[index - 1]) / (2.0 * pixel_world_size_x)
 		var slope_z := (heights[index + stride] - heights[index - stride]) / (2.0 * pixel_world_size_z)
-		image.set_pixel(x, y, Color(
-			MAP_NEUTRAL + height / (2.0 * depth),
-			MAP_NEUTRAL + slope_x / 16.0,
-			MAP_NEUTRAL + slope_z / 16.0
-		))
+		var pixel := (y * resolution + x) * 3
+		image_data[pixel] = _encode_channel(MAP_NEUTRAL + height / (2.0 * depth))
+		image_data[pixel + 1] = _encode_channel(MAP_NEUTRAL + slope_x / 16.0)
+		image_data[pixel + 2] = _encode_channel(MAP_NEUTRAL + slope_z / 16.0)
+
+
+func _encode_channel(value: float) -> int:
+	return clampi(roundi(clampf(value, 0.0, 1.0) * 255.0), 0, 255)

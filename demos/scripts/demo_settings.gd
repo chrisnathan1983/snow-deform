@@ -242,7 +242,12 @@ func edit_profile(prop: String, value: Variant) -> void:
 func _edit_technical(key: String, value: Variant) -> void:
 	for f in fields:
 		var q := _quality_of(f).duplicate() as DeformableSurfaceQuality
-		q.set(key, int(value) if q.get(key) is int else float(value))
+		var numeric_value: Variant
+		if q.get(key) is int:
+			numeric_value = int(value)
+		else:
+			numeric_value = float(value)
+		q.set(key, numeric_value)
 		_queue_surface_update(f, _profile_of(f).duplicate() as DeformableSurfaceType, q)
 	quality_index = 3
 	hud.set_value("surface.quality", quality_index)

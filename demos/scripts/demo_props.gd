@@ -154,12 +154,12 @@ static func add_fence(parent: Node3D, half: float, ground_y: float) -> void:
             posts.append(Transform3D(Basis(), Vector3(-fh, 0.55, u)))
             posts.append(Transform3D(Basis(), Vector3(fh, 0.55, u)))
     _multimesh(parent, box(Vector3(0.2, 1.1, 0.2)), wood, posts, true)
-    var len := half * 2.0 + 0.5
+    var fence_length := half * 2.0 + 0.5
     for y in [0.4, 0.85]:
-        add_mesh(parent, box(Vector3(len, 0.08, 0.06)), wood, Vector3(0, y, -fh))
-        add_mesh(parent, box(Vector3(len, 0.08, 0.06)), wood, Vector3(0, y, fh))
-        add_mesh(parent, box(Vector3(0.06, 0.08, len)), wood, Vector3(-fh, y, 0))
-        add_mesh(parent, box(Vector3(0.06, 0.08, len)), wood, Vector3(fh, y, 0))
+        add_mesh(parent, box(Vector3(fence_length, 0.08, 0.06)), wood, Vector3(0, y, -fh))
+        add_mesh(parent, box(Vector3(fence_length, 0.08, 0.06)), wood, Vector3(0, y, fh))
+        add_mesh(parent, box(Vector3(0.06, 0.08, fence_length)), wood, Vector3(-fh, y, 0))
+        add_mesh(parent, box(Vector3(0.06, 0.08, fence_length)), wood, Vector3(fh, y, 0))
     var skirt_h := -ground_y + 0.02
     var snow := Color(0.88, 0.91, 0.97)
     var sy := ground_y + skirt_h * 0.5

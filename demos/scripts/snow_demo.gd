@@ -266,7 +266,7 @@ func _build_actors() -> void:
 func _make_character(kind: String, role: int) -> DemoCharacter:
     var c := (load("res://demos/characters/%s.tscn" % kind) as PackedScene).instantiate() as DemoCharacter
     c.kind = kind
-    c.role = role
+    c.role = role as DemoCharacter.Role
     return c
 
 

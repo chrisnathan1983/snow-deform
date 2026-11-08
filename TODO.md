@@ -22,7 +22,7 @@ The per-pixel GDScript loop is the biggest CPU cost: up to 514² samples × 2–
 
 - **Best:** render the initial map in a shader into the existing SubViewport. Use a hash-based cellular or value noise keyed on world position, with analytic or finite-difference slopes. This removes the worker thread, the cache keys, the prefetch machinery, and the upload. Tile seams are free because the noise is a function of world position.
 - **Cheaper:** pre-bake one tileable noise texture and sample it with a world-space offset in the refill and background pass.
-- **If you keep the CPU path:** write into a `PackedByteArray` and use `Image.create_from_data`, and use `ImageTexture.update()` on an existing texture instead of allocating a new one per relocation.
+- ~~**If you keep the CPU path:** write into a `PackedByteArray` and use `Image.create_from_data`, and use `ImageTexture.update()` on an existing texture instead of allocating a new one per relocation.~~
 
 ## ~~3. Fix platform detection~~
 
@@ -77,4 +77,4 @@ Web builds run in a GC'd single-threaded WASM heap, so avoiding these allocation
 
 The README admits that `CLEAR_MODE_NEVER` persistence, the blend-based refill, and `amount_ratio` are untested on mobile browsers. I'd add a small startup self-test that stamps once, waits two frames, reads the map back, and falls back to a different strategy (for example ping-pong between two viewports) if the stamp vanished. The one-time readback cost is fine at startup.
 
-If you tell me which of these matters most (phone Safari, Chrome Android, or single- vs multi-threaded export), I can write the time-sliced noise generator or the GPU noise shader.
+The time-sliced CPU generator and its packed-byte texture upload are implemented. A world-space GPU shader remains the next step; it should preserve support for custom `FastNoiseLite` resources.

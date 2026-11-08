@@ -104,10 +104,12 @@ var _bg: Control
 var _initial_map_texture: Texture2D
 var _initial_noise_cache: ImageTexture
 var _initial_noise_cache_key: Array = []
+var _spare_noise_texture: ImageTexture
 var _prepared_noise_texture: ImageTexture
 var _prepared_noise_key: Array = []
 var _initial_noise_thread: Thread
 var _initial_noise_thread_key: Array = []
+var _initial_noise_thread_generator
 var _initial_noise_generator
 var _initial_noise_generator_key: Array = []
 var _initial_noise_force_sliced := false
@@ -799,10 +801,10 @@ func prepare_initial_noise_at(world_position: Vector3, profile: DeformableSurfac
 			return false
 		var image: Image = _initial_noise_thread.wait_to_finish()
 		_initial_noise_thread = null
+		_initial_noise_thread_generator = null
 		# Discard obsolete results before uploading them after a direction/settings change.
 		if _initial_noise_thread_key == key:
-			_prepared_noise_texture = ImageTexture.create_from_image(image)
-			_prepared_noise_key = key
+			_store_prepared_noise_image(image, key)
 			return true
 	var origin := Vector2(world_position.x, world_position.z) - area_size * 0.5
 	if OS.has_feature("nothreads") or _initial_noise_force_sliced:
@@ -813,8 +815,7 @@ func prepare_initial_noise_at(world_position: Vector3, profile: DeformableSurfac
 			_initial_noise_generator_key = key
 		if not _initial_noise_generator.step(2000):
 			return false
-		_prepared_noise_texture = ImageTexture.create_from_image(_initial_noise_generator.image)
-		_prepared_noise_key = key
+		_store_prepared_noise_image(_initial_noise_generator.image, key)
 		_initial_noise_generator = null
 		_initial_noise_generator_key = []
 		return true
@@ -824,10 +825,11 @@ func prepare_initial_noise_at(world_position: Vector3, profile: DeformableSurfac
 	snapshot.clamp_values()
 	_initial_noise_thread = Thread.new()
 	_initial_noise_thread_key = key
-	var error := _initial_noise_thread.start(
-		InitialNoiseGenerator.new(snapshot, resolution, area_size, origin).run_to_completion)
+	_initial_noise_thread_generator = InitialNoiseGenerator.new(snapshot, resolution, area_size, origin)
+	var error := _initial_noise_thread.start(_initial_noise_thread_generator.run_to_completion)
 	if error != OK:
 		_initial_noise_thread = null
+		_initial_noise_thread_generator = null
 		# Thread support can be reported by the platform but fail at runtime; keep
 		# the operation alive and finish it incrementally on the main thread.
 		_initial_noise_force_sliced = true
@@ -840,14 +842,34 @@ func prepare_initial_noise_at(world_position: Vector3, profile: DeformableSurfac
 func _get_initial_noise_texture() -> Texture2D:
 	var key := _initial_noise_key(mini(_vp.size.x, 512))
 	if _prepared_noise_texture != null and _prepared_noise_key == key:
+		_spare_noise_texture = _initial_noise_cache
 		_initial_noise_cache = _prepared_noise_texture
 		_initial_noise_cache_key = _prepared_noise_key
 		_prepared_noise_texture = null
 		_prepared_noise_key = []
 	if _initial_noise_cache == null or _initial_noise_cache_key != key:
-		_initial_noise_cache = ImageTexture.create_from_image(_make_initial_noise_image())
+		_update_initial_noise_texture(_make_initial_noise_image())
 		_initial_noise_cache_key = key
 	return _initial_noise_cache
+
+
+func _update_initial_noise_texture(image: Image) -> void:
+	if _initial_noise_cache != null and _initial_noise_cache.get_width() == image.get_width() \
+			and _initial_noise_cache.get_height() == image.get_height():
+		_initial_noise_cache.update(image)
+	else:
+		_initial_noise_cache = ImageTexture.create_from_image(image)
+
+
+func _store_prepared_noise_image(image: Image, key: Array) -> void:
+	if _spare_noise_texture != null and _spare_noise_texture.get_width() == image.get_width() \
+			and _spare_noise_texture.get_height() == image.get_height():
+		_spare_noise_texture.update(image)
+		_prepared_noise_texture = _spare_noise_texture
+		_spare_noise_texture = null
+	else:
+		_prepared_noise_texture = ImageTexture.create_from_image(image)
+	_prepared_noise_key = key
 
 
 func _make_initial_noise_image() -> Image:
