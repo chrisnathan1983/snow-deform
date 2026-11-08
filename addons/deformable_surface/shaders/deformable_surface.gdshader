@@ -136,7 +136,15 @@ void fragment() {
 	vec2 detail_n;
 	vec3 tex_col = sample_material(UV, detail_n) * albedo_tint;
 	vec2 detail_slope = vec2(-detail_n.x, detail_n.y) * texture_normal_strength;
+	vec3 lit_surface_color = surface_color;
+	vec3 lit_shadow_color = shadow_color;
 	SPECULAR = specular_amount;
+	if (wrapped_diffuse_lighting) {
+		float wrapped_light = clamp((dot(normalize(world_normal), normalize(sun_dir)) + wrap_amount) / (1.0 + wrap_amount), 0.0, 1.0);
+		vec3 cool_tint = mix(vec3(0.68, 0.82, 1.0), vec3(1.0), cool_shading * smoothstep(0.0, 0.8, wrapped_light));
+		lit_surface_color *= cool_tint;
+		lit_shadow_color *= cool_tint;
+	}
 
 	// Fast path: skip all noise and slope math on an untouched flat surface
 	if (abs(height) + abs(slope.x) + abs(slope.y) > 0.02) {
@@ -152,12 +160,12 @@ void fragment() {
 		slope += detail_slope;
 		NORMAL_MAP = normalize(vec3(-slope.x, slope.y, 1.0)) * 0.5 + 0.5;
 		float disturbed = smoothstep(0.2, 0.6, abs(height) + length(slope) * 0.5);
-		ALBEDO = mix(shadow_color, surface_color, smoothstep(0.0, 0.9, hc)) * tex_col;
+		ALBEDO = mix(lit_shadow_color, lit_surface_color, smoothstep(0.0, 0.9, hc)) * tex_col;
 		ALBEDO *= 1.0 - disturbed_darkening * disturbed;
 		ROUGHNESS = mix(mix(pressed_roughness, base_roughness, hc), glaze_roughness, ice_glaze);
 	} else {
 		NORMAL_MAP = normalize(vec3(-detail_slope.x, detail_slope.y, 1.0)) * 0.5 + 0.5;
-		ALBEDO = surface_color * tex_col;
+		ALBEDO = lit_surface_color * tex_col;
 		ROUGHNESS = base_roughness;
 	}
 
@@ -185,17 +193,5 @@ void fragment() {
 
 			EMISSION = vec3(s) * (sparkle_intensity * sparkle_strength * 3.0) * mix(1.0, 2.0, ice_glaze);
 		}
-	}
-}
-
-void light() {
-	if (wrapped_diffuse_lighting) {
-		float NdotL = clamp((dot(NORMAL, LIGHT) + wrap_amount) / (1.0 + wrap_amount), 0.0, 1.0);
-		// Fast polynomial approximation of pow(NdotL, 1.35) and pow(NdotL, 1.15)
-		vec3 cool_ramp = mix(vec3(NdotL), vec3(NdotL * mix(0.65, 1.0, NdotL), NdotL * mix(0.85, 1.0, NdotL), NdotL), cool_shading);
-		DIFFUSE_LIGHT += cool_ramp * ATTENUATION * LIGHT_COLOR / PI;
-	} else {
-		float NdotL = max(dot(NORMAL, LIGHT), 0.0);
-		DIFFUSE_LIGHT += NdotL * ATTENUATION * LIGHT_COLOR / PI;
 	}
 }

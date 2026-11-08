@@ -70,12 +70,3 @@ func clamp_values() -> void:
 	puff = clampi(puff, 1, 64)
 	puff_min_interval = clampf(puff_min_interval, 0.0, 10.0)
 	sparkle = clampf(sparkle, 0.0, 3.0)
-
-
-## Every exported value by name, so new settings never need to be listed by hand.
-func to_dictionary() -> Dictionary:
-	var values := {}
-	for info in (get_script() as Script).get_script_property_list():
-		if (int(info["usage"]) & PROPERTY_USAGE_SCRIPT_VARIABLE) != 0:
-			values[info["name"]] = get(info["name"])
-	return values

@@ -673,6 +673,7 @@ func _refresh_preview() -> void:
 	img.fill(Color(MAP_NEUTRAL, MAP_NEUTRAL, MAP_NEUTRAL))
 	m.set_shader_parameter("deform_map", ImageTexture.create_from_image(img))
 	m.set_shader_parameter("wrapped_diffuse_lighting", _effective_surface_type().wrapped_diffuse_lighting)
+	_mesh.material_override = m
 
 
 # ------------------------------------------------------------------ setup

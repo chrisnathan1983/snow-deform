@@ -70,7 +70,7 @@ The following technical settings live in `DeformableSurfaceQuality`; the node co
 | `puff`, `puff_min_interval` | `8`, `0.2` | Puff particle budget and minimum seconds between puffs from one deformer. |
 | `sparkle` | `1.0` | Quality scale applied on top of the material's `sparkle_strength`. |
 
-The following material settings live in a `DeformableSurfaceType` (`surface_type`). Without one, these defaults apply. The node reads them from a private snapshot of the profile, so edit a copy of the type and assign it rather than changing the shared resource in place. The node exposes `max_depth` (read-only) and `recovery_intensity` and `wrapped_diffuse_lighting` (assignable at runtime); replacing the surface type restores the type's values. `DeformableSurfaceType.to_dictionary()`, `apply_dictionary()` and `clamp_values()` are generated from the exported properties, so every property above is covered under its own name.
+The following material settings live in a `DeformableSurfaceType` (`surface_type`). Without one, these defaults apply. The node copies profile values when assigned, so edit a copy of the type and assign it again to apply changes. The node exposes `max_depth` (read-only) and `recovery_intensity` and `wrapped_diffuse_lighting` (assignable at runtime); replacing the surface type restores the type's values.
 
 | Setting | Default | Description |
 |---|---:|---|
@@ -85,7 +85,7 @@ The following material settings live in a `DeformableSurfaceType` (`surface_type
 | `puff_texture` | Empty | Particle texture; empty is a soft round dot. |
 | `puff_color_ramp` | Empty | Puff color over its lifetime; empty is the surface color fading out. |
 | `puff_velocity_min`, `puff_velocity_max` | `0.6`, `1.4` | Puff launch speed range in m/s. |
-| `wrapped_diffuse_lighting` | `true` | Wrapped diffuse lighting with cool-tinted shadows; `false` uses standard diffuse lighting. |
+| `wrapped_diffuse_lighting` | `true` | Adds a cool tint to the material's shadow color; diffuse and specular lighting use Godot's built-in model. |
 | `initial_noise_enabled` | `true` | Starts with a procedural bumpy surface instead of a flat one; recovery heals back to it. |
 | `initial_noise` | Empty | Optional `FastNoiseLite`. When empty, uses Cellular noise with Euclidean Squared distance, Distance return, jitter `0.9`, and no fractal. The ready-made sand, mud, dirt and ash profiles each ship their own noise. |
 | `initial_noise_invert` | `false` | Inverts the pattern to create mounds instead of dimples. |
@@ -240,7 +240,7 @@ Useful shader uniforms include:
 | `surface_color` | Main surface color. |
 | `shadow_color` | Color in compressed tracks. |
 | `normal_strength` | Strength of surface shading from track details. |
-| `wrapped_diffuse_lighting` | Enables wrapped diffuse lighting with cool-tinted shadows; `false` uses standard diffuse lighting. |
+| `wrapped_diffuse_lighting` | Adds a cool tint to the shadow color, guided by `sun_dir`; `false` disables the tint. |
 | `bevel_noise_scale` | World-space noise frequency in cells per meter for stamp bevels. |
 | `bevel_noise_strength` | Amount of noise applied to the deformation slope at stamp edges. |
 | `sparkle_intensity` | Sparkle brightness; `0` disables the sparkle effect. |
@@ -252,9 +252,8 @@ Useful shader uniforms include:
 Avoid pure-white albedo: lighting can clip the surface and make sparkle
 disappear.
 
-Wrapped diffuse lighting is enabled by default to keep steep footprint bevels
-brighter on the side facing away from the light. Disable it on `DeformableSurface` or
-set the shader uniform to `false` to use standard diffuse lighting instead.
+The cool shadow tint is enabled by default and follows `sun_dir`. Godot's built-in
+diffuse and specular lighting handle the actual light response.
 World-space value noise subtly varies the deformation slope at stamp edges,
 breaking up smooth bevels without increasing deformation-map resolution. Tune
 its scale and strength with `bevel_noise_scale` and `bevel_noise_strength`.

@@ -2,7 +2,7 @@ class_name SnowWeatherSettings
 extends Resource
 ## World-level atmospheric snowfall settings.
 
-enum Quality { LOW, MEDIUM, HIGH, CUSTOM }
+enum Quality { LOW, MEDIUM, HIGH }
 
 @export_group("Weather")
 @export_range(1, 10000, 1) var flake_count := 900
@@ -14,18 +14,3 @@ enum Quality { LOW, MEDIUM, HIGH, CUSTOM }
 @export var follow_target_path: NodePath
 @export var follow_camera := false
 @export var quality: Quality = Quality.MEDIUM
-
-
-func to_dictionary() -> Dictionary:
-	return {
-		"flakes": flake_count,
-		"near": near_flake_count,
-		"wind_x": wind.x,
-		"wind_z": wind.y,
-		"fall_height": fall_height,
-		"emitter_area": emitter_area,
-		"snowfall": snowfall_intensity,
-		"follow_target_path": follow_target_path,
-		"follow_camera": follow_camera,
-		"quality": quality,
-	}

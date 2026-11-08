@@ -129,7 +129,7 @@ func add_surface_tab() -> void:
 	hud.add_slider(tab, "surface.mound_freq", "Pile/dune frequency", 0.02, 0.5, 0.01, profile.initial_noise_mound_frequency)
 	hud.add_slider(tab, "surface.noise_scale", "2nd octave scale (<1 = hills)", 0.1, 8.0, 0.05, profile.initial_noise_detail_scale)
 	hud.add_toggle(tab, "surface.puffs", "Puff particles", profile.puffs_enabled)
-	hud.add_toggle(tab, "surface.wrapped", "Wrapped diffuse lighting", profile.wrapped_diffuse_lighting)
+	hud.add_toggle(tab, "surface.wrapped", "Cool shadow tint", profile.wrapped_diffuse_lighting)
 	hud.add_button(tab, "surface.reset", "Reset tracks")
 	if area_handler.is_valid():
 		hud.add_slider(tab, "surface.area_size", "Area size (m)", 8, 80, 2, f.size)

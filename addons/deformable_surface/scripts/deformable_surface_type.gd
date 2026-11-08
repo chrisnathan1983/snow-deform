@@ -55,36 +55,7 @@ extends Resource
 @export_range(0.0, 10.0, 0.05, "suffix:m/s") var puff_velocity_min := 0.6
 @export_range(0.0, 10.0, 0.05, "suffix:m/s") var puff_velocity_max := 1.4
 @export_subgroup("")
-@export var wrapped_diffuse_lighting := true
-
-
-## Every exported value by name, so new properties never need to be listed by hand.
-func to_dictionary() -> Dictionary:
-	var values := {}
-	for prop in _property_names():
-		values[prop] = get(prop)
-	return values
-
-
-## Sets each property present in `values`, then clamps. Returns an error message, or "" if fine.
-func apply_dictionary(values: Dictionary) -> String:
-	for prop in _property_names():
-		if not values.has(prop):
-			continue
-		var value: Variant = values[prop]
-		match typeof(get(prop)):
-			TYPE_FLOAT:
-				if typeof(value) != TYPE_INT and typeof(value) != TYPE_FLOAT:
-					return "'%s' must be numeric." % prop
-				value = float(value)
-			TYPE_BOOL:
-				if typeof(value) != TYPE_BOOL:
-					return "'%s' must be a boolean." % prop
-			TYPE_STRING_NAME:
-				value = StringName(value)
-		set(prop, value)
-	clamp_values()
-	return ""
+@export var wrapped_diffuse_lighting := true ## Applies cool tint to shadow color based on sun direction.
 
 
 func clamp_values() -> void:
@@ -93,12 +64,4 @@ func clamp_values() -> void:
 	berm_height = maxf(berm_height, 0.0)
 	recovery_intensity = clampf(recovery_intensity, 0.0, 1.0)
 	refill_levels_per_sec = maxf(refill_levels_per_sec, 0.0)
-
-
-func _property_names() -> PackedStringArray:
-	var names := PackedStringArray()
-	for info in (get_script() as Script).get_script_property_list():
-		if (int(info["usage"]) & PROPERTY_USAGE_SCRIPT_VARIABLE) != 0:
-			names.append(info["name"])
-	return names
 

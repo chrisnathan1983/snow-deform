@@ -198,7 +198,7 @@ Material-specific settings live in `DeformableSurfaceType` (`surface_type`); wit
 | `recovery_intensity` | 0..1 (default 0.3). Controls trail healing; 0 = trails permanent. Atmospheric flakes are managed by SnowWorldManager. |
 | `refill_levels_per_sec` | Packed-height recovery speed at recovery intensity 1. |
 | `puffs_enabled` | Kick-up bursts. |
-| `wrapped_diffuse_lighting` | Wrapped diffuse lighting on footprint bevels. |
+| `wrapped_diffuse_lighting` | Adds a cool tint to the shadow color, guided by `sun_dir`. |
 
 Changing the surface type's depth or berm height clears existing trails.
 Methods and signals: `reset_trails()`, `quality_changed(q)`. Changing quality rebuilds the mesh but preserves trails
@@ -230,13 +230,9 @@ flakes across multiple DeformableSurfaces. It owns the main and camera-relative
 emitters and controls intensity, wind, height, and follow target. Assign a
 `SnowWeatherSettings` resource for world-level quality settings. DeformableSurfaces
 retain their own terrain recovery and deformation puffs. This node, along with
-`SnowWeather`, `SnowFall`, and the weather presets, is provided by
+`SnowFall` and the weather presets, is provided by
 `addons/snowfall/`; the presets are in
 `res://addons/snowfall/resources/weather/`.
-
-### SnowWeather
-Legacy shared weather manager, retained for existing scenes. Use
-`SnowWorldManager` for new scenes.
 
 ### SnowFall
 Low-level falling-flake emitter in world space. Use SnowWorldManager for scene-wide
@@ -308,7 +304,7 @@ addons/deformable_surface/
 addons/snowfall/
   icons/              weather node icon
   scripts/
-    core/             SnowWorldManager and legacy SnowWeather
+    core/             SnowWorldManager
     particles/        SnowFall
     settings/         SnowWeatherSettings
     utilities/        shared particle utilities
