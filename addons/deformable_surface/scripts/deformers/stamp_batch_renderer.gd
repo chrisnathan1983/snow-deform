@@ -2,6 +2,8 @@ class_name StampBatchRenderer
 extends RefCounted
 ## Owns the MultiMesh batches used to draw stamps into a surface's deformation viewport.
 
+const MAX_RETAINED_BATCHES := 32
+
 var _viewport: SubViewport
 var _sprite_shader: Shader
 var _analytic_material: ShaderMaterial
@@ -74,6 +76,7 @@ func reset_counts() -> void:
 	cost_pixels = 0.0
 	for batch in _batches:
 		batch["used"] = 0
+	_trim_idle_batches()
 
 
 func submit() -> void:
@@ -109,6 +112,22 @@ func _get_batch(texture: Texture2D) -> Dictionary:
 	return _add_batch(texture, multimesh, texture)
 
 
+func _trim_idle_batches() -> void:
+	while _batches.size() > MAX_RETAINED_BATCHES:
+		var remove_index := -1
+		for i in range(_batches.size() - 1, 0, -1):
+			if int(_batches[i]["used"]) == 0:
+				remove_index = i
+				break
+		if remove_index < 0:
+			return
+		var batch := _batches[remove_index]
+		var multimesh := batch["multimesh"] as MultiMesh
+		multimesh.visible_instance_count = 0
+		(batch["instance"] as MultiMeshInstance2D).queue_free()
+		_batches.remove_at(remove_index)
+
+
 func _new_multimesh(mesh: Mesh, capacity: int) -> MultiMesh:
 	var multimesh := MultiMesh.new()
 	multimesh.transform_format = MultiMesh.TRANSFORM_2D
@@ -134,6 +153,7 @@ func _add_batch(texture: Texture2D, multimesh: MultiMesh,
 	var batch := {
 		"texture": texture,
 		"multimesh": multimesh,
+		"instance": instance,
 		"material": material,
 		"used": 0,
 	}

@@ -367,9 +367,8 @@ func _build_actors() -> void:
         _balls.append(b)
 
 
-func _make_character(kind: String, role: int) -> DemoCharacter:
-    var c := (load("res://demos/characters/%s.tscn" % kind) as PackedScene).instantiate() as DemoCharacter
-    c.kind = kind
+func _make_character(character_scene: String, role: int) -> DemoCharacter:
+    var c := (load("res://demos/characters/%s.tscn" % character_scene) as PackedScene).instantiate() as DemoCharacter
     c.role = role as DemoCharacter.Role
     return c
 

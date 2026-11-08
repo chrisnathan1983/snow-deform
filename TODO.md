@@ -46,15 +46,15 @@ Items are ordered by priority. Findings marked *(audit)* come from a read-throug
 
 ## P3 — Minor cleanups
 
-- [ ] `_dirty_deformers.has()` and `find()` are O(n) per transform notification; use a set or an index map.
-- [ ] `_configure_hash_origins` allocates a key array per field per frame; compare the values directly.
-- [ ] `StampBatchRenderer` never frees batches, so many unique footprint textures would accumulate. Cap or recycle them.
+- [x] `_dirty_deformers.has()` and `find()` are O(n) per transform notification; use an index map and swap removal.
+- [x] `_configure_hash_origins` allocates a key array per field per frame; compare the values directly.
+- [x] `StampBatchRenderer` never frees batches, so many unique footprint textures would accumulate. Retain at most 32 batches between frames, pruning idle batches at frame reset.
 
 ## P3 — Finish demo scene and folder cleanup
 
 ### Replace code-built content with scenes
 
-- **Footstep tuning per kind:** this is a `match kind` in `_ready()` that creates the `DeformerFootsteps` in code. `mouse.tscn` already does it right: the footsteps node sits in the scene with its values set. Do that for all characters and drop `kind`.
+- [x] **Footstep tuning per kind:** moved footsteps and per-character movement/animation values into `explorer.tscn`, `yeti.tscn` and `penguin.tscn`, matching the scene-owned setup in `mouse.tscn`. Removed `DemoCharacter.kind`.
 - **`DemoCharacter` roles:** one script handles PLAYER, WANDERER and FOLLOWER via a `role` enum. Split it into small behavior scripts (`PlayerController`, `Wander`, `Follow`) attached to the same character scene.
 - **Scenery:** Move the shared `PineForest` and the Playground fence and hills into reusable scenes.
 - **Soccer ball vs. `demo_ball`:** two ball systems (RigidBody vs. fake bouncer/thrown). Split `demo_ball.gd` into `bouncing_ball.tscn` and `snowball.tscn` instead of a `Kind` enum.

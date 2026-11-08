@@ -7,6 +7,7 @@ const STAMP_MAX_ASPECT := 8.0
 
 var _surface: Node
 var _dirty: Array[Deformer] = []
+var _dirty_indices := {}
 var _known := {}
 var _last := {}
 var _puff_distance := {}
@@ -18,8 +19,13 @@ func setup(surface: Node) -> void:
 
 
 func register(deformer: Deformer) -> void:
-	if is_instance_valid(deformer) and not _dirty.has(deformer):
-		_dirty.append(deformer)
+	if not is_instance_valid(deformer):
+		return
+	var id := deformer.get_instance_id()
+	if _dirty_indices.has(id):
+		return
+	_dirty_indices[id] = _dirty.size()
+	_dirty.append(deformer)
 
 
 func unregister(deformer: Deformer) -> void:
@@ -34,6 +40,7 @@ func reset() -> void:
 
 func clear() -> void:
 	_dirty.clear()
+	_dirty_indices.clear()
 	_known.clear()
 	_last.clear()
 	_puff_distance.clear()
@@ -53,10 +60,17 @@ func has_history(deformer: Deformer) -> bool:
 
 
 func _remove_dirty(deformer: Deformer) -> void:
-	var index := _dirty.find(deformer)
-	if index < 0:
+	var id := deformer.get_instance_id()
+	if not _dirty_indices.has(id):
 		return
-	_dirty.remove_at(index)
+	var index: int = _dirty_indices[id]
+	var last_index := _dirty.size() - 1
+	if index != last_index:
+		var moved := _dirty[last_index]
+		_dirty[index] = moved
+		_dirty_indices[moved.get_instance_id()] = index
+	_dirty.pop_back()
+	_dirty_indices.erase(id)
 	if index < _cursor:
 		_cursor -= 1
 	if _cursor >= _dirty.size():

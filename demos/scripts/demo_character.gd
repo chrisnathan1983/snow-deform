@@ -1,14 +1,18 @@
 extends Node3D
 ## A simple primitive-mesh character that leaves footprints via DeformerFootsteps.
-## kind: "explorer" (player), "yeti", "penguin". Origin is at the feet, facing -Z.
+## Origin is at the feet, facing -Z.
 
 enum Role { PLAYER, WANDERER, FOLLOWER }
 
 const GRAVITY := 16.0
 const JUMP_SPEED := 6.0
 
-var kind := "explorer"
 var role := Role.WANDERER
+
+@export var body_radius := 0.3
+@export var move_speed := 3.2
+@export var bob_amplitude := 0.07
+@export var roll_amplitude := 0.05
 
 # PLAYER: world-space input direction (length 0..1), set by the demo every frame.
 var move_input := Vector3.ZERO
@@ -23,63 +27,21 @@ var phase := 0.0
 var follow_target: Node3D
 var follow_distance := 1.2
 
-var move_speed := 3.2
 var run_mult := 1.9
-var body_radius := 0.3
 var half_extent := 15.2
 var obstacles: Array[Vector3] = []   # (x, radius, z)
 
 var on_ground := true
 var _vy := 0.0
-var _foot: DeformerFootsteps
+@onready var _foot: DeformerFootsteps = $DeformerFootsteps
 var _speed := 0.0
 var _bob := 0.0
 var _last_pos := Vector3.ZERO
-var _bob_amp := 0.07
-var _roll_amp := 0.05
 
 @onready var _visual: Node3D = $Visual
 
 
 func _ready() -> void:
-    var foot_radius := 0.2
-    var foot_aspect := 2.2
-    var spread := 0.12
-    var stride_min := 0.14
-    var stride_max := 0.38
-    var strength := 1.0
-    match kind:
-        "yeti":
-            foot_radius = 0.4
-            foot_aspect = 1.7
-            spread = 0.34
-            stride_min = 0.3
-            stride_max = 0.65
-            body_radius = 0.7
-            move_speed = 2.0
-            _bob_amp = 0.12
-            _roll_amp = 0.04
-        "penguin":
-            foot_radius = 0.13
-            foot_aspect = 1.6
-            spread = 0.08
-            stride_min = 0.07
-            stride_max = 0.14
-            strength = 0.8
-            body_radius = 0.2
-            move_speed = 3.0
-            _bob_amp = 0.03
-            _roll_amp = 0.24
-    _foot = DeformerFootsteps.new()
-    _foot.foot_radius = foot_radius
-    _foot.foot_aspect = foot_aspect
-    _foot.spread = spread
-    _foot.stride_min = stride_min
-    _foot.stride_max = stride_max
-    add_child(_foot)
-    for c in _foot.get_children():
-        if c is Deformer:
-            (c as Deformer).strength = strength
     _last_pos = position
 
 
@@ -176,5 +138,5 @@ func _animate(delta: float) -> void:
     _speed = lerpf(_speed, inst, 1.0 - exp(-10.0 * delta))
     var k := clampf(_speed / 3.0, 0.0, 1.0)
     _bob += _speed * delta * 3.2
-    _visual.position.y = absf(sin(_bob)) * _bob_amp * k
-    _visual.rotation.z = sin(_bob) * _roll_amp * k
+    _visual.position.y = absf(sin(_bob)) * bob_amplitude * k
+    _visual.rotation.z = sin(_bob) * roll_amplitude * k

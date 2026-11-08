@@ -130,7 +130,10 @@ var _prime_noise_fallback := false
 var _refill_timer := 0.0
 var _refill_idle := 0.0   # seconds since the last stamp
 var _sun_dir := Vector3.ZERO
-var _hash_origin_key: Array = []
+var _hash_origin_valid := false
+var _hash_origin := Vector2.ZERO
+var _hash_bevel_density := 0.0
+var _hash_sparkle_density := 0.0
 var _puffs: SurfacePuffs
 
 
@@ -609,7 +612,7 @@ func _adopt_material() -> void:
 	else:
 		_mat = ShaderMaterial.new()
 		_mat.shader = SURFACE_SHADER
-	_hash_origin_key = []
+	_hash_origin_valid = false
 
 
 func _source_material() -> ShaderMaterial:
@@ -789,10 +792,14 @@ func _configure_hash_origins() -> void:
 	var origin := Vector2(global_position.x, global_position.z)
 	var bevel_density := _shader_float_parameter("bevel_noise_scale", 32.0)
 	var sparkle_density := _shader_float_parameter("sparkle_density", 24.0)
-	var key := [origin, bevel_density, sparkle_density]
-	if key == _hash_origin_key:
+	if _hash_origin_valid and origin == _hash_origin \
+			and bevel_density == _hash_bevel_density \
+			and sparkle_density == _hash_sparkle_density:
 		return
-	_hash_origin_key = key
+	_hash_origin = origin
+	_hash_bevel_density = bevel_density
+	_hash_sparkle_density = sparkle_density
+	_hash_origin_valid = true
 	_set_hash_origin("bevel", origin, maxf(bevel_density, 0.0001))
 	_set_hash_origin("sparkle", origin, maxf(sparkle_density, 0.0001))
 

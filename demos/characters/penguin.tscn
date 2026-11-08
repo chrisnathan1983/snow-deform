@@ -1,6 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://demos/scripts/demo_character.gd" id="1_extct"]
+[ext_resource type="Script" uid="uid://cgrvvu3m15p4j" path="res://addons/deformable_surface/scripts/deformers/deformer_footsteps.gd" id="2_footsteps"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_8q7po"]
 albedo_color = Color(0.1, 0.12, 0.18, 1)
@@ -69,6 +70,10 @@ size = Vector3(0.1, 0.03, 0.16)
 [node name="Penguin" type="Node3D" unique_id=1812529652]
 transform = Transform3D(0.99315315, 0, -0.11681957, 0, 1, 0, 0.11681957, 0, 0.99315315, 2.999938, 0, 0.019283867)
 script = ExtResource("1_extct")
+body_radius = 0.2
+move_speed = 3.0
+bob_amplitude = 0.03
+roll_amplitude = 0.24
 
 [node name="Visual" type="Node3D" parent="." unique_id=893403880]
 transform = Transform3D(0.9908942, -0.13464272, 0, 0.13464272, 0.9908942, 0, 0, 0, 1, 0, 0.016881611, 0)
@@ -122,3 +127,12 @@ mesh = SubResource("BoxMesh_15iqk")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.08, 0.02, -0.04)
 material_override = SubResource("StandardMaterial3D_1lux0")
 mesh = SubResource("BoxMesh_guky3")
+
+[node name="DeformerFootsteps" type="Node3D" parent="."]
+script = ExtResource("2_footsteps")
+foot_radius = 0.13
+foot_aspect = 1.6
+spread = 0.08
+stride_min = 0.07
+stride_max = 0.14
+strength = 0.8
