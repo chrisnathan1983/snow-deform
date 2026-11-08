@@ -792,7 +792,7 @@ func _on_surface_type_changed() -> void:
 
 
 func _on_initial_noise_changed() -> void:
-	if _runtime:
+	if _runtime and _values().initial_noise_enabled:
 		_clear_map()
 
 
@@ -813,8 +813,12 @@ func _on_surface_material_changed() -> void:
 
 func _starting_surface_key() -> Array:
 	var p := _values()
-	return [p.initial_noise_enabled, p.initial_noise, p.initial_noise_frequency,
-		p.initial_noise_invert, p.initial_noise_height, p.initial_noise_detail,
+	if not p.initial_noise_enabled:
+		return [false]
+	var noise_frequency := p.initial_noise.frequency if p.initial_noise != null \
+			else p.initial_noise_frequency
+	return [true, p.initial_noise, noise_frequency, p.initial_noise_invert,
+		p.initial_noise_height, p.initial_noise_detail,
 		p.initial_noise_detail_scale, p.initial_noise_mound_height,
 		p.initial_noise_mound_frequency]
 
