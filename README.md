@@ -43,14 +43,12 @@ a sled, a yeti, and a penguin parade. The Scene tab can toggle those actors and 
 snowball storm. Switching modes clears tracks and preserves actor and material settings.
 **Surface → Area size** resizes the fenced arena.
 
-Infinite mode uses smaller map presets and relocates one tile per frame. Near a tile
-boundary the grid prepares the next row or column in the direction of travel. For
-materials with a CPU noise resource, it prepares the next texture separately from the
-active one. The default snow profile generates its starting surface on the GPU.
-Tiles under the player take priority after a teleport.
+Infinite mode uses smaller map presets and relocates one tile per frame. Tiles under
+the player take priority after a teleport. Starting noise is sampled from shared,
+seamless textures in the GPU map and recovery shaders.
 
 Surface edits wait 120 ms after the last change, then apply to one field per frame.
-The grid waits for pending edits before recycling. Brushes can overlap multiple fields,
+Brushes can overlap multiple fields,
 while only the field containing the contact center emits puffs and contact signals.
 
 ### Powder Run
@@ -338,8 +336,8 @@ godot --headless --path . --script tests/ski_free_gameplay.gd
 | --- | --- |
 | `demo_loading.gd` | Loading feedback, fallback without threads, and error recovery. Run with rendering to check warm-up draws and the first live puff. |
 | `playground_modes.gd` | Launcher, actor toggles, arena sizing, and pending settings across mode changes. |
-| `initial_noise_seams.gd` | CPU height and normal seams, cache keys, and prepared textures. Run with rendering to compare texture bytes as well. |
-| `infinite_snow_prefetch.gd`, `infinite_snow_recycling.gd`, `surface_settings_updates.gd` | Grid recycling, prefetch priority, direction reversal, and concurrent settings edits. |
+| `initial_noise_seams.gd` | Shared seamless texture caching headlessly; run with rendering to compare adjacent map edges. |
+| `infinite_snow_recycling.gd`, `surface_settings_updates.gd` | Grid recycling, direction reversal, and batched settings edits. |
 | `deformer_tile_edges.gd`, `track_profiles.gd` | Cross-tile stamps, contact ownership, smooth grooves, and tread tracks. |
 | `ski_free_gameplay.gd` | Touch input, layout, gates, jumps, recycling, and guest tracks. Run with rendering to check MultiMesh transforms. |
 

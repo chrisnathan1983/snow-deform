@@ -1,6 +1,5 @@
 extends RefCounted
-## Use a CPU noise source so the recycler exercises the preparation worker.
-## The stock snow profile generates its initial noise on the GPU instead.
+## Use a custom noise source to exercise the shared preset texture path.
 
 
 static func create(parent: Node) -> DeformableSurfaceGrid:

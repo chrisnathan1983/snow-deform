@@ -1,7 +1,7 @@
 class_name DeformableSurfaceGrid
 extends Node3D
 ## Owns a square pool of snow fields. Crossing a tile boundary recycles fields
-## outside the new footprint. Prepare noise ahead of travel when possible.
+## outside the new footprint.
 ## Set the tile size, radius and initial profiles before adding the grid to the tree.
 
 @export var surface_type: DeformableSurfaceType
@@ -11,26 +11,17 @@ extends Node3D
 @export var priority_camera: Camera3D
 @export_range(1.0, 256.0, 1.0) var tile_size := 32.0
 @export_range(0, 8) var radius := 1
-@export_range(0.0, 32.0, 0.5, "or_greater") var prefetch_distance := 8.0
 @export_range(1, 32, 1, "or_greater") var relocations_per_frame := 1
 @export var follow_x := true
 @export var follow_offset := Vector3.ZERO
 
 ## Optional Callable(tile: Vector2i) -> DeformableSurfaceType for initial per-field profiles.
 var surface_for_tile: Callable
-## Optional Callable() -> bool while settings edits own the fields' noise workers.
-var relocation_blocked: Callable
 var fields: Array[DeformableSurface] = []
 var center_tile := Vector2i.ZERO
 
 var _tiles: Dictionary[Vector2i, DeformableSurface] = {}
 var _pending_relocations: Array[Dictionary] = []
-var _prefetch_relocations: Array[Dictionary] = []
-var _prefetch_center := Vector2i.ZERO
-var _prefetch_index := 0
-var _last_position := Vector3.ZERO
-var _travel_direction := Vector3.ZERO
-var _has_sample := false
 var _focus := Vector3.ZERO
 
 
@@ -73,16 +64,6 @@ func update_tiles() -> void:
 	_focus = to_local(follow_target.global_position) + follow_offset
 	if not follow_x:
 		_focus.x = 0.0
-	if _has_sample:
-		var movement := _focus - _last_position
-		movement.y = 0.0
-		if movement.length_squared() > 0.000001:
-			_travel_direction = movement.normalized()
-	_last_position = _focus
-	_has_sample = true
-	if relocation_blocked.is_valid() and relocation_blocked.call():
-		_clear_prefetch()
-		return
 	var center := _tile_at_local(_focus)
 	if center != center_tile:
 		_queue_recenter(center)
@@ -91,8 +72,6 @@ func update_tiles() -> void:
 		for i in relocations_per_frame:
 			if not has_pending_relocations() or not _relocate_next():
 				break
-	elif prefetch_distance > 0.0:
-		_prefetch_fields()
 
 
 func _tile_position(tile: Vector2i) -> Vector3:
@@ -108,8 +87,6 @@ func _relocate_next() -> bool:
 	var field := relocation["field"] as DeformableSurface
 	var tile: Vector2i = relocation["tile"]
 	var destination := _tile_position(tile)
-	if not field.prepare_initial_noise_at(to_global(destination)):
-		return false
 	_pending_relocations.pop_front()
 	_tiles.erase(_tile_at_local(field.position))
 	field.position = destination
@@ -118,36 +95,8 @@ func _relocate_next() -> bool:
 	return true
 
 
-func _prefetch_fields() -> void:
-	var center := _tile_at_local(_focus + _travel_direction * prefetch_distance)
-	if center == center_tile:
-		_clear_prefetch()
-		return
-	if center != _prefetch_center or _prefetch_relocations.is_empty():
-		_prefetch_center = center
-		_prefetch_relocations = _plan_relocations(center)
-		_prefetch_index = 0
-	if _prefetch_index < _prefetch_relocations.size():
-		var relocation := _prefetch_relocations[_prefetch_index]
-		var field := relocation["field"] as DeformableSurface
-		var destination := _tile_position(relocation["tile"])
-		if field.prepare_initial_noise_at(to_global(destination)):
-			_prefetch_index += 1
-
-
-func _clear_prefetch() -> void:
-	_prefetch_relocations.clear()
-	_prefetch_index = 0
-
-
 func _queue_recenter(center: Vector2i) -> void:
-	if center == _prefetch_center and not _prefetch_relocations.is_empty():
-		# Keep the field/target pairing that already has work in flight.
-		_pending_relocations = _prefetch_relocations.duplicate()
-		_pending_relocations.sort_custom(_nearer_relocation)
-	else:
-		_pending_relocations = _plan_relocations(center)
-	_clear_prefetch()
+	_pending_relocations = _plan_relocations(center)
 	center_tile = center
 
 

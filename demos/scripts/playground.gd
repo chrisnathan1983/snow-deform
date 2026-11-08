@@ -176,8 +176,6 @@ func set_infinite(enabled: bool) -> void:
     _snow_root.free()
     _build_snow(profile, quality)
     settings.replace_fields(snow_fields)
-    if grid:
-        grid.relocation_blocked = settings.has_pending_surface_updates
     _update_arena()
     ui.set_value("infinite", infinite)
     ui.set_slider_editable("surface.area_size", not infinite)
@@ -386,8 +384,6 @@ func _build_ui() -> void:
     settings.sun_handler = _set_sun
     settings.add_surface_tab()
     ui.set_slider_editable("surface.area_size", not infinite)
-    if grid:
-        grid.relocation_blocked = settings.has_pending_surface_updates
     settings.add_weather_tab(weather)
     settings.add_graphics_tab(sun, _sun_height)
     var scene_tab := ui.add_tab("Scene")

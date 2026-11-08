@@ -6,7 +6,7 @@ Playground includes the fenced arena, Infinite mode, actor toggles, and the area
 ## 2. Extract the tile recycler
 
 Done. `demos/shared/deformable_surface_grid.gd` is shared by Playground and Powder Run.
-The recycling, prefetch, and settings tests exercise the grid directly.
+The recycling and settings tests exercise the grid directly.
 
 ## 3. Replace the code-built content with scenes
 

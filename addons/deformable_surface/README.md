@@ -87,9 +87,9 @@ The following material settings live in a `DeformableSurfaceType` (`surface_type
 | `puff_velocity_min`, `puff_velocity_max` | `0.6`, `1.4` | Puff launch speed range in m/s. |
 | `wrapped_diffuse_lighting` | `true` | Adds a cool tint to the material's shadow color; diffuse and specular lighting use Godot's built-in model. |
 | `initial_noise_enabled` | `true` | Starts with a procedural bumpy surface instead of a flat one; recovery heals back to it. |
-| `initial_noise` | Empty | Optional `FastNoiseLite`. When empty, uses Cellular noise with Euclidean Squared distance, Distance return, jitter `0.9`, and no fractal. The ready-made sand, mud, dirt and ash profiles each ship their own noise. |
+| `initial_noise` | Empty | Optional `FastNoiseLite`. Empty uses Cellular noise with Euclidean Squared distance, Distance return, jitter `0.9`, and no fractal. Each profile is baked to shared seamless noise textures and sampled in world space. The sand, mud, dirt and ash profiles each ship their own noise. |
 | `initial_noise_invert` | `false` | Inverts the pattern to create mounds instead of dimples. |
-| `initial_noise_frequency` | `0.8` | Built-in cellular feature scale; lower values create larger dimples. |
+| `initial_noise_frequency` | `0.8` | Built-in cellular feature scale when `initial_noise` is empty; lower values create larger dimples. |
 | `initial_noise_height` | `0.2` | Maximum starting height variation in meters (up to 0.5), covering the base noise and its second octave. |
 | `initial_noise_detail` | `0.6` | Second octave: the same noise again, with its own seed, weighted against the main noise (`0` = off). Total height still peaks at `initial_noise_height`. |
 | `initial_noise_detail_scale` | `0.25` | Frequency multiplier of the second octave (0.1 to 8). Below `1` makes broad hills; above `1` adds fine grain. |

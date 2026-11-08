@@ -33,7 +33,7 @@ const SURFACE_SHADER: Shader = preload("../shaders/deformable_surface.gdshader")
 const REFILL_SHADER: Shader = preload("../shaders/deformable_surface_refill.gdshader")
 const STAMP_SHADER: Shader = preload("../shaders/deformable_surface_stamp.gdshader")
 const INITIAL_NOISE_SHADER: Shader = preload("../shaders/deformable_surface_initial_noise.gdshader")
-const InitialNoiseGenerator = preload("initial_noise_generator.gd")
+const InitialNoiseTextures = preload("initial_noise_textures.gd")
 const BERM_REACH := 2.0     # berm ring radius, in brush radii
 const BERM_FORWARD := 0.3   # elongated prints push their berm ahead by this fraction
 const MAP_NEUTRAL := 128.0 / 255.0
@@ -117,18 +117,6 @@ var _runtime := false          # true once running in the game (not the editor)
 var _mat: ShaderMaterial       # our private copy of the material
 var _vp: SubViewport
 var _bg: Control
-var _initial_map_texture: Texture2D
-var _initial_noise_cache: ImageTexture
-var _initial_noise_cache_key: Array = []
-var _spare_noise_texture: ImageTexture
-var _prepared_noise_texture: ImageTexture
-var _prepared_noise_key: Array = []
-var _initial_noise_thread: Thread
-var _initial_noise_thread_key: Array = []
-var _initial_noise_thread_generator
-var _initial_noise_generator
-var _initial_noise_generator_key: Array = []
-var _initial_noise_force_sliced := false
 var _batching_surface_settings := false
 var _surface_clear_pending := false
 var _refill: ColorRect
@@ -228,9 +216,6 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
-	if _initial_noise_thread != null:
-		_initial_noise_thread.wait_to_finish()
-		_initial_noise_thread = null
 	instances.erase(self)
 	_dirty_deformers.clear()
 	_dirty_deformer_list.clear()
@@ -294,8 +279,7 @@ func _mark_deformer_dirty(deformer: Deformer) -> void:
 
 # ------------------------------------------------------------------ public API
 
-## Applies prepared material/quality changes together, clearing the map only once at
-## the final resolution. Call prepare_initial_noise_at() with these settings first.
+## Applies material/quality changes together, clearing the map only once at the final resolution.
 func apply_surface_settings(profile: DeformableSurfaceType, settings: DeformableSurfaceQuality) -> void:
 	_batching_surface_settings = true
 	set_surface_type(profile)
@@ -723,7 +707,11 @@ func set_surface_type(p: DeformableSurfaceType) -> void:
 
 
 func _starting_surface_key() -> Array:
-	return [_values().initial_noise_enabled, _initial_noise_key(512)]
+	var p := _values()
+	return [p.initial_noise_enabled, p.initial_noise, p.initial_noise_frequency,
+		p.initial_noise_invert, p.initial_noise_height, p.initial_noise_detail,
+		p.initial_noise_detail_scale, p.initial_noise_mound_height,
+		p.initial_noise_mound_frequency]
 
 
 func _make_refill_rect(shader: Shader) -> ColorRect:
@@ -908,36 +896,19 @@ func _clear_map() -> void:
 		return
 	if is_instance_valid(_bg):
 		_bg.queue_free()
-	var procedural_noise := _mp.initial_noise_enabled and _mp.initial_noise == null
-	if procedural_noise:
-		_initial_map_texture = null
-		var background := ColorRect.new()
+	var background := ColorRect.new()
+	background.size = Vector2(_vp.size)
+	if _mp.initial_noise_enabled:
 		var background_material := ShaderMaterial.new()
 		background_material.shader = INITIAL_NOISE_SHADER
 		_configure_initial_noise_shader(background_material, _mp, global_position)
 		background.material = background_material
 		background.color = Color.WHITE
-		background.size = Vector2(_vp.size)
-		_bg = background
-	elif _mp.initial_noise_enabled:
-		_initial_map_texture = _get_initial_noise_texture()
-		var background := TextureRect.new()
-		background.texture = _initial_map_texture
-		background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		background.stretch_mode = TextureRect.STRETCH_SCALE
-		background.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-		background.size = Vector2(_vp.size)
-		_bg = background
 	else:
-		_initial_map_texture = null
-		var background := ColorRect.new()
 		background.color = Color(MAP_NEUTRAL, MAP_NEUTRAL, MAP_NEUTRAL)
-		background.size = Vector2(_vp.size)
-		_bg = background
-	_refill_material.set_shader_parameter("recovery_target", _initial_map_texture)
-	_refill_material.set_shader_parameter("recovery_target_enabled", _mp.initial_noise_enabled and not procedural_noise)
-	_refill_material.set_shader_parameter("procedural_initial_noise_enabled", procedural_noise)
-	if procedural_noise:
+	_bg = background
+	_refill_material.set_shader_parameter("initial_noise_enabled", _mp.initial_noise_enabled)
+	if _mp.initial_noise_enabled:
 		_configure_initial_noise_shader(_refill_material, _mp, global_position)
 	_vp.add_child(_bg)
 	_vp.move_child(_bg, 0)
@@ -954,138 +925,25 @@ func _clear_map() -> void:
 
 func _configure_initial_noise_shader(shader_material: ShaderMaterial,
 		profile: DeformableSurfaceType, world_position: Vector3) -> void:
+	var textures := InitialNoiseTextures.for_profile(profile)
+	shader_material.set_shader_parameter("initial_noise_texture", textures["base"])
+	shader_material.set_shader_parameter("initial_noise_detail_texture", textures["detail"])
+	shader_material.set_shader_parameter("initial_noise_mound_texture", textures["mound"])
 	shader_material.set_shader_parameter("initial_noise_origin",
 		Vector2(world_position.x, world_position.z) - area_size * 0.5)
 	shader_material.set_shader_parameter("initial_noise_area", area_size)
 	shader_material.set_shader_parameter("initial_noise_resolution", float(_vp.size.x))
 	shader_material.set_shader_parameter("initial_noise_depth", profile.max_depth)
-	shader_material.set_shader_parameter("initial_noise_frequency", profile.initial_noise_frequency)
+	shader_material.set_shader_parameter("initial_noise_world_period", InitialNoiseTextures.WORLD_PERIOD)
+	var noise_frequency := profile.initial_noise.frequency if profile.initial_noise != null \
+			else profile.initial_noise_frequency
+	shader_material.set_shader_parameter("initial_noise_frequency", noise_frequency)
 	shader_material.set_shader_parameter("initial_noise_height", profile.initial_noise_height)
 	shader_material.set_shader_parameter("initial_noise_detail", profile.initial_noise_detail)
 	shader_material.set_shader_parameter("initial_noise_detail_scale", profile.initial_noise_detail_scale)
 	shader_material.set_shader_parameter("initial_noise_mound_height", profile.initial_noise_mound_height)
 	shader_material.set_shader_parameter("initial_noise_mound_frequency", profile.initial_noise_mound_frequency)
 	shader_material.set_shader_parameter("initial_noise_invert", profile.initial_noise_invert)
-
-
-func _initial_noise_key(resolution: int, profile: DeformableSurfaceType = null) -> Array:
-	var p := profile if profile != null else _values()
-	# Surface types can be assigned before this node is added to the scene.
-	var origin := global_position if is_inside_tree() else position
-	var noise_key: Array = [null]
-	if p.initial_noise != null:
-		noise_key = [
-			p.initial_noise, p.initial_noise.seed, p.initial_noise.frequency,
-			p.initial_noise.noise_type, p.initial_noise.fractal_type,
-		]
-	return [
-		resolution, area_size, Vector2(origin.x, origin.z),
-		p.max_depth, p.initial_noise_invert,
-		p.initial_noise_frequency, p.initial_noise_height, noise_key,
-		p.initial_noise_detail, p.initial_noise_detail_scale,
-		p.initial_noise_mound_height, p.initial_noise_mound_frequency,
-	]
-
-
-## Prepares noise for a future relocation without blocking a frame. Poll until true, then
-## move the surface and call reset_trails(). Texture creation stays on the main thread;
-## the worker only reads a private settings snapshot and writes its own Image.
-## Optional profile/quality arguments prepare a settings change at its final resolution;
-## pass the same resources to apply_surface_settings() once preparation is complete.
-func prepare_initial_noise_at(world_position: Vector3, profile: DeformableSurfaceType = null,
-		settings: DeformableSurfaceQuality = null) -> bool:
-	var target := profile if profile != null else _values()
-	if not _runtime or not target.initial_noise_enabled:
-		return true
-	if target.initial_noise == null:
-		return true
-	var resolution := mini(clampi(settings.res, 128, 2048) if settings != null else _vp.size.x, 512)
-	var key := _initial_noise_key(resolution, target)
-	key[2] = Vector2(world_position.x, world_position.z)
-	if (_initial_noise_cache != null and _initial_noise_cache_key == key
-			or _prepared_noise_texture != null and _prepared_noise_key == key):
-		return true
-	if _initial_noise_thread != null:
-		if _initial_noise_thread.is_alive():
-			return false
-		var image: Image = _initial_noise_thread.wait_to_finish()
-		_initial_noise_thread = null
-		_initial_noise_thread_generator = null
-		# Discard obsolete results before uploading them after a direction/settings change.
-		if _initial_noise_thread_key == key:
-			_store_prepared_noise_image(image, key)
-			return true
-	var origin := Vector2(world_position.x, world_position.z) - area_size * 0.5
-	if OS.has_feature("nothreads") or _initial_noise_force_sliced:
-		if _initial_noise_generator == null or _initial_noise_generator_key != key:
-			var snapshot := target.duplicate(true) as DeformableSurfaceType
-			snapshot.clamp_values()
-			_initial_noise_generator = InitialNoiseGenerator.new(snapshot, resolution, area_size, origin)
-			_initial_noise_generator_key = key
-		if not _initial_noise_generator.step(2000):
-			return false
-		_store_prepared_noise_image(_initial_noise_generator.image, key)
-		_initial_noise_generator = null
-		_initial_noise_generator_key = []
-		return true
-	_initial_noise_generator = null
-	_initial_noise_generator_key = []
-	var snapshot := target.duplicate(true) as DeformableSurfaceType
-	snapshot.clamp_values()
-	_initial_noise_thread = Thread.new()
-	_initial_noise_thread_key = key
-	_initial_noise_thread_generator = InitialNoiseGenerator.new(snapshot, resolution, area_size, origin)
-	var error := _initial_noise_thread.start(_initial_noise_thread_generator.run_to_completion)
-	if error != OK:
-		_initial_noise_thread = null
-		_initial_noise_thread_generator = null
-		# Thread support can be reported by the platform but fail at runtime; keep
-		# the operation alive and finish it incrementally on the main thread.
-		_initial_noise_force_sliced = true
-		_initial_noise_generator = InitialNoiseGenerator.new(snapshot, resolution, area_size, origin)
-		_initial_noise_generator_key = key
-	return false
-
-
-## Regenerating is a per-pixel GDScript loop, so reuse the texture while its inputs are unchanged.
-func _get_initial_noise_texture() -> Texture2D:
-	var key := _initial_noise_key(mini(_vp.size.x, 512))
-	if _prepared_noise_texture != null and _prepared_noise_key == key:
-		_spare_noise_texture = _initial_noise_cache
-		_initial_noise_cache = _prepared_noise_texture
-		_initial_noise_cache_key = _prepared_noise_key
-		_prepared_noise_texture = null
-		_prepared_noise_key = []
-	if _initial_noise_cache == null or _initial_noise_cache_key != key:
-		_update_initial_noise_texture(_make_initial_noise_image())
-		_initial_noise_cache_key = key
-	return _initial_noise_cache
-
-
-func _update_initial_noise_texture(image: Image) -> void:
-	if _initial_noise_cache != null and _initial_noise_cache.get_width() == image.get_width() \
-			and _initial_noise_cache.get_height() == image.get_height():
-		_initial_noise_cache.update(image)
-	else:
-		_initial_noise_cache = ImageTexture.create_from_image(image)
-
-
-func _store_prepared_noise_image(image: Image, key: Array) -> void:
-	if _spare_noise_texture != null and _spare_noise_texture.get_width() == image.get_width() \
-			and _spare_noise_texture.get_height() == image.get_height():
-		_spare_noise_texture.update(image)
-		_prepared_noise_texture = _spare_noise_texture
-		_spare_noise_texture = null
-	else:
-		_prepared_noise_texture = ImageTexture.create_from_image(image)
-	_prepared_noise_key = key
-
-
-func _make_initial_noise_image() -> Image:
-	var resolution := mini(_vp.size.x, 512)
-	var origin := Vector2(global_position.x, global_position.z) - area_size * 0.5
-	var generator = InitialNoiseGenerator.new(_values(), resolution, area_size, origin)
-	return generator.run_to_completion()
 
 
 func _forget(id: int) -> void:
@@ -1242,7 +1100,7 @@ func _process(delta: float) -> void:
 		_cost_refill_px = res.x * res.y
 
 	# Only spend GPU time when something actually changed
-	if _prime_frames > 0:
+	if _prime_frames > 0 and InitialNoiseTextures.ready_for_profile(_mp):
 		_prime_frames -= 1
 		if _prime_frames == 0 and is_instance_valid(_bg):
 			_bg.queue_free()

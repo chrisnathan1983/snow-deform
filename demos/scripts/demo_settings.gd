@@ -57,7 +57,7 @@ func _process(delta: float) -> void:
 	_surface_edit_delay = maxf(0.0, _surface_edit_delay - delta)
 	if _surface_edit_delay > 0.0:
 		return
-	# Prepare and apply one field at a time so uploads/rebuilds are spread over frames.
+	# Apply one field at a time so map clears and rebuilds are spread over frames.
 	var f: DeformableSurface = _pending_surface_updates.keys()[0]
 	if not is_instance_valid(f):
 		_pending_surface_updates.erase(f)
@@ -65,8 +65,6 @@ func _process(delta: float) -> void:
 	var update: Dictionary = _pending_surface_updates[f]
 	var profile: DeformableSurfaceType = update["profile"]
 	var settings: DeformableSurfaceQuality = update["quality"]
-	if not f.prepare_initial_noise_at(f.global_position, profile, settings):
-		return
 	f.apply_surface_settings(profile, settings)
 	_pending_surface_updates.erase(f)
 

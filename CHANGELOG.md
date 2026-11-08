@@ -25,13 +25,15 @@ First packaged release.
   toggles actors, including wandering NPCs, the mouse, and the pushable soccer ball.
 - The demos share follow/orbit camera code, the flat and height-function mouse brush, and a HUD shell
   with navigation and optional touch sticks. The showcase demos apply their settings live.
-- Playground and Powder Run use a reusable tile grid. Playground prepares CPU noise for upcoming
-  tiles when its profile supplies a noise resource, and Powder Run recycles full rows downhill.
+- Playground and Powder Run use a reusable tile grid. Playground recycles one tile at a time;
+  Powder Run recycles full rows downhill.
+- Starting surfaces and recovery now share seamless `NoiseTexture2D` textures sampled in world
+  space. This removes the CPU image generator, its worker/sliced fallback, and grid prefetch.
 - Demos use the addon's `.tres` presets and keep their own tuning in `demos/resources/`.
 - Powder Run uses authored skier, guest, ramp, and gate scenes and reuses the pine and rock props.
   All slope guests carve smooth grooves, and obstacles keep their batched rendering when recycled.
-- Regression coverage includes launcher and Playground mode switches, grid prefetch and settings
-  changes, CPU noise seams, and Powder Run gameplay with rendered scenery checks.
+- Regression coverage includes launcher and Playground mode switches, grid recycling and settings
+  changes, seamless noise textures, and Powder Run gameplay with rendered scenery checks.
 - New `disturbed_darkening` material uniform (used by mud and dirt) darkens any disturbed ground.
 - Starting-surface noise gained a second octave, controlled by
   `initial_noise_detail` and `initial_noise_detail_scale` on the surface type.

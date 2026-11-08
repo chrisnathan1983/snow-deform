@@ -12,7 +12,7 @@ func _initialize() -> void:
 func _run() -> void:
 	var grid := Fixture.create(root)
 	var longest_usec := 0
-	# Start preparation, then reverse direction before its worker finishes.
+	# Recycle repeatedly while changing direction.
 	grid.follow_target.position.x = -grid.tile_size
 	grid.update_tiles()
 	for destination in [Vector2i(1, 0), Vector2i(-2, -1), Vector2i(3, 2)]:
@@ -27,11 +27,6 @@ func _run() -> void:
 			await process_frame
 			if frames > 10000:
 				push_error("Tile recycling failed to finish")
-				quit(1)
-				return
-		for field in grid.fields:
-			if field._initial_noise_cache_key != field._initial_noise_key(mini(field._vp.size.x, 512)):
-				push_error("Recycled tile has stale noise")
 				quit(1)
 				return
 	print("Longest tile-recycling call: %.2f ms" % (longest_usec / 1000.0))

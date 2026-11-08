@@ -14,7 +14,6 @@ func _run() -> void:
 	var shell := DemoShell.attach(root)
 	var settings := shell.bind_surfaces(grid.fields)
 	settings.set_process(false)
-	grid.relocation_blocked = settings.has_pending_surface_updates
 	var longest_usec := 0
 	for i in 15:
 		var start := Time.get_ticks_usec()
@@ -22,7 +21,7 @@ func _run() -> void:
 		settings.edit_profile("initial_noise_mound_height", i * 0.01)
 		settings._edit_technical("res", 192 if i < 14 else 256)
 		longest_usec = maxi(longest_usec, Time.get_ticks_usec() - start)
-	# A quality change while another result is in flight must keep the latest edits.
+	# The latest queued settings apply together after the debounce.
 	settings._process(0.2)
 	settings._edit_technical("res", 192)
 	grid.follow_target.position = Vector3(grid.tile_size, 0.0, grid.tile_size)
@@ -43,23 +42,17 @@ func _run() -> void:
 		if (not is_equal_approx(field.surface_type.initial_noise_detail, 0.56)
 				or not is_equal_approx(field.surface_type.initial_noise_mound_height, 0.14)
 				or field._vp.size != Vector2i(192, 192)):
-			push_error("Settings lost an edit or applied an obsolete worker result")
+			push_error("Settings lost an edit or applied an obsolete update")
 			failures += 1
-		if field._initial_noise_cache_key != field._initial_noise_key(192):
-			push_error("Settings/recycling left a stale noise map")
-			failures += 1
-	# Applying profile and resolution together must consume the prepared texture.
+	# Applying profile and resolution together should clear the map once.
 	var field: DeformableSurface = grid.fields[0]
 	var profile := field.surface_type.duplicate() as DeformableSurfaceType
 	profile.initial_noise_detail = 0.9
 	var quality := field.quality.duplicate() as DeformableSurfaceQuality
 	quality.res = 256
-	while not field.prepare_initial_noise_at(field.global_position, profile, quality):
-		await process_frame
-	var prepared := field._prepared_noise_texture
 	field.apply_surface_settings(profile, quality)
-	if field._initial_map_texture != prepared:
-		push_error("Combined settings regenerated noise synchronously")
+	if field.quality.res != 256 or field._prime_frames == 0:
+		push_error("Combined settings did not apply and clear the map")
 		failures += 1
 	if longest_usec > 50000:
 		push_error("Settings blocked the main thread for more than 50 ms")

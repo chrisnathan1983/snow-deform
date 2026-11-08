@@ -116,7 +116,6 @@ func _build_world() -> void:
 	snow_grid.sun = sun
 	snow_grid.follow_x = false
 	snow_grid.follow_offset = Vector3(0.0, 0.0, 8.0)
-	snow_grid.prefetch_distance = 0.0
 	snow_grid.relocations_per_frame = 9
 	add_child(snow_grid)
 	snow_grid.set_process(false)
