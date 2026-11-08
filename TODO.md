@@ -33,7 +33,7 @@ Items are ordered by priority. Findings marked *(audit)* come from a read-throug
 - [ ] **Decide how to handle carve blending.** The current blend can partially refill a deeper trench when a lighter stamp overlaps it. Document this behavior and keep it as a known limit unless gameplay requires true minimum-height carving and a suitably cheap implementation is available.
 - [ ] **Test the GPU noise path on real devices.** Confirm the generated shaders use `highp` on a low-end Android browser, and run the rendered seam check in `initial_noise_seams.gd` (headless runs only verify caching).
 
-## P2 — Bring docs back in sync
+## P3 — Bring docs back in sync
 
 - [ ] **Separate project and addon documentation.** Keep installation and demo instructions in the root README. Keep the deformable-surface API in `addons/deformable_surface/README.md`; remove duplicated API sections from the root README after checking that links still work.
 - [x] **Fix the contact signal in the changelog.** The signal signature now names the argument `type_name`, matching the signal and addon README.
@@ -44,13 +44,13 @@ Items are ordered by priority. Findings marked *(audit)* come from a read-throug
 - [x] **State the supported engine version honestly.** The addon README now says this release targets and is tested on Godot 4.7; earlier minor versions are unverified.
 - [ ] **Document moving a surface.** Moving a `DeformableSurface` after setup leaves the noise origin stale until `reset_trails()`. Document it or handle it in the node.
 
-## P3 — Minor cleanups
+## P4 — Minor cleanups
 
 - [x] `_dirty_deformers.has()` and `find()` are O(n) per transform notification; use an index map and swap removal.
 - [x] `_configure_hash_origins` allocates a key array per field per frame; compare the values directly.
 - [x] `StampBatchRenderer` never frees batches, so many unique footprint textures would accumulate. Retain at most 32 batches between frames, pruning idle batches at frame reset.
 
-## P3 — Finish demo scene and folder cleanup
+## P5 — Finish demo scene and folder cleanup
 
 ### Replace code-built content with scenes
 
