@@ -2,17 +2,7 @@
 
 Items are ordered by priority. Findings marked *(audit)* come from a read-through of the code; none were profiled or run, so confirm each before relying on it.
 
-## P0 — Fix correctness and ownership bugs
-
-- [ ] **Make priming robust.**
-  - [ ] Measure a preset switch on a no-threads Web export. The export is currently blocked because the Godot 4.7.2 `web_nothreads` templates are not installed in this environment.
-
-## P1 — Simplify the core surface
-
-- [ ] **Move from the tile grid to one scrolling map.** Replace the demo grid only after scrolling, stamps, recovery, and edge behavior are covered. Removes `DeformableSurfaceGrid`, cross-tile reach checks, `owns_contact` bounds, the edge/corner tests, and the recycling queue.
-  - [ ] Connect the window state to map rendering, stamps, refill, and recovery; cover edge and teleport behavior before replacing the grid.
-
-## P2 — Verify rendering and engine behavior
+## Verify rendering and engine behavior
 
 - [ ] **Add optional vertex displacement.** Check whether the surface can use its fragment height and slope data without a subdivided mesh. A top-down or orthographic camera (Powder Run) may look fine with normal and darkening alone. If the result holds up, let Low quality skip mesh subdivisions and vertex texture sampling.
 - [ ] **Check HDR render targets on Compatibility.** On Godot 4.7, verify `use_hdr_2d` and RGBA16F support on the browser and mobile targets. Only consider dropping baked slopes and 8-bit refill encoding if the target platforms support it reliably.
@@ -20,21 +10,19 @@ Items are ordered by priority. Findings marked *(audit)* come from a read-throug
 - [ ] **Decide how to handle carve blending.** The current blend can partially refill a deeper trench when a lighter stamp overlaps it. Document this behavior and keep it as a known limit unless gameplay requires true minimum-height carving and a suitably cheap implementation is available.
 - [ ] **Test the GPU noise path on real devices.** Confirm the generated shaders use `highp` on a low-end Android browser, and run the rendered seam check in `initial_noise_seams.gd` (headless runs only verify caching).
 
-
-## P5 — Finish demo scene and folder cleanup
-
 ### Finish export and runtime checks
 
+- [ ] **Make priming robust.**
+  - [ ] Measure a preset switch on a no-threads Web export. The export is currently blocked because the Godot 4.7.2 `web_nothreads` templates are not installed in this environment.
 - [ ] Compile and browser-test the optional custom template using `tools/godot_web_profile.py`. This environment has no Godot executable or installed Web export templates.
 - [ ] Time a preset switch and a first-footprint refill in a real browser (see the P0 priming and refill items). Requires a Godot Web export.
 
 ## Optional, if gameplay needs it
-
-- To make characters sink into the surface, maintain a small CPU-side coarse height grid (for example, 64×64) alongside stamps. Avoid GPU readback, which would stall Web rendering.
+- [ ] **Move from the tile grid to one scrolling map.** Replace the demo grid only after scrolling, stamps, recovery, and edge behavior are covered. Removes `DeformableSurfaceGrid`, cross-tile reach checks, `owns_contact` bounds, the edge/corner tests, and the recycling queue.
+  - [ ] Connect the window state to map rendering, stamps, refill, and recovery; cover edge and teleport behavior before replacing the grid.
+- [ ] To make characters sink into the surface, maintain a small CPU-side coarse height grid (for example, 64×64) alongside stamps. Avoid GPU readback, which would stall Web rendering.
 
 ## Done since the last audit
-
-### Completed TODO items
 
 - [x] Replaced `DemoCharacter`'s role enum with player, wander, and follow behavior scripts attached to the character scenes.
 - [x] Moved PineForest, the Playground fence, and hills into reusable scenes.
@@ -69,12 +57,3 @@ Items are ordered by priority. Findings marked *(audit)* come from a read-throug
 - [x] `_configure_hash_origins` allocates a key array per field per frame; compare the values directly.
 - [x] `StampBatchRenderer` never frees batches, so many unique footprint textures would accumulate. Retain at most 32 batches between frames, pruning idle batches at frame reset.
 - [x] **Footstep tuning per kind:** moved footsteps and per-character movement/animation values into `explorer.tscn`, `yeti.tscn` and `penguin.tscn`, matching the scene-owned setup in `mouse.tscn`. Removed `DemoCharacter.kind`.
-- [x] Filter tests, editor tooling, and unused demos out of the single-threaded Web export.
-- [x] Generate Brotli and gzip sidecars and document how to serve them.
-
-- [x] Editor preview now assigns its material.
-- [x] Removed the custom `light()` function; wrap and cool tint are computed in `fragment()`, so specular and roughness uniforms take effect.
-- [x] One noise pipeline: seamless `NoiseTexture2D`s sampled in world space. The thread, prefetch, and sliced fallback are gone.
-- [x] Resource state flows through `changed` signals.
-- [x] Stamp rendering split into analytic and sprite shaders; textured berm dilation is opt-in.
-- [x] `DeformationMap` and `StampBatchRenderer` extracted from the node.
