@@ -40,7 +40,7 @@ func _check_rendered_seam(profile: DeformableSurfaceType) -> void:
 		_check(false, "Initial map should finish generating")
 		field.free()
 		return
-	var center := field._vp.get_texture().get_image()
+	var center := field.get_deform_image()
 	field.position.x += field.size
 	field.reset_trails()
 	map_ready = await _wait_for_map(field)
@@ -48,7 +48,7 @@ func _check_rendered_seam(profile: DeformableSurfaceType) -> void:
 		_check(false, "Neighbor map should finish generating")
 		field.free()
 		return
-	var neighbor := field._vp.get_texture().get_image()
+	var neighbor := field.get_deform_image()
 	if center == null or neighbor == null:
 		_check(false, "Rendered deformation maps should be readable")
 	else:
@@ -60,7 +60,7 @@ func _check_rendered_seam(profile: DeformableSurfaceType) -> void:
 
 func _wait_for_map(field: DeformableSurface) -> bool:
 	var deadline := Time.get_ticks_msec() + 10000
-	while field._prime_frames > 0:
+	while field.is_priming():
 		await process_frame
 		if Time.get_ticks_msec() >= deadline:
 			return false

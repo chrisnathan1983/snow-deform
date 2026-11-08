@@ -26,6 +26,7 @@ func _run() -> void:
 		field.set_process(false)
 		field.contact.connect(func(_p, _d, _t, _s, _r, _puff): _contacts += 1)
 		fields.append(field)
+	await _finish_priming(fields)
 	var deformer := Deformer.new()
 	deformer.puff_on_touchdown = false
 	root.add_child(deformer)
@@ -40,7 +41,8 @@ func _run() -> void:
 			_contacts = 0
 			for field in fields:
 				field.reset_trails()
-				field._prime_frames = 0
+			await _finish_priming(fields)
+			for field in fields:
 				field._process(0.016)
 				if field.get_stamps_used() == 0:
 					push_error("Overlapping brush did not stamp a neighbor")
@@ -50,16 +52,16 @@ func _run() -> void:
 				failures += 1
 			for field in fields:
 				field.reset_trails()
-				if not field._last.is_empty():
+				if field.has_deformer_history(deformer):
 					push_error("Reset retained old movement history")
 					failures += 1
+			await _finish_priming(fields)
 	# A moving trail must keep affecting both sides throughout a border crossing.
 	deformer.aspect = 1.0
 	for x in [15.7, 15.9, 16.1, 16.3]:
 		deformer.position = Vector3(x, 0.0, 0.0)
 		for i in 2:
 			var field := fields[i]
-			field._prime_frames = 0
 			field._mark_deformer_dirty(deformer)
 			field._process(0.016)
 			if field.get_stamps_used() == 0:
@@ -67,7 +69,6 @@ func _run() -> void:
 				failures += 1
 	deformer.position = Vector3(100.0, 0.0, 100.0)
 	for field in fields:
-		field._prime_frames = 0
 		field._process(0.016)
 		if field.get_stamps_used() != 0:
 			push_error("Non-overlapping brush stamped a tile")
@@ -77,3 +78,17 @@ func _run() -> void:
 		field.free()
 	print("Deformer tile edge/corner checks: %d failures" % failures)
 	quit(1 if failures else 0)
+
+
+func _finish_priming(fields: Array[DeformableSurface]) -> void:
+	for field in fields:
+		field.set_process(true)
+	while true:
+		var waiting := false
+		for field in fields:
+			waiting = waiting or field.is_priming()
+		if not waiting:
+			break
+		await process_frame
+	for field in fields:
+		field.set_process(false)

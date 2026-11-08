@@ -41,7 +41,7 @@ func _run() -> void:
 	for field in grid.fields:
 		if (not is_equal_approx(field.surface_type.initial_noise_detail, 0.56)
 				or not is_equal_approx(field.surface_type.initial_noise_mound_height, 0.14)
-				or field._vp.size != Vector2i(192, 192)):
+				or field.get_deform_resolution() != Vector2i(192, 192)):
 			push_error("Settings lost an edit or applied an obsolete update")
 			failures += 1
 	# Applying profile and resolution together should clear the map once.
@@ -51,7 +51,7 @@ func _run() -> void:
 	var quality := field.quality.duplicate() as DeformableSurfaceQuality
 	quality.res = 256
 	field.apply_surface_settings(profile, quality)
-	if field.quality.res != 256 or field._prime_frames == 0:
+	if field.quality.res != 256 or not field.is_priming():
 		push_error("Combined settings did not apply and clear the map")
 		failures += 1
 	if longest_usec > 50000:

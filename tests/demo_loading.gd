@@ -73,7 +73,7 @@ func _check_transition(loading: Node, expected_scene: String) -> void:
 			and puffs._pool.all(func(p: CPUParticles3D): return p.visible and p.emitting),
 			"Every puff emitter should be started")
 		await RenderingServer.frame_post_draw
-		var image := field._vp.get_texture().get_image()
+		var image := field.get_deform_image()
 		if image != null:
 			warm_image = image.get_data()
 
@@ -81,7 +81,7 @@ func _check_transition(loading: Node, expected_scene: String) -> void:
 	if not rendered:
 		return
 	_check(not warm_image.is_empty(), "All four sample stamps should reach the render target")
-	_check(field._vp.get_texture().get_image().get_data() != warm_image,
+	_check(field.get_deform_image().get_data() != warm_image,
 		"Warm-up stamps should be cleared before gameplay resumes")
 	var puffs = field._puffs
 	if puffs == null:

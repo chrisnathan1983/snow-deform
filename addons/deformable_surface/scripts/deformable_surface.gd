@@ -34,44 +34,15 @@ const REFILL_SHADER: Shader = preload("../shaders/deformable_surface_refill.gdsh
 const STAMP_ANALYTIC_SHADER: Shader = preload("../shaders/deformable_surface_stamp_analytic.gdshader")
 const STAMP_SPRITE_SHADER: Shader = preload("../shaders/deformable_surface_stamp.gdshader")
 const InitialNoiseTextures = preload("initial_noise_textures.gd")
+const StampPipelineScript = preload("deformers/surface_stamp_pipeline.gd")
+const DeformerSchedulerScript = preload("deformers/deformer_scheduler.gd")
+const ContactDispatcherScript = preload("deformers/surface_contact_dispatcher.gd")
 const BERM_REACH := 2.0     # berm ring radius, in brush radii
 const BERM_FORWARD := 0.3   # elongated prints push their berm ahead by this fraction
 const PRIME_NOISE_TIMEOUT_SEC := 10.0
 const MAP_NEUTRAL := 128.0 / 255.0
-const STAMP_MIN_RADIUS_PX := 0.5
 const STAMP_MAX_ASPECT := 8.0
 const STAMP_CAPACITY := 512
-
-class PendingStamp:
-	extends RefCounted
-	var local := Vector3.ZERO
-	var radius := 0.0
-	var strength := 0.0
-	var shape: Texture2D
-	var mode := 0
-	var heading := 0.0
-	var aspect := 1.0
-	var puff := false
-	var silent := false
-	var track := false
-	var phase := 0.0
-	var capsule := false
-
-
-class StampRequest:
-	extends RefCounted
-	var pos := Vector2.ZERO
-	var radius_px := 0.0
-	var heading := 0.0
-	var aspect := 1.0
-	var strength := 1.0
-	var sliding := false
-	var texture: Texture2D
-	var flip_x := false
-	var mode := 0
-	var track := false
-	var phase := 0.0
-	var capsule := false
 
 @export_group("Surface")
 ## World size of the surface, in meters: a square centered on this node. Changing it at
@@ -141,7 +112,6 @@ var _updating_quality := false
 var _runtime := false          # true once running in the game (not the editor)
 var _mat: ShaderMaterial       # our private copy of the material
 var _map: DeformationMap
-var _vp: SubViewport # Temporary compatibility alias for existing project scripts.
 var _batching_surface_settings := false
 var _surface_clear_pending := false
 var _mesh: MeshInstance3D
@@ -150,15 +120,10 @@ var _cost_deformers_us := 0
 var _cost_queued_us := 0
 var _cost_puffs_us := 0
 var _cost_refill_px := 0.0
-var _pending_stamps: Array[PendingStamp] = []
-var _pending_stamp_pool: Array[PendingStamp] = []
-var _stamp_scratch := StampRequest.new()
-var _dirty_deformers: Array[Deformer] = []
-var _known := {}       # deformer instance_id -> true (we've connected its tree_exiting)
-var _last := {}        # deformer instance_id -> last stamped pixel pos
+var _stamp_pipeline: RefCounted
+var _scheduler: RefCounted
+var _contact_dispatcher: RefCounted
 var _puff_last := {}   # deformer instance_id -> time of last puff (s)
-var _puff_acc := {}    # deformer instance_id -> meters since last moving puff
-var _dirty_deformer_cursor := 0
 var _prime_frames := 0
 var _prime_noise_wait := 0.0
 var _prime_noise_fallback := false
@@ -190,8 +155,8 @@ func _ready() -> void:
 		_refresh_preview()
 		return
 
-	if not contact.is_connected(_on_contact_puff):
-		contact.connect(_on_contact_puff)
+	_contact_dispatcher = ContactDispatcherScript.new()
+	_contact_dispatcher.setup(self)
 	_adopt_material()
 	_configured_material_source = _source_material()
 	if not _set_active_quality(quality):
@@ -206,7 +171,10 @@ func _ready() -> void:
 	add_child(_map)
 	_map.setup(REFILL_SHADER, STAMP_ANALYTIC_SHADER, STAMP_SPRITE_SHADER,
 			mini(max_stamps_per_frame, STAMP_CAPACITY))
-	_vp = _map.viewport
+	_stamp_pipeline = StampPipelineScript.new()
+	_stamp_pipeline.setup(self, _map)
+	_scheduler = DeformerSchedulerScript.new()
+	_scheduler.setup(self)
 
 	if render_mesh:
 		_create_runtime_mesh()
@@ -219,8 +187,8 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	instances.erase(self)
-	_dirty_deformers.clear()
-	_dirty_deformer_cursor = 0
+	if _scheduler != null:
+		_scheduler.clear()
 
 
 func _create_runtime_mesh() -> void:
@@ -231,26 +199,13 @@ func _create_runtime_mesh() -> void:
 
 
 func _register_deformer(deformer: Deformer) -> void:
-	if not is_instance_valid(deformer):
-		return
-	if not _dirty_deformers.has(deformer):
-		_dirty_deformers.append(deformer)
+	if _scheduler != null:
+		_scheduler.register(deformer)
 
 
 func _unregister_deformer(deformer: Deformer) -> void:
-	if is_instance_valid(deformer):
-		_remove_dirty_deformer(deformer)
-
-
-func _remove_dirty_deformer(deformer: Deformer) -> void:
-	var index := _dirty_deformers.find(deformer)
-	if index < 0:
-		return
-	_dirty_deformers.remove_at(index)
-	if index < _dirty_deformer_cursor:
-		_dirty_deformer_cursor -= 1
-	if _dirty_deformer_cursor >= _dirty_deformers.size():
-		_dirty_deformer_cursor = 0
+	if _scheduler != null:
+		_scheduler.unregister(deformer)
 
 
 func _mark_deformer_dirty(deformer: Deformer) -> void:
@@ -342,17 +297,17 @@ func _values() -> DeformableSurfaceType:
 
 ## Stamps drawn this frame, out of `max_stamps_per_frame` (for performance readouts).
 func get_stamps_used() -> int:
-	return _map.stamp_renderer.stamps_used if _map != null else 0
+	return _stamp_pipeline.get_used_count() if _stamp_pipeline != null else 0
 
 
 ## Number of stamp texture batches allocated by this surface.
 func get_stamp_batch_count() -> int:
-	return _map.stamp_renderer.get_batch_count() if _map != null else 0
+	return _stamp_pipeline.get_batch_count() if _stamp_pipeline != null else 0
 
 
 ## Number of stamp texture batches used during the current frame.
 func get_active_stamp_batch_count() -> int:
-	return _map.stamp_renderer.get_active_batch_count() if _map != null else 0
+	return _stamp_pipeline.get_active_batch_count() if _stamp_pipeline != null else 0
 
 
 ## What this frame cost, per operation, for performance readouts. CPU values are milliseconds.
@@ -390,19 +345,19 @@ func warm_up_effects(tread: Texture2D, puff_position: Vector3) -> void:
 		_configure_stamp_capacity()
 	_reset_stamp_counts()
 	var center := Vector2(_map.viewport.size) * 0.5
-	_stamp(_prepare_stamp(center + Vector2(-16, 0), 4.0, 0.0, 1.0, 0.5))
-	var capsule := _prepare_stamp(center + Vector2(-5, 0), 4.0, 0.0, 2.0, 0.5)
+	_stamp_pipeline.stamp_request(_stamp_pipeline.prepare(center + Vector2(-16, 0), 4.0, 0.0, 1.0, 0.5))
+	var capsule = _stamp_pipeline.prepare(center + Vector2(-5, 0), 4.0, 0.0, 2.0, 0.5)
 	capsule.capsule = true
-	_stamp(capsule)
-	var sprite := _prepare_stamp(center + Vector2(5, 0), 4.0, 0.0, 1.0, 0.5)
+	_stamp_pipeline.stamp_request(capsule)
+	var sprite = _stamp_pipeline.prepare(center + Vector2(5, 0), 4.0, 0.0, 1.0, 0.5)
 	sprite.texture = tread
-	_stamp(sprite)
-	var track := _prepare_stamp(center + Vector2(16, 0), 4.0, 0.0, 2.0, 0.5)
+	_stamp_pipeline.stamp_request(sprite)
+	var track = _stamp_pipeline.prepare(center + Vector2(16, 0), 4.0, 0.0, 2.0, 0.5)
 	track.texture = tread
 	track.track = true
-	_stamp(track)
+	_stamp_pipeline.stamp_request(track)
 	max_stamps_per_frame = budget
-	_submit_stamp_batches()
+	_stamp_pipeline.submit()
 	_map.run_refill(true, refill_interval, _values().recovery_intensity,
 			_values().refill_levels_per_sec)
 	_map.request_render()
@@ -449,7 +404,7 @@ func stamp_at(
 	var reach := radius * (1.0 + BERM_REACH) * maxf(aspect, 1.0)
 	if absf(local.x) > area_size.x * 0.5 + reach or absf(local.z) > area_size.y * 0.5 + reach:
 		return
-	_queue_pending_stamp(local, maxf(radius, 0.01), clampf(strength, 0.0, 1.0),
+	_stamp_pipeline.queue(local, maxf(radius, 0.01), clampf(strength, 0.0, 1.0),
 		shape, mode, heading, maxf(aspect, 1.0), puff, silent, false, 0.0, false)
 
 
@@ -484,85 +439,18 @@ func stamp_segment(
 	var reach := (half_len + half_w) * (1.0 + BERM_REACH)
 	if absf(mid.x) > area_size.x * 0.5 + reach or absf(mid.z) > area_size.y * 0.5 + reach:
 		return
-	_queue_pending_stamp(mid, sqrt(half_len * half_w), clampf(strength, 0.0, 1.0),
+	_stamp_pipeline.queue(mid, sqrt(half_len * half_w), clampf(strength, 0.0, 1.0),
 		shape, mode, atan2(delta.z, delta.x), half_len / half_w,
 		false, true, not rounded, phase, rounded)
 
 
-func _queue_pending_stamp(local: Vector3, radius: float, strength: float,
-		shape: Texture2D, mode: int, heading: float, aspect: float,
-		puff: bool, silent: bool, track: bool, phase: float, capsule: bool) -> void:
-	var stamp: PendingStamp
-	if _pending_stamp_pool.is_empty():
-		stamp = PendingStamp.new()
-	else:
-		stamp = _pending_stamp_pool.pop_back()
-	stamp.local = local
-	stamp.radius = radius
-	stamp.strength = strength
-	stamp.shape = shape
-	stamp.mode = mode
-	stamp.heading = heading
-	stamp.aspect = aspect
-	stamp.puff = puff
-	stamp.silent = silent
-	stamp.track = track
-	stamp.phase = phase
-	stamp.capsule = capsule
-	_pending_stamps.append(stamp)
-
-
 func _clear_pending_stamps() -> void:
-	for stamp in _pending_stamps:
-		stamp.shape = null
-		_pending_stamp_pool.append(stamp)
-	_pending_stamps.clear()
+	_stamp_pipeline.clear_pending()
 
 
 ## Every contact goes through here. Puffs are spawned by a listener on `contact`.
 func _emit_contact(world_pos: Vector3, strength: float, mode: int, source: Node, radius: float, puff: bool) -> void:
-	var depth := strength * max_depth
-	if mode == StampMode.RAISE:
-		depth = -depth
-	elif mode == StampMode.SMOOTH:
-		depth = 0.0
-		puff = false
-	contact.emit(world_pos, depth, _effective_surface_type().type_name, source, radius, puff)
-
-
-func _on_contact_puff(world_pos: Vector3, _depth: float, _surface_type: StringName,
-		source: Node, radius: float, puff: bool) -> void:
-	if puff:
-		_spawn_puff(world_pos, radius, Vector3.ZERO, source)
-
-
-func _flush_pending_stamps(res: Vector2, px_per_m: float) -> void:
-	var input_count := _pending_stamps.size()
-	var write_index := 0
-	for read_index in input_count:
-		var s := _pending_stamps[read_index]
-		var local := s.local
-		var pos := (Vector2(local.x, local.z) / area_size + Vector2(0.5, 0.5)) * res
-		var request := _prepare_stamp(
-			pos, s.radius * px_per_m, s.heading, s.aspect, s.strength, s.mode)
-		request.texture = s.shape
-		request.track = s.track
-		request.phase = s.phase
-		request.capsule = s.capsule
-		if _prime_frames > 0 or not _stamp(request):
-			_pending_stamps[write_index] = s
-			write_index += 1
-			continue
-		if not s.silent:
-			_emit_contact(to_global(Vector3(local.x, 0.0, local.z)), s.strength, s.mode,
-					null, s.radius, s.puff)
-		s.shape = null
-		_pending_stamp_pool.append(s)
-	# Contact callbacks may enqueue new stamps; preserve that tail after compacting old work.
-	var appended_count := _pending_stamps.size() - input_count
-	for i in appended_count:
-		_pending_stamps[write_index + i] = _pending_stamps[input_count + i]
-	_pending_stamps.resize(write_index + appended_count)
+	_contact_dispatcher.emit(world_pos, strength, mode, source, radius, puff)
 
 
 func set_recovery_intensity(value: float) -> void:
@@ -609,6 +497,36 @@ func set_render_mesh(value: bool) -> void:
 ## Bind it in your own shader and decode it with deformable_surface.gdshaderinc.
 func get_deform_texture() -> Texture2D:
 	return _map.get_texture() if _map != null else null
+
+
+## Read-only image snapshot for diagnostics and rendered seam checks.
+func get_deform_image() -> Image:
+	return _map.viewport.get_texture().get_image() if _map != null else null
+
+
+## Current square deformation-map resolution, or zero before setup.
+func get_deform_resolution() -> Vector2i:
+	return _map.viewport.size if _map != null else Vector2i.ZERO
+
+
+## Number of stamps waiting for the per-frame rendering budget.
+func get_pending_stamp_count() -> int:
+	return _stamp_pipeline.get_pending_count() if _stamp_pipeline != null else 0
+
+
+## Read-only stamp details for diagnostics: capsule, shape, aspect and track.
+func get_pending_stamp_info(index: int) -> Dictionary:
+	return _stamp_pipeline.get_pending_info(index) if _stamp_pipeline != null else {}
+
+
+## True while the starting map is still being prepared.
+func is_priming() -> bool:
+	return _prime_frames > 0
+
+
+## Read-only movement-history query for diagnostics.
+func has_deformer_history(deformer: Deformer) -> bool:
+	return _scheduler.has_history(deformer) if _scheduler != null else false
 
 
 ## (center_x, center_z, 1 / size_x, 1 / size_z) in world space, for deform_world_to_uv().
@@ -958,18 +876,14 @@ func _clear_map() -> void:
 	_prime_noise_fallback = false
 	_refill_timer = 0.0
 	_refill_idle = 0.0
-	_puff_acc.clear()
-	_last.clear()
+	_scheduler.reset()
 	for deformer in Deformer.instances:
 		if deformer.field == null or deformer.field == self:
 			_register_deformer(deformer)
 func _forget(deformer: Deformer) -> void:
-	var id := deformer.get_instance_id()
-	_known.erase(id)
-	_last.erase(id)
-	_remove_dirty_deformer(deformer)
-	_puff_last.erase(id)
-	_puff_acc.erase(id)
+	if _scheduler != null:
+		_scheduler.forget(deformer)
+	_puff_last.erase(deformer.get_instance_id())
 
 
 # ------------------------------------------------------------------ per frame
@@ -989,124 +903,14 @@ func _process(delta: float) -> void:
 	_cost_puffs_us = 0
 	_cost_refill_px = 0.0
 
-	var list := _dirty_deformers.duplicate()
-	var n := list.size()
-	var cursor := _dirty_deformer_cursor
 	var res := Vector2(_map.viewport.size)
 	var px_per_m := res.x / area_size.x
 	var queued_start := Time.get_ticks_usec()
-	if not _pending_stamps.is_empty():
-		_flush_pending_stamps(res, px_per_m)
+	if _stamp_pipeline.get_pending_count() > 0:
+		_stamp_pipeline.flush(res, px_per_m, _prime_frames > 0)
 	_cost_queued_us = Time.get_ticks_usec() - queued_start
-	var deformers_start := Time.get_ticks_usec()
-	for k in n:
-		var d := list[(k + cursor) % n] as Deformer
-		if d == null or not is_instance_valid(d):
-			continue
-		var id := d.get_instance_id()
-		if not _known.has(id):
-			_known[id] = true
-			d.tree_exiting.connect(_forget.bind(d), CONNECT_ONE_SHOT)
-
-		if _prime_frames > 0:
-			continue   # the clear background is still being rendered
-
-		if not d.active:
-			_last.erase(id)   # lifted: next touchdown starts a fresh print
-			_remove_dirty_deformer(d)
-			continue
-		if d.strength <= 0.0:
-			_last.erase(id)
-			_remove_dirty_deformer(d)
-			continue
-		var local := to_local(d.global_position)
-		# Include the whole elongated brush and its berms, even when the center is
-		# on a neighboring tile. The viewport clips the stamp to this surface.
-		var reach := d.radius * sqrt(clampf(d.aspect, 1.0, STAMP_MAX_ASPECT)) * (BERM_REACH + BERM_FORWARD)
-		if (render_mesh and local.y > max_depth) or absf(local.x) > area_size.x * 0.5 + reach or absf(local.z) > area_size.y * 0.5 + reach:
-			_last.erase(id)
-			_remove_dirty_deformer(d)
-			continue
-		var depth_ratio := clampf(1.0 - (local.y / max_depth), 0.1, 1.0) if render_mesh else 1.0
-		var effective_strength := d.strength * depth_ratio
-		# Half-open bounds give shared edges a single owner for audio and particles.
-		var owns_contact := (local.x >= -area_size.x * 0.5 and local.x < area_size.x * 0.5
-				and local.z >= -area_size.y * 0.5 and local.z < area_size.y * 0.5)
-		var pos := (Vector2(local.x, local.z) / area_size + Vector2(0.5, 0.5)) * res
-		var r_px := maxf(d.radius, 0.01) * px_per_m
-		var heading := d.map_heading()
-		var aspect := maxf(d.aspect, 1.0)
-
-		# `done` = the last position we actually finished stamping. If the stamp
-		# budget runs out mid-trail we only advance that far, and pick up from
-		# there next frame instead of leaving a gap.
-		var done := pos
-		if _last.has(id):
-			var prev: Vector2 = _last[id]
-			var dist := prev.distance_to(pos)
-			if dist < r_px * 0.15:
-				_remove_dirty_deformer(d)
-				continue
-			# Keep elongated prints (boots/skis) aligned to node heading; orient round prints to travel
-			var move_heading := heading if (aspect > 1.05 or d.stamp_texture != null) else (pos - prev).angle()
-			if dist > r_px * 20.0:
-				var jump_request := _prepare_stamp(pos, r_px, heading, aspect, effective_strength, d.mode)
-				jump_request.texture = d.stamp_texture
-				jump_request.flip_x = d.stamp_flip_x
-				if not _stamp(jump_request):
-					continue
-			else:
-				done = prev
-				if aspect <= 1.05 and d.stamp_texture == null:
-					# Round brush: one capsule (segment with a rounded front) per move, so the
-					# trail is a single continuous corridor at any speed.
-					var half_len := dist * 0.5
-					var capsule_request := _prepare_stamp(prev.lerp(pos, 0.5), sqrt(half_len * r_px),
-							move_heading, half_len / r_px, effective_strength, d.mode)
-					capsule_request.capsule = true
-					if not _stamp(capsule_request):
-						continue
-					done = pos
-				else:
-					# Half-radius spacing across the whole move; the stamp budget still bounds
-					# the cost and resumes from `done` next frame.
-					var steps := clampi(ceili(dist / (r_px * 0.5)), 1, 40)
-					for s in range(1, steps + 1):
-						var sp := prev.lerp(pos, float(s) / steps)
-						var step_request := _prepare_stamp(sp, r_px, move_heading, aspect,
-								effective_strength, d.mode)
-						step_request.sliding = true
-						step_request.texture = d.stamp_texture
-						step_request.flip_x = d.stamp_flip_x
-						if not _stamp(step_request):
-							break
-						done = sp
-					if done == prev:
-						continue
-				if d.puff_distance > 0.0 and owns_contact:
-					var stamped_move := done - prev
-					var acc: float = _puff_acc.get(id, 0.0) + stamped_move.length() / px_per_m
-					if acc >= d.puff_distance:
-						acc = 0.0
-						_try_puff(d, id, -Vector3(stamped_move.x, 0.0, stamped_move.y))
-					_puff_acc[id] = acc
-		else:
-			var touchdown_request := _prepare_stamp(pos, r_px, heading, aspect, effective_strength, d.mode)
-			touchdown_request.texture = d.stamp_texture
-			touchdown_request.flip_x = d.stamp_flip_x
-			if not _stamp(touchdown_request):
-				continue
-			if owns_contact:
-				_emit_contact(d.global_position, effective_strength, d.mode, d, d.radius, d.puff_on_touchdown)
-		_last[id] = done
-		if done.distance_to(pos) < 0.001:
-			_remove_dirty_deformer(d)
-
-	# Puffs spawned inside the loop are timed separately, so take them out of this figure.
-	_cost_deformers_us = maxi(Time.get_ticks_usec() - deformers_start - _cost_puffs_us, 0)
-
-	if not _dirty_deformers.is_empty():
-		_dirty_deformer_cursor = (_dirty_deformer_cursor + 1) % _dirty_deformers.size()
+	_cost_deformers_us = maxi(_scheduler.process_deformers(res, px_per_m,
+			_prime_frames > 0) - _cost_puffs_us, 0)
 
 	_submit_stamp_batches()
 
@@ -1152,11 +956,11 @@ func _process(delta: float) -> void:
 
 
 func _reset_stamp_counts() -> void:
-	_map.stamp_renderer.reset_counts()
+	_stamp_pipeline.reset_counts()
 
 
 func _submit_stamp_batches() -> void:
-	_map.stamp_renderer.submit()
+	_stamp_pipeline.submit()
 
 func _try_puff(d: Deformer, _id: int, push: Vector3) -> void:
 	_spawn_puff(d.global_position, d.radius, push, d)
@@ -1185,57 +989,3 @@ func _ensure_puff_pool() -> void:
 		_puffs.set_amount(_active_quality_settings.puff)
 		add_child(_puffs)
 		_apply_puff_look()
-
-
-func _prepare_stamp(pos: Vector2, radius_px: float, heading: float, aspect: float,
-		strength: float, mode := StampMode.CARVE) -> StampRequest:
-	_stamp_scratch.pos = pos
-	_stamp_scratch.radius_px = radius_px
-	_stamp_scratch.heading = heading
-	_stamp_scratch.aspect = aspect
-	_stamp_scratch.strength = strength
-	_stamp_scratch.sliding = false
-	_stamp_scratch.texture = null
-	_stamp_scratch.flip_x = false
-	_stamp_scratch.mode = mode
-	_stamp_scratch.track = false
-	_stamp_scratch.phase = 0.0
-	_stamp_scratch.capsule = false
-	return _stamp_scratch
-
-
-## Returns false if the per-frame stamp budget is exhausted.
-func _stamp(request: StampRequest) -> bool:
-	if get_stamps_used() >= max_stamps_per_frame:
-		return false
-
-	# Match the shader's radius floor and keep the packed aspect within its 0..1 range.
-	var stamp_radius_px := maxf(request.radius_px, STAMP_MIN_RADIUS_PX)
-	var stamp_aspect := clampf(request.aspect, 0.001, STAMP_MAX_ASPECT)
-	var len_r := stamp_radius_px * sqrt(stamp_aspect)
-	var wid_r := stamp_radius_px / sqrt(stamp_aspect)
-	var berm_radius := Vector2(len_r, wid_r) * BERM_REACH if _values().berm_strength > 0.0 else Vector2.ZERO
-	var berm_offset_x := len_r * BERM_FORWARD * clampf(stamp_aspect - 1.0, 0.0, 1.0) \
-		if _values().berm_strength > 0.0 else 0.0
-	var outer_half_extent := Vector2(
-		maxf(len_r, absf(berm_offset_x) + berm_radius.x),
-		maxf(wid_r, berm_radius.y)
-	)
-	if request.capsule:
-		# For a capsule len_r is the half length and wid_r the brush radius (see the shader).
-		outer_half_extent = Vector2(len_r + maxf(berm_radius.y, wid_r), maxf(berm_radius.y, wid_r))
-
-	var custom_data := Color(
-		stamp_aspect / STAMP_MAX_ASPECT,
-		3.0 if request.capsule else (2.0 if request.track else (1.0 if request.sliding else 0.0)),
-		wrapf(request.heading, -PI, PI) / TAU + 0.5,
-		(2.0 if request.flip_x else 1.0) if request.texture != null else 0.0
-	)
-	return _map.stamp_renderer.stamp(
-		request.texture,
-		Transform2D(request.heading, outer_half_extent, 0.0, request.pos),
-		Color(request.strength, stamp_radius_px / float(_map.viewport.size.x),
-				float(request.mode) * 0.25, fposmod(request.phase, 1.0)),
-		custom_data,
-		4.0 * outer_half_extent.x * outer_half_extent.y
-	)

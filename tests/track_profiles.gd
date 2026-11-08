@@ -21,6 +21,7 @@ func _run() -> void:
 		root.add_child(field)
 		field.set_process(false)
 		fields.append(field)
+	await _finish_priming(fields)
 	var track := DeformerTracks.new()
 	track.preset = DeformerTracks.Preset.CUSTOM
 	track.wheel_offsets = PackedVector2Array([Vector2.ZERO])
@@ -34,14 +35,14 @@ func _run() -> void:
 	track._process(0.016)
 	var failures := 0
 	for field in fields:
-		if field._pending_stamps.is_empty():
+		if field.get_pending_stamp_count() == 0:
 			push_error("Smooth track must overlap both sides of tile boundary")
 			failures += 1
-		for stamp in field._pending_stamps:
+		for index in field.get_pending_stamp_count():
+			var stamp := field.get_pending_stamp_info(index)
 			if not stamp.capsule or stamp.shape != null or stamp.aspect > 8.0:
 				push_error("Smooth tracks must be untextured capsules within shader aspect limit")
 				failures += 1
-		field._prime_frames = 0
 		field._process(0.016)
 		if field.get_stamp_batch_count() != 1:
 			push_error("Smooth tracks should reuse the default stamp batch")
@@ -55,7 +56,7 @@ func _run() -> void:
 	track.position.z += 20
 	track._process(0.016)
 	for field in fields:
-		if not field._pending_stamps.is_empty():
+		if field.get_pending_stamp_count() != 0:
 			push_error("Lift/landing/teleport must break track history")
 			failures += 1
 	track.profile = DeformerTracks.Profile.TREAD
@@ -67,7 +68,7 @@ func _run() -> void:
 	track._process(0.016)
 	track.position.z = 0.2
 	track._process(0.016)
-	if fields[0]._pending_stamps.is_empty() or fields[0]._pending_stamps.back().shape == null:
+	if fields[0].get_pending_stamp_count() == 0 or fields[0].get_pending_stamp_info(fields[0].get_pending_stamp_count() - 1).shape == null:
 		push_error("Default tread mode must retain its texture")
 		failures += 1
 	track.free()
@@ -75,3 +76,17 @@ func _run() -> void:
 		field.free()
 	print("Track profiles: %d failures" % failures)
 	quit(1 if failures else 0)
+
+
+func _finish_priming(fields: Array[DeformableSurface]) -> void:
+	for field in fields:
+		field.set_process(true)
+	while true:
+		var waiting := false
+		for field in fields:
+			waiting = waiting or field.is_priming()
+		if not waiting:
+			break
+		await process_frame
+	for field in fields:
+		field.set_process(false)
