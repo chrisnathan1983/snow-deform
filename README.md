@@ -6,11 +6,8 @@ runner grooves, snow piles up in berms, snowfall slowly heals the trails, and
 kicked-up snow puffs fly. World-space noise breaks up smooth stamp bevels into
 subtle clumpy edges. The Playground also has a mouse that leaves tiny footprints as it scurries.
 
-> **Status: pre-release (0.1.0).** It was written without access to a Godot
-> runtime, so it has not been verified on a range of devices. Please test early
-> on your target phones and browsers (see [Known limits](#known-limits)).
-
-Requires **Godot 4.3 or newer**.
+> **Pre-release (0.1.0).** The demos and regression checks target Godot 4.7
+> with the Compatibility renderer. Mobile and browser behavior varies by device.
 
 ## Install
 
@@ -19,53 +16,73 @@ Requires **Godot 4.3 or newer**.
 2. (Optional) Enable it in *Project > Project Settings > Plugins*. The nodes
    register through `class_name`, so they work either way.
 
-Run the project to open the demo launcher, or run `demos/launcher.tscn`
-directly. All runnable demo scenes sit directly in `demos/`, beside the launcher.
-Demo scripts live in `demos/scripts/` and `demos/shared/`. Shaders live in `demos/shaders/`.
-Reusable sub-scenes are grouped in `demos/characters/` and `demos/props/`.
-The custom terrain demo (`demos/custom_terrain_demo.tscn`) turns off `render_mesh`
-and drives a hilly terrain and bending grass from the deformation map (see "Custom terrain and foliage").
-**Playground** (`demos/playground.tscn`) starts as a fenced snow arena. Open **Menu → Scene**
-and turn on **Infinite** to explore a recycled 3×3 grid with shared weather. Both modes have
-wandering NPCs, a mouse, a soccer ball, bouncing balls, a sled, a yeti, and a penguin parade.
-Switching modes rebuilds the snow and clears tracks while keeping the current material and
-actor settings. Use **Surface → Area size** to resize the fenced arena.
-The **Powder Run** demo (`demos/ski_free.tscn`) is a SkiFree-inspired
-3D arcade slope with an angled orthographic camera, endless recycled snow,
-continuous carved ski tracks, trees, rocks, jump ramps, and scored slalom gates.
-Steer with A/D or Left/Right, tuck with W/Down, brake with S/Up, and jump with
-Space. P pauses, R starts a fresh run, and Esc returns to the launcher.
-It has its own compact game HUD and touch controls.
-Its default mobile lighting uses a shadowless sun, cheap contact blobs, and
-matte snow without specular glare or sparkle; tracks retain their shaded grooves.
-On touchscreens, use the same floating joystick as the other demos: drag on the
-left half to steer, push forward to brake, and pull back to tuck. Tap **Jump**
-with another finger while steering. Pause and rotating the screen release the stick.
-Web builds support both portrait and landscape, with a scrolling launcher and
-a ski camera that adapts when the browser changes size.
-Ten slope guests join the run: six skiers, two snowboarders, a sled rider,
-and a belly-sliding penguin. They carve narrow twin grooves or wide sweeping
-trails, steer around scenery and each other, and hop rocks and ramps. Traffic
-recycles outside the camera, pauses with P, and yields to the player.
-In Playground, move with WASD, arrow keys, or the on-screen touch stick. Jump with Space
-or the on-screen **Jump** button. Footprints pause while airborne and resume on landing.
-The surface showcase demos share one HUD (`demos/scripts/demo_hud.gd`) and one theme: press **Menu** (or **M**)
-to open a tabbed settings panel. The standard tabs come from `demos/scripts/demo_settings.gd` and
-apply live:
+## Demos
 
-- **Surface**: Low / Medium / High / Custom quality, material preset (snow, sand, mud, dirt, ash),
-  recovery, max depth, berm strength and height, puffs, wrapped lighting, reset tracks, and the
-  technical settings (map resolution, mesh subdivisions, stamp budget, refill interval, puff
-  budget and interval, sparkle; area size in the fenced Playground). Editing a technical setting
-  switches the quality to **Custom** (it edits a copy, never an addon preset).
-- **Weather** (demos with a SnowWorldManager): snowfall, wind, flakes, near flakes, fall height.
-- **Graphics**: sun shadows and MSAA (Off, 2x, 4x), plus sun height in the playground.
-- **Scene**: Playground mode, actor toggles, and snowball storm. Materials has texture,
-  triplanar, brush, and vehicle controls.
+Open `project.godot` in Godot 4.7 and run it to open the [launcher](demos/launcher.tscn).
+To copy the demos into another project, copy `demos/` and both addons and select the
+Compatibility renderer. Open a demo scene and press F6 to run it directly.
 
-Demos load their Low / Medium / High quality resources from the addon or `demos/resources/`.
-Editing technical settings creates a Custom copy. Playground uses smaller map presets in
-Infinite mode to keep the nine-tile grid within budget.
+| Demo | What to try |
+| --- | --- |
+| [Powder Run](demos/ski_free.tscn) | Ski an endless slope, jump ramps, dodge obstacles, and score slalom gates alongside ten slope guests. |
+| [Playground](demos/playground.tscn) | Leave footprints, push the soccer ball, throw snowballs, or explore a recycled snowfield. |
+| [Material Showcase](demos/materials_demo.tscn) | Compare snow, sand, mud, dirt, and ash. Try albedo and normal textures, triplanar mapping, brush modes, and vehicle tracks. |
+| [Custom Terrain & Grass](demos/custom_terrain_demo.tscn) | Deform hilly terrain and bend grass using a shared deformation map with `render_mesh` disabled. |
+
+### Playground
+
+WASD or arrows move, Shift runs, and Space jumps. Drag to look, click to throw a
+snowball, and use the wheel to zoom. R resets tracks, and 1/2/3 select the quality tier.
+On touchscreens, drag on the left to move and on the right to look. Tap to throw, and
+use the **Jump** and **Run** buttons while moving.
+
+Open **Menu → Scene → Infinite** to switch from the fenced arena to a recycled
+3×3 grid. Both modes include wandering NPCs, a mouse, a soccer ball, bouncing balls,
+a sled, a yeti, and a penguin parade. The Scene tab can toggle those actors and start a
+snowball storm. Switching modes clears tracks and preserves actor and material settings.
+**Surface → Area size** resizes the fenced arena.
+
+Infinite mode uses smaller map presets and relocates one tile per frame. Near a tile
+boundary the grid prepares the next row or column in the direction of travel. For
+materials with a CPU noise resource, it prepares the next texture separately from the
+active one. The default snow profile generates its starting surface on the GPU.
+Tiles under the player take priority after a teleport.
+
+Surface edits wait 120 ms after the last change, then apply to one field per frame.
+The grid waits for pending edits before recycling. Brushes can overlap multiple fields,
+while only the field containing the contact center emits puffs and contact signals.
+
+### Powder Run
+
+Steer with A/D or Left/Right, tuck with W or Down, brake with S or Up, and jump with
+Space. P pauses, R starts a new run, and Esc returns to the launcher. On touchscreens,
+drag the left joystick sideways to steer, push it forward to brake, and pull it back to
+tuck. Tap **Jump** with another finger. Pausing or rotating the screen releases the stick.
+
+Six skiers, two snowboarders, a sled rider, and a belly-sliding penguin carve smooth
+grooves, steer around traffic, and hop rocks and ramps. The skier and guests use reusable
+scenes in `demos/slope/`. Trees, rocks, ramps, and gates are scene instances. The obstacle
+pool recycles through MultiMeshes, with contact blobs and matte snow in the default
+mobile lighting mode.
+
+### Settings and performance overlay
+
+Press **M** to open the demo settings and **Esc** to return to the launcher. Material
+Showcase uses the left mouse button for the brush and E for an impact stamp. Both
+Material Showcase and Custom Terrain orbit with right-drag and zoom with the wheel.
+
+- **Surface** has quality and material presets, recovery, depth, berms, puffs, lighting, and
+  map, mesh, and stamp budgets. Editing technical values selects **Custom** without changing
+  the preset resource.
+- **Weather** has snowfall, wind, flake counts, and fall height. Increasing snowfall also
+  increases track recovery in Playground.
+- **Graphics** has sun shadows and MSAA. Playground also has a sun height slider.
+- **Scene** has demo-specific actor, vehicle, brush, and texture controls.
+
+Start on **Low** when testing a phone. F3 toggles the FPS graph and F4 opens a
+per-operation breakdown. Changing map resolution clears tracks. For web exports,
+use Compatibility and disable thread support for wider phone compatibility. Serve
+the build over HTTPS or localhost.
 
 ## Quick start
 
@@ -216,8 +233,8 @@ middle of a footprint, so grass shaders can also use it as a bend direction.
   field-assigned deformers are isolated from unrelated DeformableSurfaces.
 - Map memory: 256² / 512² / 1024² RGB8 for Low / Medium / High.
 - For phones start on Low; consider MSAA off, no real shadows, and a small `size`.
-- Larger worlds: use a small DeformableSurface and move it with the player in whole-texel
-  steps (not implemented yet).
+- For larger worlds, see the demo-side [tile grid](demos/shared/deformable_surface_grid.gd).
+  It reuses fields around a follow target and clears their tracks when moving them.
 
 ## Known limits
 - 8-bit map: roughly 127 levels are available on either side of neutral height
@@ -237,8 +254,9 @@ addons/deformable_surface/
   icons/              node icons
   scripts/
     deformable_surface.gd
-    deformers/        Deformer, DeformerFootsteps, and SurfacePuffs
-    settings/         surface and legacy quality resources
+    deformers/        footprint, track, and particle deformers
+    deformable_surface_type.gd
+    deformable_surface_quality.gd
   resources/
     quality/          low, medium, high presets
   shaders/            deformable_surface.gdshader, deformable_surface_refill.gdshader,
@@ -262,10 +280,32 @@ demos/
   shaders/           terrain, grass, tree snow, and soccer ball shaders
   characters/        explorer, penguin, yeti, NPC, and mouse sub-scenes
   props/             balls, trees, rocks, sleds, and snowman sub-scenes
-  README.md          procedural playground guide
+  resources/         demo-specific surface and quality presets
+  slope/             Powder Run skier and guest scenes
 ```
-The demo shows: real sun shadows on High (blob shadows otherwise), MSAA by
-quality, fog, a snow-dusted pine shader, MultiMesh trees.
+## Regression checks
+
+Run an individual check from the repository root after Godot has imported the project.
+
+```sh
+godot --headless --editor --path . --import
+godot --headless --path . --script tests/playground_modes.gd
+godot --headless --path . --script tests/initial_noise_seams.gd
+godot --headless --path . --script tests/ski_free_gameplay.gd
+```
+
+| Scripts in `tests/` | Coverage |
+| --- | --- |
+| `playground_modes.gd` | Launcher, actor toggles, arena sizing, and pending settings across mode changes. |
+| `initial_noise_seams.gd` | CPU height and normal seams, cache keys, and prepared textures. Run with rendering to compare texture bytes as well. |
+| `infinite_snow_prefetch.gd`, `infinite_snow_recycling.gd`, `surface_settings_updates.gd` | Grid recycling, prefetch priority, direction reversal, and concurrent settings edits. |
+| `deformer_tile_edges.gd`, `track_profiles.gd` | Cross-tile stamps, contact ownership, smooth grooves, and tread tracks. |
+| `ski_free_gameplay.gd` | Touch input, layout, gates, jumps, recycling, and guest tracks. Run with rendering to check MultiMesh transforms. |
+
+Run `infinite_snow_frame_times.gd` with or without `--headless` for frame pacing
+through movement, tile crossings, and settings changes. It caps the frame rate
+at 120 and writes `.godot/infinite-frame-times.json`. For Powder Run profiling
+with rendering, see [the performance notes](tests/SKI_PERFORMANCE.md).
 
 ## License
 MIT. See `LICENSE`.

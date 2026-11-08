@@ -20,7 +20,18 @@ func _run() -> void:
 	change_scene_to_file("res://demos/launcher.tscn")
 	await scene_changed
 	var launcher = current_scene
-	_check(launcher.DEMOS.size() == 4, "Launcher should list four demos")
+	var paths: Array[String] = []
+	for demo in launcher.DEMOS:
+		var path: String = demo["scene"]
+		paths.append(path)
+		_check(load(path) is PackedScene, "Launcher scene should load: %s" % path)
+	paths.sort()
+	_check(paths == [
+		"res://demos/custom_terrain_demo.tscn",
+		"res://demos/materials_demo.tscn",
+		PLAYGROUND,
+		"res://demos/ski_free.tscn",
+	], "Launcher should list the four current demos")
 	var playground_button: Button
 	for node in launcher._panel.find_children("*", "Button", true, false):
 		if node.text == "Playground":

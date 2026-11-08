@@ -20,33 +20,29 @@ First packaged release.
   alternating boot prints with speed-based stride.
 - `DeformableSurface.contact(position, depth, surface_type, source, radius, puff)` signal on footfalls and
   `stamp_at` impacts; surface types gained a `type_name` label.
-- Demos share one player: the playground explorer (`demos/common/characters/*.tscn`, built on
-  `DemoCharacter`). Classic uses it instead of its capsule body (walls and the soccer ball are
-  handled by clamping and a proximity push rather than physics).
-- Reusable demo scripts now live in `demos/common/`: `demo_ball`, `demo_sled`, `snow_angel`,
-  `blob_shadow`, `demo_camera`, `pine_forest` and `tree_snow.gdshader`.
-- Procedural playground props are now scenes in `demos/common/props/` (`rock`, `snowman`, `pine_tree`,
-  `sled`, `ball`); `DemoSled` and `DemoBall` use an authored `Visual` child when present.
+- The launcher opens Playground, Powder Run, Material Showcase, and Custom Terrain & Grass.
+  Playground combines the fenced arena and infinite snowfields. Its Scene tab switches modes and
+  toggles actors, including wandering NPCs, the mouse, and the pushable soccer ball.
+- The demos share follow/orbit camera code, the flat and height-function mouse brush, and a HUD shell
+  with navigation and optional touch sticks. The showcase demos apply their settings live.
+- Playground and Powder Run use a reusable tile grid. Playground prepares CPU noise for upcoming
+  tiles when its profile supplies a noise resource, and Powder Run recycles full rows downhill.
+- Demos use the addon's `.tres` presets and keep their own tuning in `demos/resources/`.
+- Powder Run uses authored skier, guest, ramp, and gate scenes and reuses the pine and rock props.
+  All slope guests carve smooth grooves, and obstacles keep their batched rendering when recycled.
+- Regression coverage includes launcher and Playground mode switches, grid prefetch and settings
+  changes, CPU noise seams, and Powder Run gameplay with rendered scenery checks.
 - New `disturbed_darkening` material uniform (used by mud and dirt) darkens any disturbed ground.
-- Demos: new `demos/common/` folder holds shared code (props, character) and `DemoNav`, a
-  bottom-left "Launcher (Esc)" button added to every demo to return to the launcher.
-- Starting-surface noise gained a second octave (`initial_noise_detail`, `initial_noise_detail_scale` on the
-  material profile): the same noise layered on top, with a low scale giving broad hills. On by default; the
-  demos' Surface tab has "Noise 2nd octave" and scale sliders. Infinite snowfields turns starting noise off and is unaffected.
+- Starting-surface noise gained a second octave, controlled by
+  `initial_noise_detail` and `initial_noise_detail_scale` on the surface type.
 - Added raised piles and dunes to the starting surface (`initial_noise_mound_height`,
   `initial_noise_mound_frequency`), giving areas that can be dug deeper; Surface tab sliders added.
 - Default and preset `max_depth` values were raised (default 0.4 m; snow 0.5, mud 0.35, ash 0.3, sand 0.2, dirt 0.1)
   and the presets' starting heights increased.
 - Moving round deformers draw continuous capsule strokes; the stamp cap per move is 40.
 - Added `get_stamps_used()` and `get_frame_costs()`, and a demo performance overlay (F3 graph, F4 breakdown).
-- Starting-surface noise (`initial_noise*`) moved from the DeformableSurface node into the material profile;
-- Demos: every demo now uses one shared HUD (`DemoHud`, `DemoSettings`, `DemoTheme` in `demos/common/`)
-  with Surface, Weather, Graphics and demo-specific Scene tabs; all settings apply live (the classic
-  confirm/cancel options flow is gone). `classic/ui/demo_hud` and `procedural_playground/demo_ui` were removed.
-- Demos: one shared `TouchSticks` control replaces the two touch sticks. A drag on the left half moves the
-  character, a drag on the right half shows a joystick and turns the camera, and a quick tap throws a snowball in
-  the playgrounds. The classic camera now orbits and classic movement is camera-relative. Infinite snow gained touch controls.
-  each preset starts with its own noise (snow dimples, sand ripples, lumpy mud, clumpy dirt, soft ash drifts).
+- Starting-surface noise settings now live on the surface type. Presets have their own noise,
+  including snow dimples, sand ripples, lumpy mud, clumpy dirt, and soft ash drifts.
 - Preset depth/berm values retuned per material (mud deep with heavy ridges, dirt firm and shallow,
   sand and ash soft with low berms, snow deepest).
 - Preset review: material `.tres` files now store float params as floats (integer `0`/`1`
@@ -57,12 +53,9 @@ First packaged release.
 - One-shot `DeformableSurface.stamp_at(...)` and stamp modes (carve, raise, smooth);
   `Deformer.mode` lets a deformer raise or plow. Try it in the materials demo (E key, brush picker).
 - Material presets (snow, sand, mud, dirt, ash) in `addons/deformable_surface/resources/materials/`;
-  assign one to `DeformableSurface.material`. The shader now has `albedo_texture`, `normal_texture`,
+  assign a profile to `DeformableSurface.surface_type`. The shader now has `albedo_texture`, `normal_texture`,
   an optional `triplanar` mode, and roughness / glaze / specular / sparkle controls
   (`sparkle_strength` is a per-material multiplier on the quality-level sparkle).
-- Settings split in two: quality profiles (`DeformableSurfaceSettings`) stay technical
-  (resolution, subdivisions, budgets); the new   `DeformableSurfaceType`
-    (`surface_type`) holds depth, berms, recovery, puffs, lighting and a default material.
-  Presets: `resources/materials/*_profile.tres`.
+- The preset files in `resources/materials/*_profile.tres` pair depth, berms, recovery, puffs,
+  and lighting settings with a default shader material.
 - SnowFall: falling flakes (usable standalone). Puffs: pooled kick-up bursts.
-- Demo project (`demos/classic/`) with player, wandering NPCs, a sled, and touch controls.
