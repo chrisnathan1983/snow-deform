@@ -36,6 +36,7 @@ const STAMP_SPRITE_SHADER: Shader = preload("../shaders/deformable_surface_stamp
 const InitialNoiseTextures = preload("initial_noise_textures.gd")
 const BERM_REACH := 2.0     # berm ring radius, in brush radii
 const BERM_FORWARD := 0.3   # elongated prints push their berm ahead by this fraction
+const PRIME_NOISE_TIMEOUT_SEC := 10.0
 const MAP_NEUTRAL := 128.0 / 255.0
 const STAMP_MIN_RADIUS_PX := 0.5
 const STAMP_MAX_ASPECT := 8.0
@@ -105,8 +106,8 @@ var wrapped_diffuse_lighting: bool:
 var max_depth: float:
 	get:
 		return _values().max_depth
-## 0 = trails stay forever. 1 = trails heal quickly. Assigning it at runtime overrides the
-## surface type's value until the type is replaced.
+## 0 = trails stay forever. 1 = trails heal quickly. The first runtime override duplicates an
+## assigned surface type for this node, so other surfaces keep their shared profile values.
 var recovery_intensity: float:
 	get:
 		return _values().recovery_intensity
@@ -126,6 +127,7 @@ var puff_min_interval := 0.2    # per deformer, seconds
 
 var _active_quality_settings: DeformableSurfaceQuality
 var _default_surface_type: DeformableSurfaceType
+var _surface_type_override: DeformableSurfaceType
 var _observed_surface_type: DeformableSurfaceType
 var _observed_noise: FastNoiseLite
 var _observed_puff_ramp: Gradient
@@ -158,6 +160,8 @@ var _puff_last := {}   # deformer instance_id -> time of last puff (s)
 var _puff_acc := {}    # deformer instance_id -> meters since last moving puff
 var _dirty_deformer_cursor := 0
 var _prime_frames := 0
+var _prime_noise_wait := 0.0
+var _prime_noise_fallback := false
 var _refill_timer := 0.0
 var _refill_idle := 0.0   # seconds since the last stamp
 var _sun_dir := Vector3.ZERO
@@ -399,6 +403,8 @@ func warm_up_effects(tread: Texture2D, puff_position: Vector3) -> void:
 	_stamp(track)
 	max_stamps_per_frame = budget
 	_submit_stamp_batches()
+	_map.run_refill(true, refill_interval, _values().recovery_intensity,
+			_values().refill_levels_per_sec)
 	_map.request_render()
 	if _values().puffs_enabled:
 		_ensure_puff_pool()
@@ -411,6 +417,8 @@ func finish_effects_warmup() -> void:
 		return
 	if is_instance_valid(_puffs):
 		_puffs.finish_warmup()
+	_map.run_refill(false, 0.0, _values().recovery_intensity,
+			_values().refill_levels_per_sec)
 	_reset_stamp_counts()
 	_configure_stamp_capacity()
 	_submit_stamp_batches()
@@ -558,13 +566,27 @@ func _flush_pending_stamps(res: Vector2, px_per_m: float) -> void:
 
 
 func set_recovery_intensity(value: float) -> void:
-	if _runtime:
-		_values().recovery_intensity = clampf(value, 0.0, 1.0)
+	if not _runtime:
+		return
+	var intensity := clampf(value, 0.0, 1.0)
+	if is_equal_approx(_values().recovery_intensity, intensity):
+		return
+	_local_surface_type_for_override().recovery_intensity = intensity
 
 
 func set_wrapped_diffuse_lighting(enabled: bool) -> void:
-	if _runtime:
-		_values().wrapped_diffuse_lighting = enabled
+	if not _runtime or _values().wrapped_diffuse_lighting == enabled:
+		return
+	_local_surface_type_for_override().wrapped_diffuse_lighting = enabled
+
+
+func _local_surface_type_for_override() -> DeformableSurfaceType:
+	if surface_type == null:
+		return _effective_surface_type()
+	if surface_type != _surface_type_override:
+		_surface_type_override = surface_type.duplicate() as DeformableSurfaceType
+		set_surface_type(_surface_type_override)
+	return _surface_type_override
 
 
 func set_render_mesh(value: bool) -> void:
@@ -783,6 +805,7 @@ func _on_surface_material_changed() -> void:
 	if not _runtime:
 		return
 	_adopt_material()
+	_sun_dir = Vector3.ZERO
 	_configure_material()
 	_configure_particles()
 	_connect_surface_material_changed()
@@ -927,6 +950,8 @@ func _clear_map() -> void:
 		return
 	_map.clear(_values(), area_size, global_position)
 	_prime_frames = 3
+	_prime_noise_wait = 0.0
+	_prime_noise_fallback = false
 	_refill_timer = 0.0
 	_refill_idle = 0.0
 	_puff_acc.clear()
@@ -1103,10 +1128,18 @@ func _process(delta: float) -> void:
 		_cost_refill_px = res.x * res.y
 
 	# Only spend GPU time when something actually changed
-	if _prime_frames > 0 and InitialNoiseTextures.ready_for_profile(_values()):
-		_prime_frames -= 1
-		if _prime_frames == 0:
-			_map.finish_priming()
+	if _prime_frames > 0:
+		if _prime_noise_fallback or InitialNoiseTextures.ready_for_profile(_values()):
+			_prime_frames -= 1
+			if _prime_frames == 0:
+				_map.finish_priming()
+		else:
+			_prime_noise_wait += delta
+			if _prime_noise_wait >= PRIME_NOISE_TIMEOUT_SEC:
+				push_warning("DeformableSurface: initial noise did not finish baking; using a flat starting surface.")
+				_map.fallback_to_flat()
+				_prime_noise_fallback = true
+				_prime_frames = 3
 	if _prime_frames > 0 or get_stamps_used() > 0 or refill_now:
 		_map.request_render()
 

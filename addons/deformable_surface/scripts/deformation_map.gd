@@ -99,6 +99,13 @@ func finish_priming() -> void:
 		background = null
 
 
+func fallback_to_flat() -> void:
+	if is_instance_valid(background):
+		background.material = null
+		background.color = Color(MAP_NEUTRAL, MAP_NEUTRAL, MAP_NEUTRAL)
+	refill_material.set_shader_parameter("initial_noise_enabled", false)
+
+
 func run_refill(now: bool, dt: float, recovery_intensity: float,
 		refill_levels_per_sec: float) -> void:
 	if refill.visible != now:

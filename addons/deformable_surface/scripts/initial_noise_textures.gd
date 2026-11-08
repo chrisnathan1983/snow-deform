@@ -6,31 +6,72 @@ const WORLD_PERIOD := 128.0
 const BASE_TEXTURE_FREQUENCY := WORLD_PERIOD / float(TEXTURE_SIZE)
 
 static var _cache: Dictionary = {}
+static var _mound_cache: Dictionary = {}
+static var _profile_noise_keys: Dictionary = {}
 
 
 static func for_profile(profile: DeformableSurfaceType) -> Dictionary:
-	var source := _source_noise(profile)
-	var key := _noise_key(source)
-	var key_string := var_to_str(key)
+	var source: FastNoiseLite
+	var key_string := _cached_profile_noise_key(profile)
+	if key_string.is_empty():
+		source = _source_noise(profile)
+		key_string = var_to_str(_noise_key(source))
+		_cache_profile_noise_key(profile, key_string)
 	if _cache.has(key_string):
 		return _cache[key_string]
+	if source == null:
+		source = _source_noise(profile)
 
 	var base_noise := source.duplicate() as FastNoiseLite
 	base_noise.frequency = BASE_TEXTURE_FREQUENCY
 	var detail_noise := base_noise.duplicate() as FastNoiseLite
 	detail_noise.seed = source.seed + 1013
-	var mound_noise := FastNoiseLite.new()
-	mound_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-	mound_noise.seed = source.seed + 7919
-	mound_noise.frequency = BASE_TEXTURE_FREQUENCY
-
 	var textures := {
 		"base": _texture(base_noise),
 		"detail": _texture(detail_noise),
-		"mound": _texture(mound_noise),
+		"mound": _mound_texture(source.seed + 7919),
 	}
 	_cache[key_string] = textures
 	return textures
+
+
+static func _cached_profile_noise_key(profile: DeformableSurfaceType) -> String:
+	var profile_id := profile.get_instance_id()
+	if not _profile_noise_keys.has(profile_id):
+		return ""
+	var entry: Dictionary = _profile_noise_keys[profile_id]
+	if (entry["profile"] as WeakRef).get_ref() == profile:
+		return entry["key"]
+	_profile_noise_keys.erase(profile_id)
+	return ""
+
+
+static func _cache_profile_noise_key(profile: DeformableSurfaceType, key: String) -> void:
+	var profile_id := profile.get_instance_id()
+	_profile_noise_keys[profile_id] = {"profile": weakref(profile), "key": key}
+	var profile_invalidator := _invalidate_profile_noise_key.bind(profile_id)
+	if not profile.changed.is_connected(profile_invalidator):
+		profile.changed.connect(profile_invalidator)
+	if profile.initial_noise != null:
+		var noise_invalidator := _invalidate_profile_noise_key.bind(profile_id)
+		if not profile.initial_noise.changed.is_connected(noise_invalidator):
+			profile.initial_noise.changed.connect(noise_invalidator)
+
+
+static func _invalidate_profile_noise_key(profile_id: int) -> void:
+	_profile_noise_keys.erase(profile_id)
+
+
+static func _mound_texture(seed: int) -> NoiseTexture2D:
+	if _mound_cache.has(seed):
+		return _mound_cache[seed]
+	var noise := FastNoiseLite.new()
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	noise.seed = seed
+	noise.frequency = BASE_TEXTURE_FREQUENCY
+	var texture := _texture(noise)
+	_mound_cache[seed] = texture
+	return texture
 
 
 static func ready_for_profile(profile: DeformableSurfaceType) -> bool:

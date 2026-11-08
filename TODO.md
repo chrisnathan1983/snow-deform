@@ -4,16 +4,17 @@ Items are ordered by priority. Findings marked *(audit)* come from a read-throug
 
 ## P0 — Fix correctness and ownership bugs
 
-- [ ] **Repair `tests/ski_free_profile.gd`.** `var batch_count := 0` is indented one level deeper than its siblings (`cpu`, `count`) with no block opener, so the script should fail to parse. Fix it, rerun the benchmark, and confirm the numbers in `tests/SKI_PERFORMANCE.md` still hold.
-- [ ] **Stop `set_recovery_intensity()` and `set_wrapped_diffuse_lighting()` from mutating the shared resource.** They write into `_values()`, the assigned `DeformableSurfaceType`. Effects: every field sharing the profile reconfigures at once (bypassing the demo's debounce and one-field-per-frame queue), and Custom Terrain mutates the preloaded `GRASS_PROFILE` so the change survives re-entering the demo. Either duplicate the profile on write or store per-node overrides. Fix the doc comment that says the override lasts "until the type is replaced".
-- [ ] **Reset `_sun_dir` when the source material changes.** `_on_surface_material_changed` calls `_adopt_material()` (a fresh `_mat`) but leaves `_sun_dir` alone, and `_process` only pushes `sun_dir` when the direction changes. The new material keeps the default direction. `set_material` and `_on_surface_type_changed` already reset it.
+- [x] **Repair `tests/ski_free_profile.gd` parse error.** Fixed the stray indentation on `batch_count`.
+- [ ] **Rerun the ski benchmark.** Confirm the numbers in `tests/SKI_PERFORMANCE.md` still hold.
+- [x] **Stop `set_recovery_intensity()` and `set_wrapped_diffuse_lighting()` from mutating the shared resource.** The first runtime override now duplicates the assigned `DeformableSurfaceType` for this node, and the recovery property comment describes the per-node behavior.
+- [x] **Reset `_sun_dir` when the source material changes.** `_on_surface_material_changed` now resets the cached direction after adopting the new material, so `_process` reapplies it.
 - [ ] **Make priming robust.**
-  - `_prime_frames` only counts down once all three noise textures have images. Add a runtime timeout or fallback so a slow or failed bake cannot hold back deformers and queued stamps indefinitely.
-  - Share the mound texture across profiles. It depends only on the seed offset, but the cache key covers the whole source noise, so each preset regenerates it.
-  - Cache the noise key per profile. `for_profile()` rebuilds it (property list plus `var_to_str`) on every call, including each priming frame for each field.
-  - Measure a preset switch on a no-threads Web export. Three 1024² seamless textures may generate on the main thread.
+  - [x] Add a 10-second timeout; if a noise bake never finishes, switch the starting and refill targets to neutral and let priming complete.
+  - [x] Share the mound texture across profiles using its seed as a separate cache key.
+  - [x] Cache the noise key per profile, invalidating it when the profile or its source noise changes.
+  - [ ] Measure a preset switch on a no-threads Web export. Three 1024² seamless textures may generate on the main thread.
 - [ ] **Bake the refill target once.** Refill re-evaluates the starting surface every pass (five height evaluations, up to three texture fetches each, per pixel). That is much cheaper than the old hash path but is still recomputed work. Render the target once into a texture and have refill sample it.
-- [ ] **Warm up the refill shader.** `warm_up_effects` never shows the refill rect, so the first heal tick compiles it during gameplay. Show it for one frame under the loading screen.
+- [x] **Warm up the refill shader.** `warm_up_effects` now shows the refill rect while the loader draws its covered warmup frames, then hides it before gameplay.
 
 ## P1 — Simplify the core surface
 
