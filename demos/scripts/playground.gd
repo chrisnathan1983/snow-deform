@@ -200,10 +200,10 @@ func _update_arena() -> void:
     for penguin in _penguins:
         penguin.half_extent = actor_extent
 
-    var scale := 1.0 if infinite else minf(1.0, _arena_size / FIELD_SIZE)
-    sled.amp = SLED_PATH * scale
-    _yeti.circle_center = Vector3(-2.0, 0, -10.5) * scale
-    _yeti.circle_radius = 3.2 * scale
+    var arena_scale := 1.0 if infinite else minf(1.0, _arena_size / FIELD_SIZE)
+    sled.amp = SLED_PATH * arena_scale
+    _yeti.circle_center = Vector3(-2.0, 0, -10.5) * arena_scale
+    _yeti.circle_radius = 3.2 * arena_scale
     for ball in _balls:
         ball.half = (FIELD_SIZE * 0.5 if infinite else half) - 1.5
 

@@ -1,6 +1,8 @@
 extends Control
 ## Start screen for the project's playable snow demos.
 
+const DemoLoader := preload("res://demos/shared/demo_loader.gd")
+
 const DEMOS := [
 	{
 		"title": "Powder Run — SkiFree in 3D",
@@ -26,6 +28,7 @@ const DEMOS := [
 
 var _status: Label
 var _panel: PanelContainer
+var _loading := false
 
 
 func _ready() -> void:
@@ -114,8 +117,15 @@ func _update_layout() -> void:
 
 
 func _launch_demo(scene_path: String) -> void:
-	var error := get_tree().change_scene_to_file(scene_path)
-	if error != OK:
-		var message := "Could not open demo '%s': %s" % [scene_path, error_string(error)]
-		push_error(message)
-		_status.text = message
+	if _loading:
+		return
+	_loading = true
+	var loader := DemoLoader.new()
+	loader.failed.connect(_show_load_error)
+	get_tree().root.add_child(loader)
+	loader.open_demo(scene_path)
+
+
+func _show_load_error(message: String) -> void:
+	_loading = false
+	_status.text = message

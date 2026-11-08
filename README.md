@@ -19,6 +19,7 @@ subtle clumpy edges. The Playground also has a mouse that leaves tiny footprints
 ## Demos
 
 Open `project.godot` in Godot 4.7 and run it to open the [launcher](demos/launcher.tscn).
+The launcher shows a loading screen while it loads the scene and warms up snow stamps and puffs.
 To copy the demos into another project, copy `demos/` and both addons and select the
 Compatibility renderer. Open a demo scene and press F6 to run it directly.
 
@@ -296,6 +297,7 @@ godot --headless --path . --script tests/ski_free_gameplay.gd
 
 | Scripts in `tests/` | Coverage |
 | --- | --- |
+| `demo_loading.gd` | Loading feedback, fallback without threads, and error recovery. Run with rendering to check warm-up draws and the first live puff. |
 | `playground_modes.gd` | Launcher, actor toggles, arena sizing, and pending settings across mode changes. |
 | `initial_noise_seams.gd` | CPU height and normal seams, cache keys, and prepared textures. Run with rendering to compare texture bytes as well. |
 | `infinite_snow_prefetch.gd`, `infinite_snow_recycling.gd`, `surface_settings_updates.gd` | Grid recycling, prefetch priority, direction reversal, and concurrent settings edits. |

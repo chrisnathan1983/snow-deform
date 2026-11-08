@@ -61,7 +61,9 @@ describes the current demos and shared components.
 
 ## 7. Avoid first-use hitches
 
-The Compatibility renderer compiles shaders on first draw, so the first footstep, puff, or tread stamp stutters. Warm up at load by drawing one stamp of each type (round, capsule, textured, track) and bursting one puff per pool entry, hidden behind a loading screen. Also, `change_scene_to_file` in the launcher is a synchronous load, so show a "Loading…" label first. Use `ResourceLoader.load_threaded_request` and it will still degrade gracefully when threads are unavailable.
+Done. The launcher displays a loading screen before requesting the scene, with a synchronous
+fallback on builds without threads. While the screen is up, it draws round, capsule, textured,
+and tread stamps and starts every puff emitter. It clears the samples before gameplay resumes.
 
 ## 8. Export and load size
 

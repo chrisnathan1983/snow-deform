@@ -43,6 +43,9 @@ func _run() -> void:
 		return
 	playground_button.pressed.emit()
 	await scene_changed
+	var loading := root.get_node_or_null("DemoLoading")
+	if loading != null:
+		await loading.tree_exited
 	var scene = current_scene
 	_check(scene.scene_file_path == PLAYGROUND, "Launcher should open Playground")
 	if scene.scene_file_path != PLAYGROUND:

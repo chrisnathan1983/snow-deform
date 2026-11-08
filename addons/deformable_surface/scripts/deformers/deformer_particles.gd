@@ -96,8 +96,23 @@ func burst(world_pos: Vector3, radius: float, push := Vector3.ZERO) -> void:
 	p.scale_amount_max = 1.0 * k
 	p.emission_sphere_radius = radius * 0.5
 	p.direction = (Vector3.UP + push.normalized() * 0.7).normalized()
+	p.show()
 	p.restart()
 	p.emitting = true
+
+
+func warm_up(world_pos: Vector3) -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	for i in _pool.size():
+		burst(world_pos, 0.2)
+
+
+func finish_warmup() -> void:
+	for p in _pool:
+		p.emitting = false
+		p.hide()
+	_next = 0
+	process_mode = Node.PROCESS_MODE_INHERIT
 
 
 func _soft_dot(size := 32) -> GradientTexture2D:

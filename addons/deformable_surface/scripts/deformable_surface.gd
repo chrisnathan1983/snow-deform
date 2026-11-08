@@ -398,6 +398,44 @@ func reset_trails() -> void:
 		_clear_map()
 
 
+## Draw sample brushes and start every puff emitter while the scene is covered.
+## Call on a paused surface at startup, then call finish_effects_warmup after drawing.
+func warm_up_effects(tread: Texture2D, puff_position: Vector3) -> void:
+	if not _runtime:
+		return
+	var budget := max_stamps_per_frame
+	if budget < 4:
+		max_stamps_per_frame = 4
+		_configure_stamp_capacity()
+	_reset_stamp_counts()
+	var center := Vector2(_vp.size) * 0.5
+	_stamp(center + Vector2(-16, 0), 4.0, 0.0, 1.0, 0.5)
+	_stamp(center + Vector2(-5, 0), 4.0, 0.0, 2.0, 0.5, false,
+		null, false, StampMode.CARVE, false, 0.0, true)
+	_stamp(center + Vector2(5, 0), 4.0, 0.0, 1.0, 0.5, false, tread)
+	_stamp(center + Vector2(16, 0), 4.0, 0.0, 2.0, 0.5, false,
+		tread, false, StampMode.CARVE, true)
+	max_stamps_per_frame = budget
+	_submit_stamp_batches()
+	_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	if _mp.puffs_enabled:
+		_ensure_puff_pool()
+		_puffs.warm_up(puff_position)
+
+
+## Remove the startup samples before exposing the field to gameplay.
+func finish_effects_warmup() -> void:
+	if not _runtime:
+		return
+	if is_instance_valid(_puffs):
+		_puffs.finish_warmup()
+	_reset_stamp_counts()
+	_configure_stamp_capacity()
+	_submit_stamp_batches()
+	_clear_map()
+	_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+
+
 ## One-shot stamp at a world position: explosions, impacts, falling objects, a snow plow
 ## blade. No Deformer needed. Ignores the Y position; positions outside the area are dropped.
 ## `strength` is 0..1, `shape` an optional alpha-mask footprint, `mode` a StampMode,
@@ -1070,12 +1108,9 @@ func _process(delta: float) -> void:
 			_sun_dir = dir
 			_mat.set_shader_parameter("sun_dir", dir)
 
-	_stamps_used = 0
+	_reset_stamp_counts()
 	_cost_puffs_us = 0
-	_cost_stamp_px = 0.0
 	_cost_refill_px = 0.0
-	for batch in _stamp_batches:
-		batch["used"] = 0
 
 	var list := _dirty_deformer_list
 	var n := list.size()
@@ -1183,11 +1218,7 @@ func _process(delta: float) -> void:
 		_rr = (_rr + 1) % n
 	_compact_dirty_deformers()
 
-	for batch in _stamp_batches:
-		var multimesh := batch["multimesh"] as MultiMesh
-		var visible_count: int = batch["used"]
-		if multimesh.visible_instance_count != visible_count:
-			multimesh.visible_instance_count = visible_count
+	_submit_stamp_batches()
 
 	# Surface recovery: a few times per second, not every frame, and only until the map has
 	# healed after the last stamp (about 5.5 time constants covers 8-bit precision).
@@ -1217,6 +1248,22 @@ func _process(delta: float) -> void:
 	if _prime_frames > 0 or _stamps_used > 0 or refill_now:
 		_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 
+
+func _reset_stamp_counts() -> void:
+	_stamps_used = 0
+	_cost_stamp_px = 0.0
+	for batch in _stamp_batches:
+		batch["used"] = 0
+
+
+func _submit_stamp_batches() -> void:
+	for batch in _stamp_batches:
+		var multimesh := batch["multimesh"] as MultiMesh
+		var visible_count: int = batch["used"]
+		if multimesh.visible_instance_count != visible_count:
+			multimesh.visible_instance_count = visible_count
+
+
 func _run_refill(now: bool, dt: float) -> void:
 	if _refill.visible != now:
 		_refill.visible = now
@@ -1242,14 +1289,18 @@ func _spawn_puff(world_pos: Vector3, radius: float, push: Vector3, source: Node)
 		if now - float(_puff_last.get(id, -10.0)) < puff_min_interval:
 			return
 		_puff_last[id] = now
+	_ensure_puff_pool()
+	var puff_y := global_position.y if render_mesh else world_pos.y
+	_puffs.burst(Vector3(world_pos.x, puff_y, world_pos.z), radius, push)
+	_cost_puffs_us += Time.get_ticks_usec() - puff_start
+
+
+func _ensure_puff_pool() -> void:
 	if not is_instance_valid(_puffs):
 		_puffs = SurfacePuffs.new()
 		_puffs.set_amount(_active_quality_settings.puff)
 		add_child(_puffs)
 		_apply_puff_look()
-	var puff_y := global_position.y if render_mesh else world_pos.y
-	_puffs.burst(Vector3(world_pos.x, puff_y, world_pos.z), radius, push)
-	_cost_puffs_us += Time.get_ticks_usec() - puff_start
 
 
 ## Returns false if the per-frame stamp budget is exhausted.

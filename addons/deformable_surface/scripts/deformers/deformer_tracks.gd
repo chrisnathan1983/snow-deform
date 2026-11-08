@@ -113,7 +113,7 @@ func _process(_delta: float) -> void:
 
 	var texture: Texture2D = null
 	if profile == Profile.TREAD:
-		texture = tread_texture if tread_texture != null else _get_default_tread()
+			texture = tread_texture if tread_texture != null else get_default_tread()
 	var tile_length := wheel_width
 	if texture != null:
 		tile_length *= float(texture.get_height()) / float(texture.get_width())
@@ -156,7 +156,8 @@ func _process(_delta: float) -> void:
 		_last[i] = pos
 
 
-static func _get_default_tread() -> ImageTexture:
+## Shared tread mask used by tracks without an assigned texture.
+static func get_default_tread() -> ImageTexture:
 	if _default_tread != null:
 		return _default_tread
 	var w := 32
