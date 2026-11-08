@@ -23,7 +23,7 @@ Items are ordered by priority. Findings marked *(audit)* come from a read-throug
   - [ ] Connect the window state to map rendering, stamps, refill, and recovery; cover edge and teleport behavior before replacing the grid.
 - [ ] **Finish splitting `DeformableSurface`.** `DeformationMap`, `StampBatchRenderer`, and the puff pool already own parts of the work, but the node is still about 900 lines. Move the remaining stamp queue, deformer scheduling, and contact orchestration behind focused components or APIs so the node becomes a thin coordinator. Keep tests from depending on its private viewport and queue state (`_vp`, `_pending_stamps`, `_prime_frames`).
 - [x] **Audit remaining resource-state bookkeeping.** Kept the resource `changed` subscriptions and clear-state snapshot, but ignored inactive noise settings and the unused fallback frequency when a custom noise resource supplies its own frequency.
-- [ ] **Share stamp shader math.** The analytic and sprite stamp shaders are near-copies. Move the pit, berm, and slope math into a shared `.gdshaderinc` so a change such as `normal_strength` handling cannot land in only one.
+- [x] **Share stamp shader math.** Both analytic and sprite stamps now use the shared pit, berm, and slope calculations in `deformable_surface_stamp_profile.gdshaderinc`.
 
 ## P2 — Verify rendering and engine behavior
 

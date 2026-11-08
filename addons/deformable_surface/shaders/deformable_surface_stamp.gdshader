@@ -12,6 +12,8 @@ const float MAP_NEUTRAL = 128.0 / 255.0;
 const float BERM_REACH = 2.0;
 const float BERM_FORWARD = 0.3;
 
+#include "res://addons/deformable_surface/shaders/deformable_surface_stamp_profile.gdshaderinc"
+
 varying vec4 stamp_data;
 varying vec3 stamp_params;
 varying float stamp_phase;
@@ -102,89 +104,21 @@ void fragment() {
 		}
 	}
 
-	// 1. Pit profile & exact analytical gradient (flat floor at center, smooth walls)
-	vec2 p_norm = pos_px / pit_rad;
-	if (is_segment > 0.5) {
-		p_norm.x = 0.0;
-	}
-	if (is_capsule > 0.5) {
-		p_norm = cap_q / pit_rad.y;
-	}
-	float r_pit2 = dot(p_norm, p_norm);
-	float pit_mask = max(1.0 - r_pit2, 0.0);
-	float pit_shape = pit_mask * pit_mask; // (1 - r^2)^2
-	// Derivative of (1 - r^2)^2 with respect to pos_px:
-	vec2 pit_grad = (-4.0 * pit_mask) * (p_norm / pit_rad);
-	if (is_capsule > 0.5) {
-		pit_grad = (-4.0 * pit_mask) * vec2(cap_q.x * sign(pos_px.x), cap_q.y) / (pit_rad.y * pit_rad.y);
-	}
-	if (has_sprite > 0.5) {
-		// Height is pit_shape * sprite_mask, so differentiate the product.
-		pit_grad = pit_grad * sprite_mask + pit_shape * sprite_grad;
-	}
+	float r_pit2;
+	float pit_mask;
+	float pit_shape;
+	vec2 pit_grad;
+	float berm_shape;
+	vec2 berm_grad;
+	stamp_profile(pos_px, pit_rad, berm_rad, berm_off, cap_q, is_segment, is_capsule,
+			is_sliding, berm_strength, mode, sprite_mask, sprite_grad, sprite_cover,
+			r_pit2, pit_mask, pit_shape, pit_grad, berm_shape, berm_grad);
 
-	// 2. Berm profile & analytical gradient
-	float berm_shape = 0.0;
-	vec2 berm_grad = vec2(0.0);
-	if (berm_strength > 0.0 && mode < 0.5) {
-		vec2 b_norm = (pos_px - berm_off) / berm_rad;
-		if (is_segment > 0.5) {
-			b_norm.x = 0.0; // side ridges only
-		}
-		if (is_capsule > 0.5) {
-			b_norm = cap_q / berm_rad.y;
-		}
-		float r_berm = length(b_norm);
-		// Smooth ring peaking at r_berm = 0.65, zero inside 0.35 and outside 1.0
-		float b_in = smoothstep(0.35, 0.65, r_berm);
-		float b_out = 1.0 - smoothstep(0.65, 1.0, r_berm);
-		berm_shape = b_in * b_out;
-
-		// Suppress trailing berm behind a sliding deformer so it doesn't refill its own track
-		float trail_mask = 1.0;
-		if (is_sliding > 0.5 && is_segment < 0.5 && is_capsule < 0.5) {
-			trail_mask = smoothstep(-0.3 * pit_rad.x, 0.1 * pit_rad.x, pos_px.x);
-		} else if (is_capsule > 0.5) {
-			trail_mask = smoothstep(-0.3 * pit_rad.y, 0.1 * pit_rad.y, pos_px.x + pit_rad.x);
-		}
-		berm_shape *= trail_mask * sprite_cover;
-
-		// Approximate radial derivative of berm ring
-		float d_berm_dr = (step(0.35, r_berm) * step(r_berm, 0.65) * 3.33 - step(0.65, r_berm) * step(r_berm, 1.0) * 2.85) * trail_mask;
-		berm_grad = (r_berm > 0.001) ? (b_norm / (r_berm * berm_rad)) * d_berm_dr * sprite_cover : vec2(0.0);
-		if (is_capsule > 0.5) {
-			berm_grad = (r_berm > 0.001) ? (b_norm / (r_berm * berm_rad.y)) * d_berm_dr : vec2(0.0);
-			berm_grad.x *= sign(pos_px.x);
-		}
-	}
-
-	// Combine pit and berm based on region
-	float in_pit = 1.0 - smoothstep(0.65, 1.0, r_pit2);
-	float target_h = mix(berm_height_ratio * 0.5, -0.5 * pit_shape * strength, in_pit);
-	// Slopes encode +dh/dx like the berm and baked-noise slopes; strength scales the pit gradient.
-	vec2 local_grad = mix(berm_grad * (berm_height_ratio * berm_strength), -pit_grad * (0.7 * strength), in_pit);
-	vec2 local_slope = local_grad * (2.5 * normal_strength);
-
-	float heading = (stamp_data.z - 0.5) * 6.28318530718;
-	float c = cos(heading);
-	float s = sin(heading);
-	vec2 map_slope = vec2(c * local_slope.x - s * local_slope.y, s * local_slope.x + c * local_slope.y);
-
-	vec3 encoded = vec3(MAP_NEUTRAL) + vec3(target_h, map_slope / 16.0);
-	// Keep coverage high; strength controls pit depth rather than blend accumulation.
-	float pit_alpha = in_pit * mix(0.85, 1.0, is_capsule) * sprite_mask;
-	float berm_alpha = berm_shape * berm_strength * strength;
-	float alpha = mix(berm_alpha, pit_alpha, in_pit);
-
-	if (mode > 1.5) {
-		// Smooth: feathered blend toward a flat neutral surface.
-		encoded = vec3(MAP_NEUTRAL);
-		alpha = clamp(pit_mask * 1.5, 0.0, 1.0) * strength * sprite_mask;
-	} else if (mode > 0.5) {
-		// Raise: the pit profile mirrored upward, no berm.
-		map_slope = vec2(c * -local_slope.x - s * -local_slope.y, s * -local_slope.x + c * -local_slope.y);
-		encoded = vec3(MAP_NEUTRAL) + vec3(-target_h, map_slope / 16.0);
-	}
+	vec3 encoded;
+	float alpha;
+	compose_stamp_surface(r_pit2, pit_mask, pit_shape, pit_grad, berm_shape, berm_grad,
+			strength, is_capsule, mode, berm_height_ratio, berm_strength, normal_strength,
+			stamp_data.z, sprite_mask, encoded, alpha);
 
 	COLOR = vec4(clamp(encoded, vec3(0.0), vec3(1.0)), clamp(alpha, 0.0, 1.0) * seg_in);
 }
