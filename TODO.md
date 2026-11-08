@@ -73,11 +73,11 @@ demos/
   launcher.tscn/.gd
   playground.tscn   powder_run.tscn   materials.tscn   custom_terrain.tscn
   shared/   demo_shell, demo_hud, demo_settings, demo_nav, demo_fps,
-            demo_theme, touch_sticks, demo_camera, demo_environment,
-            brush_deformer, surface_grid
+			demo_theme, touch_sticks, demo_camera, demo_environment,
+			brush_deformer, surface_grid
   actors/   explorer, yeti, penguin, mouse (+ behavior scripts)
   props/    sled, bouncing_ball, snowball, soccer_ball, rock, snowman,
-            pine_tree, forest, fence, hills, jump_ramp, blob_shadow
+			pine_tree, forest, fence, hills, jump_ramp, blob_shadow
   slope/    skier, guests/
   shaders/
 ```

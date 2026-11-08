@@ -72,7 +72,7 @@ func _run() -> void:
 				draws.append(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
 				var cpu := 0.0
 				var count := 0
-					var batch_count := 0
+				var batch_count := 0
 				for field in scene.fields:
 					var costs: Dictionary = field.get_frame_costs()
 					cpu += costs.deformers_ms + costs.queued_ms
