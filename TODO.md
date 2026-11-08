@@ -67,7 +67,6 @@ and tread stamps and starts every puff emitter. It clears the samples before gam
 
 ## 8. Export and load size
 
-- Exclude `tests/`, `.godot/`, and unused demos via export filters, and ship only what the web build needs.
-- Serve with Brotli or gzip.
-- Use a custom export template with unused modules disabled (for example 3D physics if you don't need it, but `RigidBody3D` and `AnimatableBody3D` are used in some demos).
-- Keep the single-threaded export unless you control the COOP/COEP headers.
+- [x] Filter tests, editor tooling, and unused demos out of the single-threaded Web export.
+- [x] Generate Brotli and gzip sidecars and document how to serve them.
+- [ ] Compile and browser-test the optional custom template using `tools/godot_web_profile.py`.

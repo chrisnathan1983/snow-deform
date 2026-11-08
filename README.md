@@ -81,9 +81,52 @@ Material Showcase and Custom Terrain orbit with right-drag and zoom with the whe
 - **Scene** has demo-specific actor, vehicle, brush, and texture controls.
 
 Start on **Low** when testing a phone. F3 toggles the FPS graph and F4 opens a
-per-operation breakdown. Changing map resolution clears tracks. For web exports,
-use Compatibility and disable thread support for wider phone compatibility. Serve
-the build over HTTPS or localhost.
+per-operation breakdown. Changing map resolution clears tracks.
+
+### Web export
+
+Install the Web export templates that match your Godot editor. The project's
+`Web` preset uses Compatibility and a single thread. It keeps the four launcher
+demos and excludes tests, editor tools, and obsolete scenes. Single-threaded
+hosting works without COOP or COEP headers. [Godot Web export guide](https://docs.godotengine.org/en/4.7/tutorials/export/exporting_for_web.html)
+
+From the project root, export and generate Brotli and gzip sidecars with Node.js.
+
+```powershell
+New-Item -ItemType Directory -Force export/web | Out-Null
+godot --headless --path . --export-release Web export/web/index.html
+node tools/precompress_web.mjs
+```
+
+Serve `export/web/` over HTTPS or localhost. Configure the host to negotiate
+Brotli or gzip from `Accept-Encoding` and return the matching `Content-Encoding`
+and `Vary: Accept-Encoding`. Keep the original files for clients that request
+uncompressed responses. Serve `.wasm` as `application/wasm`.
+
+For example, on an Nginx installation with its static gzip module, add these
+directives to the location serving the export. A host with Brotli support can
+serve the `.br` sidecars as well. [Nginx static gzip documentation](https://nginx.org/en/docs/http/ngx_http_gzip_static_module.html)
+
+```nginx
+gzip_static on;
+gzip_vary on;
+```
+
+```sh
+curl -I -H "Accept-Encoding: gzip" https://your-host.example/index.wasm
+```
+
+For a smaller engine binary, compile the matching Godot source with an activated
+Emscripten SDK and SCons. Pass `tools/godot_web_profile.py` as the SCons profile
+from the Godot source directory. [Godot Web template build guide](https://docs.godotengine.org/en/4.7/engine_details/development/compiling/compiling_for_web.html)
+
+```sh
+scons profile=/path/to/snow-deform/tools/godot_web_profile.py
+```
+
+Select the release ZIP from Godot's `bin/` directory under **Web → Custom Template → Release**.
+The profile keeps 3D physics for the soccer ball and actors and omits navigation,
+XR, and model importers. Launch all four demos after exporting with a custom template.
 
 ## Quick start
 
