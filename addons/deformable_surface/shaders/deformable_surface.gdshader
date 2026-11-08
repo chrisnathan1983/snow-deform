@@ -16,6 +16,8 @@ uniform float cool_shading : hint_range(0.0, 1.0) = 1.0; // blue-shifted termina
 uniform float disturbed_darkening : hint_range(0.0, 1.0) = 0.0; // darkens any disturbed ground (damp earth under dry crust)
 uniform float bevel_noise_scale = 32.0;
 uniform float bevel_noise_strength = 0.45;
+uniform vec2 bevel_origin_fraction = vec2(0.0);
+uniform vec2 bevel_origin_cell = vec2(0.0);
 
 // Optional material textures. Leave empty for flat colors.
 uniform sampler2D albedo_texture : source_color, filter_linear_mipmap, repeat_enable;
@@ -41,9 +43,12 @@ uniform float sparkle_threshold = 0.99;
 uniform vec3 sun_dir = vec3(0.424, 0.848, 0.318); // direction TOWARD the light
 uniform float sparkle_fade_start = 20.0;
 uniform float sparkle_fade_end = 45.0;
+uniform vec2 sparkle_origin_fraction = vec2(0.0);
+uniform vec2 sparkle_origin_cell = vec2(0.0);
 
 varying vec3 world_pos;
 varying vec3 world_normal;
+varying vec2 surface_local_pos;
 
 float hash12(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -57,8 +62,8 @@ vec2 hash22(vec2 p) {
 	return fract((p3.xx + p3.yz) * p3.zy);
 }
 
-vec2 world_noise(vec2 p) {
-	vec2 cell = floor(p);
+vec2 world_noise(vec2 p, vec2 origin_cell) {
+	vec2 cell = mod(floor(p) + origin_cell, vec2(8192.0));
 	vec2 f = fract(p);
 	f = f * f * (3.0 - 2.0 * f);
 	vec2 a = hash22(cell);
@@ -73,6 +78,7 @@ float sample_vertex_height(vec2 uv) {
 }
 
 void vertex() {
+	surface_local_pos = VERTEX.xz;
 	float height = deform_height_n(sample_vertex_height(UV));
 	vec3 base_world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	float dy = height * max_depth;
@@ -138,8 +144,8 @@ void fragment() {
 		float edge_strength = smoothstep(0.05, 0.5, slope_len);
 
 		if (edge_strength > 0.001) {
-			vec2 noise_uv = world_pos.xz * bevel_noise_scale;
-			vec2 noise_vec = world_noise(noise_uv) * 2.0 - 1.0;
+			vec2 noise_uv = surface_local_pos * bevel_noise_scale + bevel_origin_fraction;
+			vec2 noise_vec = world_noise(noise_uv, bevel_origin_cell) * 2.0 - 1.0;
 			slope += noise_vec * (bevel_noise_strength * edge_strength * slope_len);
 		}
 
@@ -163,7 +169,8 @@ void fragment() {
 			vec3 V = to_cam / max(dist, 0.0001);
 			vec3 H = normalize(V + sun_dir); // Normalize sun_dir on CPU in DeformableSurface
 
-			vec2 cell = floor(world_pos.xz * sparkle_density);
+			vec2 sparkle_uv = surface_local_pos * sparkle_density + sparkle_origin_fraction;
+			vec2 cell = mod(floor(sparkle_uv) + sparkle_origin_cell, vec2(8192.0));
 			float r1 = hash12(cell);
 			float r2 = hash12(cell + 17.31);
 			float r3 = hash12(cell + 91.7);

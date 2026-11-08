@@ -27,11 +27,11 @@ static func platform_tier() -> int:
 - **Replace the 3×3 tile recycling with a single toroidal map.** Nine SubViewports mean nine render passes, nine refill passes, and nine noise generations. The README already lists this as unimplemented. One scrolling map would also remove most of the prefetch logic.
 - ~~**Stamp shader:** the textured path does four gradient samples plus eight dilation samples per fragment, and the quad includes the full berm margin (`outer_half_extent`), so overdraw is large. Shrink the quad when `berm_strength == 0`, and skip dilation on tier 0.~~
 - ~~**Refill pass:** it renders the full map every `refill_interval`. On low quality, raise the interval or refill in strips.~~
-- **Sparkle:** on tier 0, compile a shader variant without it. A runtime `if` on a uniform still costs registers on mobile GPUs.
+- **Sparkle:** phone testing via itch.io showed High quality and sparkles rendered well. Keep a no-sparkle shader variant as a profiling-led option rather than a required tier-0 change.
 
-## 5. Precision issues on mobile GPUs
+## ~~5. Precision issues on mobile GPUs~~
 
-Many phone GPUs use mediump for fragment float math in WebGL2. In the surface shader, `hash12(floor(world_pos.xz * density))` and the `world_noise` bevel lookups degrade at large world coordinates, which matters in the infinite demos. Subtract the surface origin before hashing, or hash in tile-local coordinates. Explicit `highp` is also worth adding where it matters.
+The surface shader hashes tile-local fragment coordinates plus a wrapped integer world-cell origin for bevel noise and sparkles. This keeps calculations small at distant coordinates and preserves the same world-space pattern across recycled tile seams.
 
 ## 6. Avoid first-use hitches
 

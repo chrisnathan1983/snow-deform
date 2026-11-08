@@ -142,6 +142,7 @@ var _prime_frames := 0
 var _refill_timer := 0.0
 var _refill_idle := 0.0   # seconds since the last stamp
 var _sun_dir := Vector3.ZERO
+var _hash_origin_key: Array = []
 var _puffs: SurfacePuffs
 
 
@@ -548,6 +549,7 @@ func _adopt_material() -> void:
 	else:
 		_mat = ShaderMaterial.new()
 		_mat.shader = SURFACE_SHADER
+	_hash_origin_key = []
 
 
 func _source_material() -> ShaderMaterial:
@@ -667,6 +669,42 @@ func _configure_material() -> void:
 	_mat.set_shader_parameter("max_depth", max_depth)
 	_mat.set_shader_parameter("sparkle_intensity", _active_quality_settings.sparkle)
 	_mat.set_shader_parameter("wrapped_diffuse_lighting", wrapped_diffuse_lighting)
+	_configure_hash_origins()
+
+
+func _configure_hash_origins() -> void:
+	if _mat == null or _mat.shader != SURFACE_SHADER:
+		return
+	var origin := Vector2(global_position.x, global_position.z)
+	var bevel_density := _shader_float_parameter("bevel_noise_scale", 32.0)
+	var sparkle_density := _shader_float_parameter("sparkle_density", 24.0)
+	var key := [origin, bevel_density, sparkle_density]
+	if key == _hash_origin_key:
+		return
+	_hash_origin_key = key
+	_set_hash_origin("bevel", origin, maxf(bevel_density, 0.0001))
+	_set_hash_origin("sparkle", origin, maxf(sparkle_density, 0.0001))
+
+
+func _shader_float_parameter(parameter: StringName, fallback: float) -> float:
+	var value: Variant = _mat.get_shader_parameter(parameter)
+	return float(value) if typeof(value) == TYPE_FLOAT or typeof(value) == TYPE_INT else fallback
+
+
+func _set_hash_origin(prefix: String, origin: Vector2, density: float) -> void:
+	var scaled := origin * density
+	var integer_origin := Vector2i(floori(scaled.x), floori(scaled.y))
+	var fraction := scaled - Vector2(integer_origin)
+	var wrapped_origin := Vector2(
+		_positive_hash_mod(integer_origin.x),
+		_positive_hash_mod(integer_origin.y)
+	)
+	_mat.set_shader_parameter(StringName(prefix + "_origin_fraction"), fraction)
+	_mat.set_shader_parameter(StringName(prefix + "_origin_cell"), wrapped_origin)
+
+
+func _positive_hash_mod(value: int) -> int:
+	return ((value % 8192) + 8192) % 8192
 
 
 func _configure_particles() -> void:
@@ -927,6 +965,7 @@ func _forget(id: int) -> void:
 func _process(delta: float) -> void:
 	if not _runtime:
 		return
+	_configure_hash_origins()
 
 	if is_instance_valid(sun):
 		var dir := sun.global_basis.z.normalized()   # direction TOWARD the light
