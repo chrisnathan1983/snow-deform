@@ -2,10 +2,24 @@ extends Node3D
 ## An endless arcade slope. +Z is downhill (toward the bottom of the screen).
 ## Snow tiles and scenery are pooled; the two ski ribbons use real deformation.
 
-const Props := preload("res://demos/scripts/demo_props.gd")
 const SNOW_QUALITY := preload("res://demos/resources/powder_run/quality.tres")
 const SNOW_PROFILE := preload("res://demos/resources/powder_run/snow_profile.tres")
 const SlopeGuest := preload("res://demos/scripts/slope_guest.gd")
+const SKIER_SCENE := preload("res://demos/slope/skier.tscn")
+const GUEST_SCENES: Array[PackedScene] = [
+	preload("res://demos/slope/guests/guest_skier.tscn"),
+	preload("res://demos/slope/guests/snowboarder.tscn"),
+	preload("res://demos/slope/guests/sled_rider.tscn"),
+	preload("res://demos/slope/guests/sliding_penguin.tscn"),
+]
+const GUEST_COUNTS := [6, 2, 1, 1]
+const OBSTACLE_SCENES := {
+	"tree": preload("res://demos/props/pine_tree.tscn"),
+	"rock": preload("res://demos/props/rock.tscn"),
+	"jump": preload("res://demos/props/jump_ramp.tscn"),
+}
+const GATE_SCENE := preload("res://demos/props/slalom_gate.tscn")
+const BLUE_GATE := preload("res://demos/resources/powder_run/blue_gate.tres")
 const TILE_SIZE := 40.0
 const COURSE_LENGTH := 144.0
 const HALF_WIDTH := 25.0
@@ -116,31 +130,10 @@ func _build_world() -> void:
 
 
 func _build_skier() -> void:
-	skier = Node3D.new()
-	skier.name = "Skier"
+	skier = SKIER_SCENE.instantiate() as Node3D
+	visual = skier.get_node("Visual") as Node3D
+	tracks = skier.get_node("Tracks") as DeformerTracks
 	add_child(skier)
-	visual = Node3D.new()
-	skier.add_child(visual)
-	var navy := Color("203450")
-	var coral := Color("f04f65")
-	for side in [-1.0, 1.0]:
-		Props.add_mesh(visual, Props.box(Vector3(0.21, 0.09, 2.1)), Color("ffd05a"), Vector3(side * 0.32, 0.05, 0))
-		Props.add_mesh(visual, Props.box(Vector3(0.21, 0.09, 0.32)), coral, Vector3(side * 0.32, 0.12, 1.08), Vector3.ONE, Vector3(-24, 0, 0))
-		Props.add_mesh(visual, Props.box(Vector3(0.22, 0.25, 0.43)), navy, Vector3(side * 0.32, 0.2, 0))
-		Props.add_mesh(visual, Props.capsule(0.14, 0.6), navy, Vector3(side * 0.24, 0.59, -0.07), Vector3.ONE, Vector3(-18, 0, side * 12))
-		Props.add_mesh(visual, Props.capsule(0.13, 0.62), coral, Vector3(side * 0.47, 1.05, 0.14), Vector3.ONE, Vector3(25, 0, side * 30))
-		Props.add_mesh(visual, Props.cylinder(0.025, 1.2), navy, Vector3(side * 0.65, 0.55, -0.16), Vector3.ONE, Vector3(28, 0, side * -12))
-	Props.add_mesh(visual, Props.capsule(0.32, 0.8), coral, Vector3(0, 1.0, 0.02), Vector3(1, 1, 0.8), Vector3(12, 0, 0))
-	Props.add_mesh(visual, Props.sphere(0.28), Color("ffe0bd"), Vector3(0, 1.53, 0.16))
-	Props.add_mesh(visual, Props.sphere(0.3), Color("21b9c5"), Vector3(0, 1.66, 0.13), Vector3(1, 0.75, 1))
-	Props.add_mesh(visual, Props.box(Vector3(0.46, 0.13, 0.12)), navy, Vector3(0, 1.56, 0.4))
-	tracks = DeformerTracks.new()
-	tracks.preset = DeformerTracks.Preset.CUSTOM
-	tracks.wheel_offsets = PackedVector2Array([Vector2(-0.32, -0.3), Vector2(0.32, -0.3)])
-	tracks.wheel_width = 0.24
-	tracks.strength = 0.85
-	tracks.profile = DeformerTracks.Profile.SMOOTH
-	skier.add_child(tracks)
 	if mobile_lighting:
 		skier_shadow = BlobShadow.make(1.8, true)
 		skier.add_child(skier_shadow)
@@ -148,58 +141,40 @@ func _build_skier() -> void:
 
 func _build_guests() -> void:
 	var colors := [Color("9561d9"), Color("28a8bd"), Color("ef913e"), Color("75b94c"), Color("e970ad")]
-	for i in 10:
-		var guest := SlopeGuest.new()
-		guest.name = "SlopeGuest_%02d" % i
-		guest.index = i
-		guest.kind = SlopeGuest.Kind.SKIER if i < 6 else SlopeGuest.Kind.BOARDER
-		if i == 8:
-			guest.kind = SlopeGuest.Kind.SLED
-		elif i == 9:
-			guest.kind = SlopeGuest.Kind.PENGUIN
-		guest.tint = colors[i % colors.size()]
-		guest.use_blob_shadow = mobile_lighting
-		guest.lane = -18.0 + (i % 5) * 9.0
-		guest.cruise_speed = 9.0 + (i % 4) * 2.5
-		guest.phase = i * 1.7
-		guest.position = Vector3(guest.lane, 0, -12.0 + (i * 7) % 35)
-		add_child(guest)
-		guests.append(guest)
+	for kind in GUEST_SCENES.size():
+		for _guest_index in GUEST_COUNTS[kind]:
+			var i := guests.size()
+			var guest := GUEST_SCENES[kind].instantiate() as SlopeGuest
+			guest.name = "SlopeGuest_%02d" % i
+			guest.tint = colors[i % colors.size()]
+			guest.use_blob_shadow = mobile_lighting
+			guest.lane = -18.0 + (i % 5) * 9.0
+			guest.cruise_speed = 9.0 + (i % 4) * 2.5
+			guest.phase = i * 1.7
+			guest.position = Vector3(guest.lane, 0, -12.0 + (i * 7) % 35)
+			add_child(guest)
+			guests.append(guest)
 
 
 func _build_course() -> void:
 	for i in 76:
-		var obstacle := Node3D.new()
 		var kind := "tree" if i % 4 != 0 else "rock"
 		if i % 13 == 0:
 			kind = "jump"
+		var obstacle := (OBSTACLE_SCENES[kind] as PackedScene).instantiate() as Node3D
 		obstacle.set_meta("kind", kind)
 		obstacle.set_meta("radius", 1.05 if kind == "tree" else 1.3)
 		add_child(obstacle)
-		if kind == "tree":
-			Props.add_mesh(obstacle, Props.cylinder(0.19, 1.0), Color("795443"), Vector3(0, 0.5, 0))
-			for tier in 3:
-				var radius := 1.45 - tier * 0.34
-				var height := 1.7 + tier * 0.85
-				Props.add_mesh(obstacle, Props.cone(radius, 2.0), Color("19756b"), Vector3(0, height, 0))
-				Props.add_mesh(obstacle, Props.cone(radius * 0.72, 1.25), Color("e6f2f5"), Vector3(0, height + 0.4, 0))
-		elif kind == "rock":
-			Props.add_mesh(obstacle, Props.sphere(1.0, 7), Color("76879a"), Vector3(0, 0.35, 0), Vector3(1.2, 0.65, 0.9))
-			Props.add_mesh(obstacle, Props.sphere(0.8, 7), Color("e6f2f5"), Vector3(0, 0.7, 0), Vector3(1.1, 0.3, 0.8))
-		else:
-			Props.add_mesh(obstacle, Props.box(Vector3(2.6, 0.35, 2.0)), Color("90c4d4"), Vector3(0, 0.22, 0), Vector3.ONE, Vector3(-14, 0, 0))
-			Props.add_mesh(obstacle, Props.box(Vector3(2.6, 0.05, 0.22)), Color("ffd05a"), Vector3(0, 0.62, 0.8))
 		if mobile_lighting:
 			obstacle.add_child(BlobShadow.make(3.4 if kind == "tree" else 2.5, true))
 		_place_obstacle(obstacle, 15.0 + i * COURSE_LENGTH / 76.0)
 		obstacles.append(obstacle)
 	for i in 6:
-		var gate := Node3D.new()
+		var gate := GATE_SCENE.instantiate() as Node3D
+		if i % 2 != 0:
+			for part: MeshInstance3D in gate.get_children():
+				part.material_override = BLUE_GATE
 		add_child(gate)
-		var color := Color("f04f65") if i % 2 == 0 else Color("238db6")
-		for side in [-1.0, 1.0]:
-			Props.add_mesh(gate, Props.cylinder(0.045, 2.1), color, Vector3(side * 3.0, 1.05, 0))
-			Props.add_mesh(gate, Props.box(Vector3(0.9, 0.5, 0.04)), color, Vector3(side * 3.45, 1.65, 0))
 		_place_gate(gate, 26.0 + i * 24.0)
 		gates.append(gate)
 

@@ -1,78 +1,34 @@
 extends Node3D
 ## Pooled slope traffic. Motion is driven by the demo so pause freezes everyone.
 
-const Props := preload("res://demos/scripts/demo_props.gd")
 enum Kind { SKIER, BOARDER, SLED, PENGUIN }
 
-var kind := Kind.SKIER
-var index := 0
+@export var kind := Kind.SKIER
+@export var tint := Color("9b64da")
+@export var tint_parts: Array[MeshInstance3D] = []
+
+@onready var visual: Node3D = $Visual
+@onready var tracks: DeformerTracks = $Tracks
+
 var lane := 0.0
 var cruise_speed := 12.0
 var phase := 0.0
 var heading := 0.0
 var lift := 0.0
 var recovery := 0.0
-var visual: Node3D
-var tracks: DeformerTracks
-var tint := Color("9b64da")
 var use_blob_shadow := false
 var shadow: MeshInstance3D
 
 
 func _ready() -> void:
-	visual = Node3D.new()
-	add_child(visual)
-	_build_visual()
-	tracks = DeformerTracks.new()
-	tracks.preset = DeformerTracks.Preset.CUSTOM
-	tracks.wheel_offsets = PackedVector2Array([Vector2(-0.32, -0.35), Vector2(0.32, -0.35)])
-	tracks.wheel_width = 0.22
-	tracks.strength = 0.8
-	if kind == Kind.BOARDER or kind == Kind.PENGUIN:
-		tracks.wheel_offsets = PackedVector2Array([Vector2(0, -0.2)])
-		tracks.wheel_width = 0.62 if kind == Kind.BOARDER else 0.85
-		tracks.strength = 0.65
-	elif kind == Kind.SLED:
-		tracks.wheel_offsets = PackedVector2Array([Vector2(-0.48, -0.5), Vector2(0.48, -0.5)])
-		tracks.wheel_width = 0.18
-	tracks.profile = DeformerTracks.Profile.SMOOTH
-	add_child(tracks)
+	if not tint_parts.is_empty():
+		var material := tint_parts[0].material_override.duplicate() as StandardMaterial3D
+		material.albedo_color = tint
+		for part in tint_parts:
+			part.material_override = material
 	if use_blob_shadow:
 		shadow = BlobShadow.make(1.8, true)
 		add_child(shadow)
-
-
-func _build_visual() -> void:
-	var dark := Color("24364d")
-	var gold := Color("ffc957")
-	if kind == Kind.PENGUIN:
-		Props.add_mesh(visual, Props.sphere(0.65), dark, Vector3(0, 0.38, 0), Vector3(0.85, 0.6, 1.35))
-		Props.add_mesh(visual, Props.sphere(0.37), dark, Vector3(0, 0.65, 0.65))
-		Props.add_mesh(visual, Props.sphere(0.3), Color("edf5fa"), Vector3(0, 0.65, 0.85), Vector3(1, 0.8, 0.5))
-		Props.add_mesh(visual, Props.cone(0.16, 0.4), gold, Vector3(0, 0.59, 1.1), Vector3.ONE, Vector3(90, 0, 0))
-		Props.add_mesh(visual, Props.box(Vector3(0.75, 0.13, 0.26)), tint, Vector3(0, 0.6, 0.4))
-		for side in [-1.0, 1.0]:
-			Props.add_mesh(visual, Props.sphere(0.4), dark, Vector3(side * 0.65, 0.3, 0), Vector3(1.4, 0.16, 0.7))
-			Props.add_mesh(visual, Props.sphere(0.06), dark, Vector3(side * 0.14, 0.74, 1.0))
-		return
-	if kind == Kind.BOARDER:
-		Props.add_mesh(visual, Props.capsule(0.27, 2.0), tint, Vector3(0, 0.08, 0), Vector3(1, 1, 0.25), Vector3(90, 0, 0))
-	elif kind == Kind.SLED:
-		Props.add_mesh(visual, Props.box(Vector3(1.1, 0.18, 1.5)), Color("ba7951"), Vector3(0, 0.4, 0))
-	for side in [-1.0, 1.0]:
-		if kind != Kind.BOARDER:
-			var spread := 0.48 if kind == Kind.SLED else 0.32
-			Props.add_mesh(visual, Props.box(Vector3(0.16, 0.1, 2.0)), gold, Vector3(side * spread, 0.09, 0))
-		Props.add_mesh(visual, Props.capsule(0.13, 0.55), dark, Vector3(side * 0.23, 0.55, 0.06))
-		Props.add_mesh(visual, Props.capsule(0.12, 0.65), tint, Vector3(side * 0.48, 1.0, 0.04), Vector3.ONE, Vector3(20, 0, side * 40))
-		if kind == Kind.SKIER:
-			Props.add_mesh(visual, Props.cylinder(0.025, 1.1), dark, Vector3(side * 0.65, 0.5, -0.22), Vector3.ONE, Vector3(28, 0, 0))
-	Props.add_mesh(visual, Props.capsule(0.3, 0.75), tint, Vector3(0, 1.0, 0))
-	Props.add_mesh(visual, Props.sphere(0.26), Color("f2c69f"), Vector3(0, 1.5, 0.12))
-	Props.add_mesh(visual, Props.sphere(0.29), gold, Vector3(0, 1.63, 0.1), Vector3(1, 0.7, 1))
-	Props.add_mesh(visual, Props.box(Vector3(0.43, 0.12, 0.12)), dark, Vector3(0, 1.52, 0.36))
-	if kind == Kind.SLED:
-		visual.scale.y = 0.75
 
 
 func respawn(player_z: float, ahead: bool) -> void:

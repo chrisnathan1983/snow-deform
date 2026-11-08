@@ -17,6 +17,9 @@ func _run() -> void:
 	assert(scene.obstacles.size() == 76)
 	assert(scene.guests.size() == 10)
 	assert(scene.tracks.profile == DeformerTracks.Profile.SMOOTH)
+	for rider in scene.guests:
+		assert(rider.tracks.profile == DeformerTracks.Profile.SMOOTH,
+			"Every slope guest should carve continuous grooves")
 	var pooled_obstacle: Node3D = scene.obstacles[0]
 	scene._place_obstacle(pooled_obstacle, pooled_obstacle.position.z + 144.0)
 	assert(not pooled_obstacle.get_meta("draw_slots", []).is_empty())

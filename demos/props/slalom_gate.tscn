@@ -1,0 +1,37 @@
+[gd_scene format=3]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_red"]
+albedo_color = Color(0.94117647, 0.30980392, 0.39607843, 1)
+roughness = 0.85
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_pole"]
+top_radius = 0.045
+bottom_radius = 0.045
+height = 2.1
+radial_segments = 8
+rings = 1
+
+[sub_resource type="BoxMesh" id="BoxMesh_flag"]
+size = Vector3(0.9, 0.5, 0.04)
+
+[node name="SlalomGate" type="Node3D"]
+
+[node name="LeftPole" type="MeshInstance3D" parent="."]
+position = Vector3(-3, 1.05, 0)
+mesh = SubResource("CylinderMesh_pole")
+material_override = SubResource("StandardMaterial3D_red")
+
+[node name="LeftFlag" type="MeshInstance3D" parent="."]
+position = Vector3(-3.45, 1.65, 0)
+mesh = SubResource("BoxMesh_flag")
+material_override = SubResource("StandardMaterial3D_red")
+
+[node name="RightPole" type="MeshInstance3D" parent="."]
+position = Vector3(3, 1.05, 0)
+mesh = SubResource("CylinderMesh_pole")
+material_override = SubResource("StandardMaterial3D_red")
+
+[node name="RightFlag" type="MeshInstance3D" parent="."]
+position = Vector3(3.45, 1.65, 0)
+mesh = SubResource("BoxMesh_flag")
+material_override = SubResource("StandardMaterial3D_red")

@@ -1,0 +1,95 @@
+[gd_scene format=3]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_navy"]
+albedo_color = Color(0.14117647, 0.21176471, 0.30196078, 1)
+roughness = 0.85
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gold"]
+albedo_color = Color(1, 0.78823529, 0.34117647, 1)
+roughness = 0.85
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_outfit"]
+albedo_color = Color(0.60784314, 0.39215686, 0.85490196, 1)
+roughness = 0.85
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_skin"]
+albedo_color = Color(0.94901961, 0.77647059, 0.62352941, 1)
+roughness = 0.85
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_leg"]
+radius = 0.13
+height = 0.55
+radial_segments = 10
+rings = 4
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_arm"]
+radius = 0.12
+height = 0.65
+radial_segments = 10
+rings = 4
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_jacket"]
+radius = 0.3
+height = 0.75
+radial_segments = 10
+rings = 4
+
+[sub_resource type="SphereMesh" id="SphereMesh_head"]
+radius = 0.26
+height = 0.52
+radial_segments = 12
+rings = 6
+
+[sub_resource type="SphereMesh" id="SphereMesh_helmet"]
+radius = 0.29
+height = 0.58
+radial_segments = 12
+rings = 6
+
+[sub_resource type="BoxMesh" id="BoxMesh_goggles"]
+size = Vector3(0.43, 0.12, 0.12)
+
+[node name="Rider" type="Node3D"]
+
+[node name="LeftLeg" type="MeshInstance3D" parent="."]
+position = Vector3(-0.23, 0.55, 0.06)
+mesh = SubResource("CapsuleMesh_leg")
+material_override = SubResource("StandardMaterial3D_navy")
+
+[node name="LeftArm" type="MeshInstance3D" parent="."]
+position = Vector3(-0.48, 1, 0.04)
+rotation = Vector3(0.34906585, 0, -0.6981317)
+mesh = SubResource("CapsuleMesh_arm")
+material_override = SubResource("StandardMaterial3D_outfit")
+
+[node name="RightLeg" type="MeshInstance3D" parent="."]
+position = Vector3(0.23, 0.55, 0.06)
+mesh = SubResource("CapsuleMesh_leg")
+material_override = SubResource("StandardMaterial3D_navy")
+
+[node name="RightArm" type="MeshInstance3D" parent="."]
+position = Vector3(0.48, 1, 0.04)
+rotation = Vector3(0.34906585, 0, 0.6981317)
+mesh = SubResource("CapsuleMesh_arm")
+material_override = SubResource("StandardMaterial3D_outfit")
+
+[node name="Jacket" type="MeshInstance3D" parent="."]
+position = Vector3(0, 1, 0)
+mesh = SubResource("CapsuleMesh_jacket")
+material_override = SubResource("StandardMaterial3D_outfit")
+
+[node name="Head" type="MeshInstance3D" parent="."]
+position = Vector3(0, 1.5, 0.12)
+mesh = SubResource("SphereMesh_head")
+material_override = SubResource("StandardMaterial3D_skin")
+
+[node name="Helmet" type="MeshInstance3D" parent="."]
+position = Vector3(0, 1.63, 0.1)
+scale = Vector3(1, 0.7, 1)
+mesh = SubResource("SphereMesh_helmet")
+material_override = SubResource("StandardMaterial3D_gold")
+
+[node name="Goggles" type="MeshInstance3D" parent="."]
+position = Vector3(0, 1.52, 0.36)
+mesh = SubResource("BoxMesh_goggles")
+material_override = SubResource("StandardMaterial3D_navy")

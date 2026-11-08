@@ -1,0 +1,28 @@
+[gd_scene format=3]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ice"]
+albedo_color = Color(0.56470588, 0.76862745, 0.83137255, 1)
+roughness = 0.85
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_marker"]
+albedo_color = Color(1, 0.81568627, 0.35294118, 1)
+roughness = 0.85
+
+[sub_resource type="BoxMesh" id="BoxMesh_deck"]
+size = Vector3(2.6, 0.35, 2)
+
+[sub_resource type="BoxMesh" id="BoxMesh_lip"]
+size = Vector3(2.6, 0.05, 0.22)
+
+[node name="JumpRamp" type="Node3D"]
+
+[node name="Deck" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.22, 0)
+rotation = Vector3(-0.2443461, 0, 0)
+mesh = SubResource("BoxMesh_deck")
+material_override = SubResource("StandardMaterial3D_ice")
+
+[node name="Lip" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.62, 0.8)
+mesh = SubResource("BoxMesh_lip")
+material_override = SubResource("StandardMaterial3D_marker")

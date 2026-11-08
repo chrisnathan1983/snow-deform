@@ -1,0 +1,52 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://demos/scripts/slope_guest.gd" id="guest"]
+[ext_resource type="PackedScene" path="res://demos/slope/guests/rider_visual.tscn" id="rider"]
+[ext_resource type="Script" path="res://addons/deformable_surface/scripts/deformers/deformer_tracks.gd" id="tracks"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gold"]
+albedo_color = Color(1, 0.78823529, 0.34117647, 1)
+roughness = 0.85
+
+[sub_resource type="BoxMesh" id="BoxMesh_runner"]
+size = Vector3(0.16, 0.1, 2)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_wood"]
+albedo_color = Color(0.72941176, 0.4745098, 0.31764706, 1)
+roughness = 0.85
+
+[sub_resource type="BoxMesh" id="BoxMesh_seat"]
+size = Vector3(1.1, 0.18, 1.5)
+
+[node name="SledRider" type="Node3D" node_paths=PackedStringArray("tint_parts")]
+script = ExtResource("guest")
+kind = 2
+tint_parts = [NodePath("Visual/Rider/Jacket"), NodePath("Visual/Rider/LeftArm"), NodePath("Visual/Rider/RightArm")]
+
+[node name="Visual" type="Node3D" parent="."]
+scale = Vector3(1, 0.75, 1)
+
+[node name="Rider" parent="Visual" instance=ExtResource("rider")]
+
+[node name="Seat" type="MeshInstance3D" parent="Visual"]
+position = Vector3(0, 0.4, 0)
+mesh = SubResource("BoxMesh_seat")
+material_override = SubResource("StandardMaterial3D_wood")
+
+[node name="LeftRunner" type="MeshInstance3D" parent="Visual"]
+position = Vector3(-0.48, 0.09, 0)
+mesh = SubResource("BoxMesh_runner")
+material_override = SubResource("StandardMaterial3D_gold")
+
+[node name="RightRunner" type="MeshInstance3D" parent="Visual"]
+position = Vector3(0.48, 0.09, 0)
+mesh = SubResource("BoxMesh_runner")
+material_override = SubResource("StandardMaterial3D_gold")
+
+[node name="Tracks" type="Node3D" parent="."]
+script = ExtResource("tracks")
+preset = 0
+wheel_offsets = PackedVector2Array(-0.48, -0.5, 0.48, -0.5)
+wheel_width = 0.18
+strength = 0.8
+profile = 1

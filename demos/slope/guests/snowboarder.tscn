@@ -1,0 +1,39 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://demos/scripts/slope_guest.gd" id="guest"]
+[ext_resource type="PackedScene" path="res://demos/slope/guests/rider_visual.tscn" id="rider"]
+[ext_resource type="Script" path="res://addons/deformable_surface/scripts/deformers/deformer_tracks.gd" id="tracks"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_outfit"]
+albedo_color = Color(0.60784314, 0.39215686, 0.85490196, 1)
+roughness = 0.85
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_board"]
+radius = 0.27
+height = 2
+radial_segments = 10
+rings = 4
+
+[node name="Snowboarder" type="Node3D" node_paths=PackedStringArray("tint_parts")]
+script = ExtResource("guest")
+kind = 1
+tint_parts = [NodePath("Visual/Rider/Jacket"), NodePath("Visual/Rider/LeftArm"), NodePath("Visual/Rider/RightArm"), NodePath("Visual/Board")]
+
+[node name="Visual" type="Node3D" parent="."]
+
+[node name="Rider" parent="Visual" instance=ExtResource("rider")]
+
+[node name="Board" type="MeshInstance3D" parent="Visual"]
+position = Vector3(0, 0.08, 0)
+rotation = Vector3(1.5707963, 0, 0)
+scale = Vector3(1, 1, 0.25)
+mesh = SubResource("CapsuleMesh_board")
+material_override = SubResource("StandardMaterial3D_outfit")
+
+[node name="Tracks" type="Node3D" parent="."]
+script = ExtResource("tracks")
+preset = 0
+wheel_offsets = PackedVector2Array(0, -0.2)
+wheel_width = 0.62
+strength = 0.65
+profile = 1

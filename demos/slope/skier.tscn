@@ -1,0 +1,175 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://addons/deformable_surface/scripts/deformers/deformer_tracks.gd" id="tracks"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_navy"]
+albedo_color = Color(0.1254902, 0.20392157, 0.31372549, 1)
+roughness = 0.85
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_coral"]
+albedo_color = Color(0.94117647, 0.30980392, 0.39607843, 1)
+roughness = 0.85
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gold"]
+albedo_color = Color(1, 0.81568627, 0.35294118, 1)
+roughness = 0.85
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_skin"]
+albedo_color = Color(1, 0.87843137, 0.74117647, 1)
+roughness = 0.85
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_helmet"]
+albedo_color = Color(0.12941176, 0.7254902, 0.77254902, 1)
+roughness = 0.85
+
+[sub_resource type="BoxMesh" id="BoxMesh_ski"]
+size = Vector3(0.21, 0.09, 2.1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_ski_tip"]
+size = Vector3(0.21, 0.09, 0.32)
+
+[sub_resource type="BoxMesh" id="BoxMesh_boot"]
+size = Vector3(0.22, 0.25, 0.43)
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_leg"]
+radius = 0.14
+height = 0.6
+radial_segments = 10
+rings = 4
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_arm"]
+radius = 0.13
+height = 0.62
+radial_segments = 10
+rings = 4
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_pole"]
+top_radius = 0.025
+bottom_radius = 0.025
+height = 1.2
+radial_segments = 8
+rings = 1
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_jacket"]
+radius = 0.32
+height = 0.8
+radial_segments = 10
+rings = 4
+
+[sub_resource type="SphereMesh" id="SphereMesh_head"]
+radius = 0.28
+height = 0.56
+radial_segments = 12
+rings = 6
+
+[sub_resource type="SphereMesh" id="SphereMesh_helmet"]
+radius = 0.3
+height = 0.6
+radial_segments = 12
+rings = 6
+
+[sub_resource type="BoxMesh" id="BoxMesh_goggles"]
+size = Vector3(0.46, 0.13, 0.12)
+
+[node name="Skier" type="Node3D"]
+
+[node name="Visual" type="Node3D" parent="."]
+
+[node name="LeftSki" type="MeshInstance3D" parent="Visual"]
+position = Vector3(-0.32, 0.05, 0)
+mesh = SubResource("BoxMesh_ski")
+material_override = SubResource("StandardMaterial3D_gold")
+
+[node name="LeftSkiTip" type="MeshInstance3D" parent="Visual"]
+position = Vector3(-0.32, 0.12, 1.08)
+rotation = Vector3(-0.41887902, 0, 0)
+mesh = SubResource("BoxMesh_ski_tip")
+material_override = SubResource("StandardMaterial3D_coral")
+
+[node name="LeftBoot" type="MeshInstance3D" parent="Visual"]
+position = Vector3(-0.32, 0.2, 0)
+mesh = SubResource("BoxMesh_boot")
+material_override = SubResource("StandardMaterial3D_navy")
+
+[node name="LeftLeg" type="MeshInstance3D" parent="Visual"]
+position = Vector3(-0.24, 0.59, -0.07)
+rotation = Vector3(-0.31415927, 0, -0.20943951)
+mesh = SubResource("CapsuleMesh_leg")
+material_override = SubResource("StandardMaterial3D_navy")
+
+[node name="LeftArm" type="MeshInstance3D" parent="Visual"]
+position = Vector3(-0.47, 1.05, 0.14)
+rotation = Vector3(0.43633231, 0, -0.52359878)
+mesh = SubResource("CapsuleMesh_arm")
+material_override = SubResource("StandardMaterial3D_coral")
+
+[node name="LeftPole" type="MeshInstance3D" parent="Visual"]
+position = Vector3(-0.65, 0.55, -0.16)
+rotation = Vector3(0.48869219, 0, 0.20943951)
+mesh = SubResource("CylinderMesh_pole")
+material_override = SubResource("StandardMaterial3D_navy")
+
+[node name="RightSki" type="MeshInstance3D" parent="Visual"]
+position = Vector3(0.32, 0.05, 0)
+mesh = SubResource("BoxMesh_ski")
+material_override = SubResource("StandardMaterial3D_gold")
+
+[node name="RightSkiTip" type="MeshInstance3D" parent="Visual"]
+position = Vector3(0.32, 0.12, 1.08)
+rotation = Vector3(-0.41887902, 0, 0)
+mesh = SubResource("BoxMesh_ski_tip")
+material_override = SubResource("StandardMaterial3D_coral")
+
+[node name="RightBoot" type="MeshInstance3D" parent="Visual"]
+position = Vector3(0.32, 0.2, 0)
+mesh = SubResource("BoxMesh_boot")
+material_override = SubResource("StandardMaterial3D_navy")
+
+[node name="RightLeg" type="MeshInstance3D" parent="Visual"]
+position = Vector3(0.24, 0.59, -0.07)
+rotation = Vector3(-0.31415927, 0, 0.20943951)
+mesh = SubResource("CapsuleMesh_leg")
+material_override = SubResource("StandardMaterial3D_navy")
+
+[node name="RightArm" type="MeshInstance3D" parent="Visual"]
+position = Vector3(0.47, 1.05, 0.14)
+rotation = Vector3(0.43633231, 0, 0.52359878)
+mesh = SubResource("CapsuleMesh_arm")
+material_override = SubResource("StandardMaterial3D_coral")
+
+[node name="RightPole" type="MeshInstance3D" parent="Visual"]
+position = Vector3(0.65, 0.55, -0.16)
+rotation = Vector3(0.48869219, 0, -0.20943951)
+mesh = SubResource("CylinderMesh_pole")
+material_override = SubResource("StandardMaterial3D_navy")
+
+[node name="Jacket" type="MeshInstance3D" parent="Visual"]
+position = Vector3(0, 1, 0.02)
+rotation = Vector3(0.20943951, 0, 0)
+scale = Vector3(1, 1, 0.8)
+mesh = SubResource("CapsuleMesh_jacket")
+material_override = SubResource("StandardMaterial3D_coral")
+
+[node name="Head" type="MeshInstance3D" parent="Visual"]
+position = Vector3(0, 1.53, 0.16)
+mesh = SubResource("SphereMesh_head")
+material_override = SubResource("StandardMaterial3D_skin")
+
+[node name="Helmet" type="MeshInstance3D" parent="Visual"]
+position = Vector3(0, 1.66, 0.13)
+scale = Vector3(1, 0.75, 1)
+mesh = SubResource("SphereMesh_helmet")
+material_override = SubResource("StandardMaterial3D_helmet")
+
+[node name="Goggles" type="MeshInstance3D" parent="Visual"]
+position = Vector3(0, 1.56, 0.4)
+mesh = SubResource("BoxMesh_goggles")
+material_override = SubResource("StandardMaterial3D_navy")
+
+[node name="Tracks" type="Node3D" parent="."]
+script = ExtResource("tracks")
+preset = 0
+wheel_offsets = PackedVector2Array(-0.32, -0.3, 0.32, -0.3)
+wheel_width = 0.24
+strength = 0.85
+profile = 1
