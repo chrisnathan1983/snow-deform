@@ -21,6 +21,7 @@ var skier_shadow: MeshInstance3D
 var tracks: DeformerTracks
 var camera: Camera3D
 var fields: Array[DeformableSurface] = []
+var snow_grid: DeformableSurfaceGrid
 var obstacles: Array[Node3D] = []
 var gates: Array[Node3D] = []
 var guests: Array[SlopeGuest] = []
@@ -53,6 +54,7 @@ func _ready() -> void:
 			_touch_blockers.append(child)
 	_build_world()
 	_build_skier()
+	snow_grid.follow_target = skier
 	_build_course()
 	if batch_scenery:
 		_batch_scenery()
@@ -92,17 +94,19 @@ func _build_world() -> void:
 		snow_material.set_shader_parameter("normal_strength", 4.0)
 		snow_material.set_shader_parameter("disturbed_darkening", 0.06)
 		snow.material = snow_material
-	for z in range(-1, 2):
-		for x in range(-1, 2):
-			var field := DeformableSurface.new()
-			field.name = "Snow_%d_%d" % [x, z]
-			field.size = TILE_SIZE
-			field.position = Vector3(x * TILE_SIZE, 0, z * TILE_SIZE)
-			field.quality = SNOW_QUALITY
-			field.surface_type = snow
-			field.sun = sun
-			add_child(field)
-			fields.append(field)
+	snow_grid = DeformableSurfaceGrid.new()
+	snow_grid.name = "SurfaceGrid"
+	snow_grid.tile_size = TILE_SIZE
+	snow_grid.quality = SNOW_QUALITY
+	snow_grid.surface_type = snow
+	snow_grid.sun = sun
+	snow_grid.follow_x = false
+	snow_grid.follow_offset = Vector3(0.0, 0.0, 8.0)
+	snow_grid.prefetch_distance = 0.0
+	snow_grid.relocations_per_frame = 9
+	add_child(snow_grid)
+	snow_grid.set_process(false)
+	fields = snow_grid.fields
 	camera = Camera3D.new()
 	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
 	camera.size = 37.0
@@ -290,7 +294,7 @@ func _physics_process(delta: float) -> void:
 	visual.visible = invincible <= 0 or int(invincible * 12) % 2 == 0
 	tracks.active = skier.position.y < 0.05 and crash_time <= 0
 	_check_course(previous)
-	_recycle_snow()
+	snow_grid.update_tiles()
 	for guest in guests:
 		guest.advance(delta, skier, obstacles, guests)
 	_update_camera()
@@ -331,14 +335,6 @@ func _check_course(previous: Vector3) -> void:
 				_flash("MISSED GATE  /  Catch the next one", 1.4)
 		if gate.position.z < skier.position.z - 32.0:
 			_place_gate(gate, gate.position.z + COURSE_LENGTH)
-
-
-func _recycle_snow() -> void:
-	var center_z := floori((skier.position.z + 8.0) / TILE_SIZE + 0.5)
-	for field in fields:
-		while field.position.z < (center_z - 1) * TILE_SIZE:
-			field.position.z += TILE_SIZE * 3.0
-			field.reset_trails()
 
 
 func _update_camera() -> void:

@@ -50,10 +50,10 @@ func _run() -> void:
 		var now := Time.get_ticks_usec()
 		workload.append((now - previous) / 1000.0)
 		previous = now
-		crossed[scene._center_tile] = true
+		crossed[scene.grid.center_tile] = true
 	scene.debug_move = Vector2.ZERO
 	var deadline := Time.get_ticks_msec() + 15000
-	while scene.settings.has_pending_surface_updates() or not scene._pending_relocations.is_empty():
+	while scene.settings.has_pending_surface_updates() or scene.grid.has_pending_relocations():
 		await process_frame
 		if Time.get_ticks_msec() > deadline:
 			push_error("Frame benchmark did not drain its settings/recycling queues")

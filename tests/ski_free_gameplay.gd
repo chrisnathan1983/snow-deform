@@ -52,7 +52,7 @@ func _run() -> void:
 	scene._jump()
 	assert(scene.vertical_speed > 0 and not scene.tracks.active)
 	scene.skier.position = Vector3(0, 0, 600)
-	scene._recycle_snow()
+	scene.snow_grid.update_tiles()
 	var tile_positions := {}
 	for field in scene.fields:
 		assert(absf(field.position.z - 600.0) <= 40.0)

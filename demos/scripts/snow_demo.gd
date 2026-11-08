@@ -12,8 +12,6 @@ const DemoBall := preload("res://demos/scripts/demo_ball.gd")
 const Snowangel := preload("res://demos/scripts/snow_angel.gd")
 
 const FIELD_SIZE := 32.0
-const LOOK_YAW_RATE := 2.4
-const LOOK_PITCH_RATE := 1.5
 const HALF := FIELD_SIZE * 0.5
 const GROUND_Y := -0.3
 const SNOWFALL := 0.4
@@ -24,13 +22,14 @@ var weather: SnowWorldManager
 var sun: DirectionalLight3D
 var env: Environment
 var sky_mat: ProceduralSkyMaterial
-var camera: Camera3D
+var camera: DemoCamera
 var _ground: MeshInstance3D
 var player: DemoCharacter
 var sled: DemoSled
 var ui: DemoHud
 var settings: DemoSettings
 var stick: TouchSticks
+var _shell: DemoShell
 
 var _rng := RandomNumberGenerator.new()
 var _obstacles: Array[Vector3] = []
@@ -46,12 +45,6 @@ var _run_button := false
 var _touch_ui := false
 var _mouse_emulates_touch := bool(ProjectSettings.get_setting("input_devices/pointing/emulate_touch_from_mouse", false))
 
-# camera
-var _yaw := 0.0
-var _pitch := 0.42
-var _dist := 7.5
-var _cam_ready := false
-
 # pointer state
 var _mouse_down := false
 var _mouse_look_ok := false   # the drag began on the right half, the only place that moves the camera
@@ -65,13 +58,15 @@ var debug_move := Vector2.ZERO
 
 
 func _ready() -> void:
-    DemoNav.attach(self)
+    _shell = DemoShell.attach(self, true)
     _rng.seed = 1234
     _touch_ui = DisplayServer.is_touchscreen_available()
     _build_environment()
     _build_snow()
     _build_scenery()
     _build_actors()
+    camera.follow_target = player
+    camera.update_view()
     _build_ui()
     _set_sun(_sun_height)
     if _touch_ui:
@@ -104,7 +99,13 @@ func _build_environment() -> void:
     sun.shadow_bias = 0.05
     add_child(sun)
 
-    camera = Camera3D.new()
+    camera = DemoCamera.new()
+    camera.auto_update = false
+    camera.focus_offset = Vector3(0, 1.2, 0)
+    camera.follow_speed = 12.0
+    camera.minimum_height = 0.5
+    camera.pitch_limits = Vector2(0.08, 1.3)
+    camera.distance_limits = Vector2(3.0, 16.0)
     camera.fov = 65.0
     camera.far = 400.0
     camera.current = true
@@ -264,10 +265,9 @@ func _make_character(kind: String, role: int) -> DemoCharacter:
 
 
 func _build_ui() -> void:
-    ui = DemoHud.new()
-    add_child(ui)
+    ui = _shell.hud
     ui.set_title("Snow Lab")
-    settings = DemoSettings.create(ui, snow_fields)
+    settings = _shell.bind_surfaces(snow_fields)
     settings.quality_presets = _quality_presets
     settings.quality_index = _quality
     settings.sun_handler = _set_sun
@@ -281,17 +281,8 @@ func _build_ui() -> void:
     ui.add_toggle(scene_tab, "penguins", "Penguin parade", true)
     ui.add_button(scene_tab, "storm", "Snowball storm")
     ui.changed.connect(_on_ui)
-    if _touch_ui:
-        ui.add_touch_buttons()
-    var overlay := CanvasLayer.new()
-    overlay.layer = 9
-    add_child(overlay)
-    stick = TouchSticks.new()
-    stick.is_blocked = ui.over_ui
-    stick.stick_scale = ui.ui_scale
+    stick = _shell.sticks
     stick.tapped.connect(_throw_at)
-    ui.get_viewport().size_changed.connect(func(): stick.stick_scale = ui.ui_scale)
-    overlay.add_child(stick)
 
 
 # ================================================================ settings
@@ -392,12 +383,11 @@ func _process(delta: float) -> void:
         _key(KEY_D, KEY_RIGHT) - _key(KEY_A, KEY_LEFT),
         _key(KEY_S, KEY_DOWN) - _key(KEY_W, KEY_UP))
     var mv := (kb + stick.move + debug_move).limit_length(1.0)
-    player.move_input = Basis(Vector3.UP, _yaw) * Vector3(mv.x, 0.0, mv.y)
+    player.move_input = Basis(Vector3.UP, camera.yaw) * Vector3(mv.x, 0.0, mv.y)
     player.running = Input.is_key_pressed(KEY_SHIFT) or _run_button
 
-    _yaw -= stick.look.x * LOOK_YAW_RATE * delta
-    _pitch = clampf(_pitch + stick.look.y * LOOK_PITCH_RATE * delta, 0.08, 1.3)
-    _update_camera(delta)
+    camera.apply_stick(stick.look, delta)
+    camera.update_view(delta)
 
     _hud_t -= delta
     if _hud_t <= 0.0:
@@ -409,19 +399,6 @@ func _process(delta: float) -> void:
 
 func _key(a: Key, b: Key) -> float:
     return 1.0 if (Input.is_key_pressed(a) or Input.is_key_pressed(b)) else 0.0
-
-
-func _update_camera(delta: float) -> void:
-    var focus := player.global_position + Vector3(0, 1.2, 0)
-    var off := Basis(Vector3.UP, _yaw) * Basis(Vector3.RIGHT, -_pitch) * Vector3(0, 0, _dist)
-    var want := focus + off
-    want.y = maxf(want.y, 0.5)
-    if not _cam_ready:
-        camera.global_position = want
-        _cam_ready = true
-    else:
-        camera.global_position = camera.global_position.lerp(want, 1.0 - exp(-12.0 * delta))
-    camera.look_at(focus, Vector3.UP)
 
 
 # ================================================================ input
@@ -439,9 +416,9 @@ func _unhandled_input(event: InputEvent) -> void:
     elif event is InputEventMouseButton and event.device != InputEvent.DEVICE_ID_EMULATION:
         var mb := event as InputEventMouseButton
         if mb.button_index == MOUSE_BUTTON_WHEEL_UP and mb.pressed:
-            _dist = clampf(_dist - 0.6, 3.0, 16.0)
+            camera.zoom(-0.6)
         elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN and mb.pressed:
-            _dist = clampf(_dist + 0.6, 3.0, 16.0)
+            camera.zoom(0.6)
         elif _mouse_emulates_touch:
             pass   # the emulated touch drives the sticks; reacting here too would also turn the camera
         elif mb.button_index == MOUSE_BUTTON_LEFT or mb.button_index == MOUSE_BUTTON_RIGHT:
@@ -464,9 +441,4 @@ func _unhandled_input(event: InputEvent) -> void:
             if mm.position.distance_to(_mouse_start) > 6.0:
                 _mouse_moved = true
             if _mouse_moved:
-                _look(mm.relative)
-
-
-func _look(rel: Vector2) -> void:
-    _yaw -= rel.x * 0.006
-    _pitch = clampf(_pitch + rel.y * 0.005, 0.08, 1.3)
+                camera.drag(mm.relative)

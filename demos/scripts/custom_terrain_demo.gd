@@ -18,25 +18,23 @@ var _terrain_material: ShaderMaterial
 var _grass_material: ShaderMaterial
 var _grass: MultiMeshInstance3D
 var _sun: DirectionalLight3D
-var _camera: Camera3D
+var _camera: DemoCamera
 var _walker: Node3D
-var _brush: Deformer
+var _brush: BrushDeformer
 var _hud: DemoHud
+var _shell: DemoShell
 
-var _orbit := Vector2(0.75, 0.6)   # pitch, yaw
-var _distance := 11.0
 var _autopilot := true
 var _autopilot_time := 0.0
-var _carving := false
-var _camera_focus := Vector3.ZERO
 
 
 func _ready() -> void:
-	DemoNav.attach(self)
+	_shell = DemoShell.attach(self)
 	_build_world()
 	_build_terrain()
 	_build_grass()
 	_build_walker()
+	_camera.follow_target = _walker
 	_bind_deformation()
 	_build_ui()
 
@@ -76,16 +74,28 @@ func _build_world() -> void:
 	_surface.surface_type = GRASS_PROFILE
 	add_child(_surface)
 
-	_brush = Deformer.new()
+	_brush = BrushDeformer.new()
+	_brush.height_at = terrain_height
+	_brush.is_blocked = _shell.hud.over_ui
 	_brush.field = _surface
 	_brush.radius = 0.7
 	_brush.puff_distance = 0.8
 	_brush.active = false
 	add_child(_brush)
 
-	_camera = Camera3D.new()
+	_camera = DemoCamera.new()
+	_camera.auto_update = false
+	_camera.mode = DemoCamera.Mode.ORBIT
+	_camera.pitch = 0.75
+	_camera.distance = 11.0
+	_camera.pitch_limits = Vector2(0.25, 1.45)
+	_camera.distance_limits = Vector2(4.0, 30.0)
+	_camera.yaw = 0.6
+	_camera.focus_offset = Vector3(0.0, 0.8, 0.0)
+	_camera.focus_speed = 6.0
 	_camera.far = 300.0
 	add_child(_camera)
+	_brush.camera = _camera
 
 
 func _build_terrain() -> void:
@@ -229,8 +239,7 @@ func _bind_deformation() -> void:
 
 
 func _build_ui() -> void:
-	_hud = DemoHud.new()
-	add_child(_hud)
+	_hud = _shell.hud
 	_hud.set_title("Custom terrain")
 	var tab := _hud.add_tab("Scene")
 	_hud.add_heading(tab, "Controls")
@@ -270,22 +279,18 @@ func _on_hud_changed(key: String, value: Variant) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
-		if mb.button_index == MOUSE_BUTTON_LEFT:
-			_carving = mb.pressed and not _hud.over_ui(mb.position)
-		elif mb.button_index == MOUSE_BUTTON_WHEEL_UP:
-			_distance = maxf(4.0, _distance - 0.8)
+		if mb.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_camera.zoom(-0.8)
 		elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			_distance = minf(30.0, _distance + 0.8)
+			_camera.zoom(0.8)
 	elif event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
-		var motion := event as InputEventMouseMotion
-		_orbit.y -= motion.relative.x * 0.005
-		_orbit.x = clampf(_orbit.x + motion.relative.y * 0.005, 0.25, 1.45)
+		_camera.drag(event.relative, 0.005)
 
 
 func _process(delta: float) -> void:
 	_process_walker(delta)
-	_process_brush()
-	_update_camera(delta)
+	_brush.paint_at_pointer()
+	_camera.update_view(delta)
 
 
 func _process_walker(delta: float) -> void:
@@ -301,7 +306,7 @@ func _process_walker(delta: float) -> void:
 			_autopilot = false
 			_hud.set_value("autopilot", false)
 		# Movement is relative to the camera's yaw.
-		var direction := Vector3(move.x, 0.0, move.y).normalized().rotated(Vector3.UP, _orbit.y)
+		var direction := Vector3(move.x, 0.0, move.y).normalized().rotated(Vector3.UP, _camera.yaw)
 		var speed := 5.5 if Input.is_key_pressed(KEY_SHIFT) else 3.0
 		pos += direction * speed * delta
 		heading = atan2(-direction.x, -direction.z)
@@ -326,47 +331,3 @@ func _update_walker(pos: Vector3, heading: float) -> void:
 	pos.y = terrain_height(pos.x, pos.z)
 	_walker.position = pos
 	_walker.rotation.y = heading
-
-
-func _process_brush() -> void:
-	if not _carving:
-		_brush.active = false
-		return
-	var hit := _ground_point(get_viewport().get_mouse_position())
-	_brush.active = hit != Vector3.INF
-	if _brush.active:
-		_brush.global_position = hit
-
-
-# Marches the mouse ray against the height function (the terrain has no collider).
-func _ground_point(mouse: Vector2) -> Vector3:
-	var origin := _camera.project_ray_origin(mouse)
-	var direction := _camera.project_ray_normal(mouse)
-	var previous := 0.0
-	var travelled := 0.0
-	while travelled < 120.0:
-		var p := origin + direction * travelled
-		if p.y <= terrain_height(p.x, p.z):
-			var lo := previous
-			var hi := travelled
-			for i in 8:
-				var mid := (lo + hi) * 0.5
-				var q := origin + direction * mid
-				if q.y <= terrain_height(q.x, q.z):
-					hi = mid
-				else:
-					lo = mid
-			var hit := origin + direction * hi
-			if absf(hit.x) > AREA * 0.5 or absf(hit.z) > AREA * 0.5:
-				return Vector3.INF
-			return Vector3(hit.x, terrain_height(hit.x, hit.z), hit.z)
-		previous = travelled
-		travelled += 0.3
-	return Vector3.INF
-
-
-func _update_camera(delta: float) -> void:
-	_camera_focus = _camera_focus.lerp(_walker.global_position + Vector3(0.0, 0.8, 0.0), 1.0 - exp(-6.0 * delta))
-	var offset := Vector3(0.0, sin(_orbit.x), cos(_orbit.x)).rotated(Vector3.UP, _orbit.y) * _distance
-	_camera.global_position = _camera_focus + offset
-	_camera.look_at(_camera_focus)

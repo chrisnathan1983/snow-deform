@@ -6,8 +6,9 @@ built from code and primitive meshes.
 ## Install
 1. Make sure the addon is at `res://addons/deformable_surface/`.
 2. Copy the repository's `demos/` folder into your project's `res://` folder. Runnable scenes
-   live directly in `demos/`; all demo scripts live in `demos/scripts/`, shaders in
-   `demos/shaders/`, and reusable sub-scenes in `demos/characters/` and `demos/props/`.
+   live directly in `demos/`, with scripts in `demos/scripts/`, shared components in
+   `demos/shared/`, shaders in `demos/shaders/`, and actor scenes in
+   `demos/characters/` and `demos/props/`.
 3. Project Settings -> Rendering -> Renderer: **Compatibility** (needed for Web / mobile).
 4. Open `res://demos/snow_demo.tscn` and press **F6**
    (or set it as the main scene for a Web export).

@@ -23,12 +23,13 @@ var _mouse_serial := 1
 var _real_shadows := false
 var _hud_t := 0.0
 var _stick: TouchSticks
+var _shell: DemoShell
 var _run_button := false
 @export_enum("Camera:0", "Player:1", "Sled:2") var follow_target_mode := 0
 
 
 func _ready() -> void:
-	DemoNav.attach(self)
+	_shell = DemoShell.attach(self, true)
 	# The scene stores this script property, but assigning it here keeps the
 	# player controllable even if an export drops the non-exported scene value.
 	player.role = DemoCharacter.Role.PLAYER
@@ -54,10 +55,9 @@ func _ready() -> void:
 
 
 func _build_hud() -> void:
-	hud = DemoHud.new()
-	add_child(hud)
+	hud = _shell.hud
 	hud.set_title("Classic")
-	settings = DemoSettings.create(hud, [snow] as Array[DeformableSurface])
+	settings = _shell.bind_surfaces([snow] as Array[DeformableSurface])
 	settings.quality_index = 2
 	settings.allow_area = true
 	settings.add_surface_tab()
@@ -70,18 +70,8 @@ func _build_hud() -> void:
 	hud.add_option(scene_tab, "follow", "Weather follows", FOLLOW_TARGETS, follow_target_mode)
 	hud.changed.connect(_on_hud_changed)
 
-	var overlay := CanvasLayer.new()
-	overlay.layer = 9
-	add_child(overlay)
-	var stick := TouchSticks.new()
-	stick.is_blocked = hud.over_ui
-	stick.stick_scale = hud.ui_scale
-	get_viewport().size_changed.connect(func(): stick.stick_scale = hud.ui_scale)
-	overlay.add_child(stick)
-	camera.sticks = stick
-	_stick = stick
-	if hud.touch_ui:
-		hud.add_touch_buttons()
+	_stick = _shell.sticks
+	camera.sticks = _stick
 	hud.set_hint("WASD / arrows move | Shift run | Space jump | M menu | Esc launcher", 12.0)
 
 

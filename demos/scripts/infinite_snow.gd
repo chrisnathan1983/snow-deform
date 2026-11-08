@@ -4,8 +4,6 @@ extends Node3D
 const DemoCharacter := preload("res://demos/scripts/demo_character.gd")
 
 const TILE_SIZE := 40.0
-const TILE_RADIUS := 1
-const FIELD_COUNT := (TILE_RADIUS * 2 + 1) * (TILE_RADIUS * 2 + 1)
 const QUALITY_PRESETS: Array[DeformableSurfaceQuality] = [
 	preload("res://demos/resources/infinite_snow/low.tres"),
 	preload("res://demos/resources/infinite_snow/medium.tres"),
@@ -14,29 +12,25 @@ const QUALITY_PRESETS: Array[DeformableSurfaceQuality] = [
 const WEATHER := preload("res://demos/resources/infinite_snow/weather.tres")
 
 var _player: DemoCharacter
-var _camera: Camera3D
+var _camera: DemoCamera
 var _sun: DirectionalLight3D
 var _distant_ground: MeshInstance3D
 var _weather: SnowWorldManager
-var _fields: Array[DeformableSurface] = []
-var _tiles: Dictionary = {}
-var _center_tile := Vector2i.ZERO
-var _yaw := 0.0
-var _pitch := 0.42
-var _camera_distance := 9.0
+var _grid: DeformableSurfaceGrid
 var _dragging := false
 var _hud: DemoHud
 var _settings: DemoSettings
 var _hud_t := 0.0
 var _sticks: TouchSticks
+var _shell: DemoShell
 var _run_button := false
 
 
 func _ready() -> void:
-	DemoNav.attach(self)
+	_shell = DemoShell.attach(self, true)
 	_build_world()
 	_build_hud()
-	_update_camera(0.0)
+	_camera.update_view()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
@@ -94,7 +88,14 @@ func _build_world() -> void:
 	_player.position = Vector3(0.0, 0.0, 4.0)
 	add_child(_player)
 
-	_camera = Camera3D.new()
+	_camera = DemoCamera.new()
+	_camera.auto_update = false
+	_camera.follow_target = _player
+	_camera.focus_offset = Vector3(0.0, 1.2, 0.0)
+	_camera.follow_speed = 10.0
+	_camera.distance = 9.0
+	_camera.pitch_limits = Vector2(0.08, 1.25)
+	_camera.distance_limits = Vector2(4.0, 22.0)
 	_camera.name = "Camera3D"
 	_camera.current = true
 	_camera.fov = 65.0
@@ -111,47 +112,37 @@ func _build_world() -> void:
 
 
 func _create_field_grid() -> void:
+	_grid = DeformableSurfaceGrid.new()
+	_grid.name = "SurfaceGrid"
+	_grid.tile_size = TILE_SIZE
+	_grid.quality = QUALITY_PRESETS[1]
+	_grid.sun = _sun
+	_grid.follow_target = _player
+	_grid.prefetch_distance = 0.0
+	_grid.relocations_per_frame = 9
+	_grid.surface_for_tile = _surface_for_tile
+	add_child(_grid)
+
+
+func _surface_for_tile(tile: Vector2i) -> DeformableSurfaceType:
 	var recovery_levels := [0.0, 0.18, 0.4]
-	for z in range(-TILE_RADIUS, TILE_RADIUS + 1):
-		for x in range(-TILE_RADIUS, TILE_RADIUS + 1):
-			var field := DeformableSurface.new()
-			field.name = "SnowField_%02d" % _fields.size()
-			field.size = TILE_SIZE
-			field.sun = _sun
-			field.quality = QUALITY_PRESETS[1]
-
-			var surface_type := DemoSettings.SNOW_PROFILE.duplicate() as DeformableSurfaceType
-			surface_type.recovery_intensity = recovery_levels[posmod(x + z, recovery_levels.size())]
-			surface_type.initial_noise_enabled = false
-			field.surface_type = surface_type
-
-			var tile := Vector2i(x, z)
-			field.position = Vector3(tile.x * TILE_SIZE, 0.0, tile.y * TILE_SIZE)
-			add_child(field)
-			_fields.append(field)
-			_tiles[tile] = field
+	var profile := DemoSettings.SNOW_PROFILE.duplicate() as DeformableSurfaceType
+	profile.recovery_intensity = recovery_levels[posmod(tile.x + tile.y, recovery_levels.size())]
+	profile.initial_noise_enabled = false
+	return profile
 
 
 func _build_hud() -> void:
-	_hud = DemoHud.new()
-	add_child(_hud)
+	_hud = _shell.hud
 	_hud.set_title("Infinite Snow")
-	_settings = DemoSettings.create(_hud, _fields)
+	_settings = _shell.bind_surfaces(_grid.fields)
+	_grid.relocation_blocked = _settings.has_pending_surface_updates
 	_settings.quality_presets = QUALITY_PRESETS
 	_settings.add_surface_tab()
 	_settings.add_weather_tab(_weather)
 	_settings.add_graphics_tab(_sun)
-	var overlay := CanvasLayer.new()
-	overlay.layer = 9
-	add_child(overlay)
-	_sticks = TouchSticks.new()
-	_sticks.is_blocked = _hud.over_ui
-	_sticks.stick_scale = _hud.ui_scale
-	get_viewport().size_changed.connect(func(): _sticks.stick_scale = _hud.ui_scale)
-	overlay.add_child(_sticks)
+	_sticks = _shell.sticks
 	_hud.changed.connect(_on_hud_changed)
-	if _hud.touch_ui:
-		_hud.add_touch_buttons()
 	_hud.set_hint("WASD / arrows move | Shift run | Space jump | right-drag look | wheel zoom | R reset | M menu", 12.0)
 	_update_hud()
 
@@ -163,16 +154,14 @@ func _process(delta: float) -> void:
 	)
 	if _sticks:
 		move += _sticks.move
-		_yaw -= _sticks.look.x * 2.4 * delta
-		_pitch = clampf(_pitch + _sticks.look.y * 1.5 * delta, 0.08, 1.25)
+		_camera.apply_stick(_sticks.look, delta)
 	move = move.limit_length(1.0)
-	_player.move_input = Basis(Vector3.UP, _yaw) * Vector3(move.x, 0.0, move.y)
+	_player.move_input = Basis(Vector3.UP, _camera.yaw) * Vector3(move.x, 0.0, move.y)
 	_player.running = Input.is_key_pressed(KEY_SHIFT) or _run_button
 
 	_distant_ground.global_position.x = _player.global_position.x
 	_distant_ground.global_position.z = _player.global_position.z
-	_recenter_fields()
-	_update_camera(delta)
+	_camera.update_view(delta)
 	_hud_t -= delta
 	if _hud_t <= 0.0:
 		_hud_t = 0.4
@@ -191,59 +180,12 @@ func _key_axis(positive_a: Key, positive_b: Key, negative_a: Key, negative_b: Ke
 	return positive - negative
 
 
-func _recenter_fields() -> void:
-	var center := Vector2i(
-		floori(_player.global_position.x / TILE_SIZE + 0.5),
-		floori(_player.global_position.z / TILE_SIZE + 0.5)
-	)
-	if center == _center_tile:
-		return
-
-	var wanted: Array[Vector2i] = []
-	for z in range(-TILE_RADIUS, TILE_RADIUS + 1):
-		for x in range(-TILE_RADIUS, TILE_RADIUS + 1):
-			wanted.append(center + Vector2i(x, z))
-
-	var next_tiles: Dictionary = {}
-	var available := _fields.duplicate()
-	for tile in wanted:
-		if _tiles.has(tile):
-			var field: DeformableSurface = _tiles[tile]
-			next_tiles[tile] = field
-			available.erase(field)
-
-	for tile in wanted:
-		if next_tiles.has(tile):
-			continue
-		var field := available.pop_back() as DeformableSurface
-		field.position = Vector3(tile.x * TILE_SIZE, 0.0, tile.y * TILE_SIZE)
-		field.reset_trails()
-		next_tiles[tile] = field
-
-	_tiles = next_tiles
-	_center_tile = center
-
-
-func _update_camera(delta: float) -> void:
-	var focus := _player.global_position + Vector3(0.0, 1.2, 0.0)
-	var offset := Basis(Vector3.UP, _yaw) * Basis(Vector3.RIGHT, -_pitch) * Vector3(0.0, 0.0, _camera_distance)
-	var destination := focus + offset
-	if delta <= 0.0:
-		_camera.global_position = destination
-	else:
-		_camera.global_position = _camera.global_position.lerp(destination, 1.0 - exp(-10.0 * delta))
-	_camera.look_at(focus, Vector3.UP)
-
-
 func _update_hud() -> void:
 	if not is_instance_valid(_hud):
 		return
-	var tile := Vector2i(
-		floori(_player.global_position.x / TILE_SIZE + 0.5),
-		floori(_player.global_position.z / TILE_SIZE + 0.5)
-	)
+	var tile := _grid.tile_at(_player.global_position)
 	_hud.set_info("%d FPS  |  %d fields  |  tile (%d, %d)" % [
-		Engine.get_frames_per_second(), FIELD_COUNT, tile.x, tile.y])
+		Engine.get_frames_per_second(), _grid.fields.size(), tile.x, tile.y])
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -253,17 +195,16 @@ func _unhandled_input(event: InputEvent) -> void:
 			if key.keycode == KEY_SPACE:
 				_player.jump()
 			elif key.keycode == KEY_R:
-				for field in _fields:
+				for field in _grid.fields:
 					field.reset_trails()
 	elif event is InputEventMouseButton:
 		var button := event as InputEventMouseButton
 		if button.button_index == MOUSE_BUTTON_WHEEL_UP and button.pressed:
-			_camera_distance = maxf(_camera_distance - 0.8, 4.0)
+			_camera.zoom(-0.8)
 		elif button.button_index == MOUSE_BUTTON_WHEEL_DOWN and button.pressed:
-			_camera_distance = minf(_camera_distance + 0.8, 22.0)
+			_camera.zoom(0.8)
 		elif button.button_index == MOUSE_BUTTON_RIGHT:
 			_dragging = button.pressed and button.position.x >= get_viewport().get_visible_rect().size.x * 0.5
 	elif event is InputEventMouseMotion and _dragging:
 		var motion := event as InputEventMouseMotion
-		_yaw -= motion.relative.x * 0.006
-		_pitch = clampf(_pitch + motion.relative.y * 0.005, 0.08, 1.25)
+		_camera.drag(motion.relative)

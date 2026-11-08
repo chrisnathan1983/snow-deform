@@ -12,8 +12,8 @@ const QUALITY_PRESETS: Array[DeformableSurfaceQuality] = [
 ]
 
 var _surface: DeformableSurface
-var _deformer: Deformer
-var _camera: Camera3D
+var _deformer: BrushDeformer
+var _camera: DemoCamera
 var _sun: DirectionalLight3D
 var _material: ShaderMaterial
 var _preset := "snow"
@@ -26,19 +26,18 @@ var _normal_strength := 1.0
 
 var _albedo_tex: NoiseTexture2D
 var _normal_tex: NoiseTexture2D
-var _orbit := Vector2(0.9, 0.0)   # pitch, yaw
-var _distance := 14.0
-var _carving := false
+
 var _drive := false
 var _drive_time := 0.0
 var _vehicle: Node3D
 var _tracks: DeformerTracks
 var _autopilot_time := 0.0
 var _hud: DemoHud
+var _shell: DemoShell
 
 
 func _ready() -> void:
-	DemoNav.attach(self)
+	_shell = DemoShell.attach(self)
 	_build_world()
 	_build_textures()
 	_build_ui()
@@ -68,7 +67,7 @@ func _build_world() -> void:
 	_surface.surface_type = DemoSettings.SNOW_PROFILE
 	add_child(_surface)
 
-	_deformer = Deformer.new()
+	_deformer = BrushDeformer.new()
 	_deformer.field = _surface
 	_deformer.radius = 0.6
 	_deformer.puff_distance = 0.8
@@ -89,9 +88,17 @@ func _build_world() -> void:
 	body.position.y = 0.55
 	_vehicle.add_child(body)
 
-	_camera = Camera3D.new()
+	_camera = DemoCamera.new()
+	_camera.auto_update = false
+	_camera.mode = DemoCamera.Mode.ORBIT
+	_camera.pitch = 0.9
+	_camera.distance = 14.0
+	_camera.pitch_limits = Vector2(0.25, 1.45)
+	_camera.distance_limits = Vector2(4.0, 30.0)
 	add_child(_camera)
-	_update_camera()
+	_camera.update_view()
+	_deformer.camera = _camera
+	_deformer.is_blocked = _shell.hud.over_ui
 
 
 func _build_textures() -> void:
@@ -153,11 +160,10 @@ func _on_off(value: bool) -> String:
 
 
 func _build_ui() -> void:
-	_hud = DemoHud.new()
-	add_child(_hud)
+	_hud = _shell.hud
 	_hud.set_title("Materials")
 	var fields: Array[DeformableSurface] = [_surface]
-	var settings := DemoSettings.create(_hud, fields)
+	var settings := _shell.bind_surfaces(fields)
 	settings.preset_handler = _apply_preset
 	settings.quality_presets = QUALITY_PRESETS
 	settings.add_surface_tab()
@@ -214,45 +220,24 @@ func _on_hud_changed(key: String, value: Variant) -> void:
 			_tracks.wheel_width = 0.7 if _tracks.preset == DeformerTracks.Preset.TRACKED else 0.3
 
 
-func _update_camera() -> void:
-	var offset := Vector3(0.0, sin(_orbit.x), cos(_orbit.x)).rotated(Vector3.UP, _orbit.y)
-	_camera.position = offset * _distance
-	_camera.look_at(Vector3.ZERO)
-
-
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo \
 			and (event as InputEventKey).keycode == KEY_E:
-		var hit := _ground_point(get_viewport().get_mouse_position())
+		var hit := _deformer.ground_point(get_viewport().get_mouse_position())
 		if hit != Vector3.INF:
 			_surface.stamp_at(hit, 2.0, 1.0, null, DeformableSurface.StampMode.CARVE, 0.0, 1.0, true)
 			_surface.stamp_at(hit, 0.8, 1.0, null, DeformableSurface.StampMode.RAISE)
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
-		if mb.button_index == MOUSE_BUTTON_LEFT:
-			_carving = mb.pressed
-		elif mb.button_index == MOUSE_BUTTON_WHEEL_UP:
-			_distance = maxf(4.0, _distance - 0.8)
-			_update_camera()
+		if mb.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_camera.zoom(-0.8)
+			_camera.update_view()
 		elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			_distance = minf(30.0, _distance + 0.8)
-			_update_camera()
+			_camera.zoom(0.8)
+			_camera.update_view()
 	elif event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
-		var motion := event as InputEventMouseMotion
-		_orbit.y -= motion.relative.x * 0.005
-		_orbit.x = clampf(_orbit.x + motion.relative.y * 0.005, 0.25, 1.45)
-		_update_camera()
-
-
-func _ground_point(mouse: Vector2) -> Vector3:
-	var origin := _camera.project_ray_origin(mouse)
-	var dir := _camera.project_ray_normal(mouse)
-	if absf(dir.y) < 0.001:
-		return Vector3.INF
-	var hit := origin + dir * (-origin.y / dir.y)
-	if absf(hit.x) > AREA * 0.5 or absf(hit.z) > AREA * 0.5:
-		return Vector3.INF
-	return Vector3(hit.x, 0.0, hit.z)
+		_camera.drag(event.relative, 0.005)
+		_camera.update_view()
 
 
 func _process(delta: float) -> void:
@@ -262,11 +247,8 @@ func _process(delta: float) -> void:
 		_vehicle.position = Vector3(cos(a) * 7.0, 0.0, sin(a) * 7.0)
 		_vehicle.rotation.y = -a - PI
 	_tracks.active = _drive
-	if _carving:
-		var hit := _ground_point(get_viewport().get_mouse_position())
-		_deformer.active = true
-		if hit != Vector3.INF:
-			_deformer.global_position = hit
+	if _deformer.painting:
+		_deformer.paint_at_pointer()
 	elif not Input.is_anything_pressed():
 		# Idle: trace a slow figure so tracks appear right away.
 		_autopilot_time += delta
