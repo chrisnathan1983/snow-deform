@@ -3,11 +3,6 @@ extends Node3D
 
 const PERSON_SCENE := preload("res://demos/characters/npc.tscn")
 const MOUSE_SCENE := preload("res://demos/characters/mouse.tscn")
-const WEATHER_PROFILES: Array[SnowWeatherSettings] = [
-	preload("res://addons/snowfall/resources/weather/calm.tres"),
-	preload("res://addons/snowfall/resources/weather/snowfall.tres"),
-	preload("res://addons/snowfall/resources/weather/blizzard.tres"),
-]
 const DemoCharacter := preload("res://demos/scripts/demo_character.gd")
 const FOLLOW_TARGETS := ["Camera", "Player", "Sled"]
 
@@ -37,9 +32,8 @@ func _ready() -> void:
 	# The scene stores this script property, but assigning it here keeps the
 	# player controllable even if an export drops the non-exported scene value.
 	player.role = DemoCharacter.Role.PLAYER
-	snow.quality = DeformableSurfaceQuality.high()
 
-	var weather_profile := WEATHER_PROFILES[2].duplicate() as SnowWeatherSettings
+	var weather_profile := DemoSettings.WEATHER_PRESETS[2].duplicate() as SnowWeatherSettings
 	weather_profile.follow_target_path = NodePath("../Actors/Player")
 	weather.weather_settings = weather_profile
 	_apply_follow_target(follow_target_mode)

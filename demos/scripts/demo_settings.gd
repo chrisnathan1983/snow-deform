@@ -12,7 +12,17 @@ const PRESETS := ["snow", "sand", "mud", "dirt", "ash"]
 const QUALITY_NAMES := ["Low", "Medium", "High", "Custom"]
 const RESOLUTIONS := [256, 384, 512, 768, 1024, 1536, 2048]
 const MSAA_NAMES := ["Off", "2x", "4x"]
-const FLAKES := [[300, 0], [900, 120], [2000, 280]]
+const SNOW_PROFILE := preload("res://addons/deformable_surface/resources/materials/snow_profile.tres")
+const QUALITY_PRESETS: Array[DeformableSurfaceQuality] = [
+	preload("res://addons/deformable_surface/resources/quality/low.tres"),
+	preload("res://addons/deformable_surface/resources/quality/medium.tres"),
+	preload("res://addons/deformable_surface/resources/quality/high.tres"),
+]
+const WEATHER_PRESETS: Array[SnowWeatherSettings] = [
+	preload("res://addons/snowfall/resources/weather/calm.tres"),
+	preload("res://addons/snowfall/resources/weather/snowfall.tres"),
+	preload("res://addons/snowfall/resources/weather/blizzard.tres"),
+]
 
 var hud: DemoHud
 var fields: Array[DeformableSurface] = []
@@ -22,7 +32,7 @@ var preset_handler: Callable
 var sun_handler: Callable
 var allow_area := false
 ## Low / Medium / High resources behind the menu (the demo may supply its own); index 3 is Custom.
-var quality_presets: Array[DeformableSurfaceQuality] = []
+var quality_presets: Array[DeformableSurfaceQuality] = QUALITY_PRESETS
 var quality_index := 1
 var _preset_name := ""
 var _pending_surface_updates: Dictionary = {}
@@ -83,7 +93,7 @@ func add_surface_tab() -> void:
 		return
 	var active := _quality_of(f)
 	var profile := _profile_of(f)
-	_preset_name = profile.resource_path.get_file().get_basename().trim_suffix("_profile")
+	_preset_name = String(profile.type_name)
 	hud.add_heading(tab, "Quality")
 	hud.add_option(tab, "surface.quality", "Preset", QUALITY_NAMES, quality_index)
 	hud.add_option(tab, "surface.preset", "Material", PRESETS.map(func(n): return n.capitalize()),
@@ -198,17 +208,15 @@ func _on_changed(key: String, value: Variant) -> void:
 func set_quality(index: int) -> void:
 	quality_index = index
 	if index < 3:
-		if quality_presets.is_empty():
-			quality_presets = [DeformableSurfaceQuality.low(), DeformableSurfaceQuality.medium(),
-					DeformableSurfaceQuality.high()]
 		for f in fields:
 			_queue_surface_update(f, _profile_of(f).duplicate() as DeformableSurfaceType,
 					quality_presets[index].duplicate() as DeformableSurfaceQuality)
-	if weather and index < FLAKES.size():
-		weather.flake_count = FLAKES[index][0]
-		weather.near_flake_count = FLAKES[index][1]
-		hud.set_value("weather.flakes", FLAKES[index][0])
-		hud.set_value("weather.near_flakes", FLAKES[index][1])
+	if weather and index < WEATHER_PRESETS.size():
+		var preset := WEATHER_PRESETS[index]
+		weather.flake_count = preset.flake_count
+		weather.near_flake_count = preset.near_flake_count
+		hud.set_value("weather.flakes", weather.flake_count)
+		hud.set_value("weather.near_flakes", weather.near_flake_count)
 	_sync_surface()
 
 

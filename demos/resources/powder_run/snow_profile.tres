@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="DeformableSurfaceType" format=3]
+
+[ext_resource type="Script" path="res://addons/deformable_surface/scripts/deformable_surface_type.gd" id="1_script"]
+[ext_resource type="Shader" path="res://addons/deformable_surface/shaders/deformable_surface.gdshader" id="2_shader"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_powder"]
+shader = ExtResource("2_shader")
+shader_parameter/surface_color = Color(0.7764706, 0.8509804, 0.8980392, 1)
+shader_parameter/shadow_color = Color(0.4705882, 0.5882353, 0.7137255, 1)
+shader_parameter/disturbed_darkening = 0.16
+
+[resource]
+script = ExtResource("1_script")
+material = SubResource("ShaderMaterial_powder")
+max_depth = 0.22
+berm_strength = 0.18
+berm_height = 0.06
+initial_noise_enabled = false
+recovery_intensity = 0.0

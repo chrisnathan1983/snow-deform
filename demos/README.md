@@ -14,9 +14,10 @@ built from code and primitive meshes.
    For the fence-free infinite version, open
    `res://demos/snow_demo_infinite.tscn`.
 
-Tested on Godot 4.4.1 and 4.6 (the scene works around the addon's preset-loading problem on 4.4
-by creating `DeformableSurfaceQuality` and `SnowWeatherSettings` profiles in code). Atmospheric
-flakes are managed by one `SnowWorldManager`; the DeformableSurface keeps its own recovery and contact puffs.
+The demos use the addon presets for standard quality, snow and weather settings. Demo-specific
+profiles, including the smaller tile maps for the infinite demos, live in `demos/resources/`.
+One `SnowWorldManager` handles atmospheric flakes, while each DeformableSurface handles its own
+recovery and contact puffs.
 
 The repository also includes `res://demos/infinite_snow.tscn`, a separate streaming-world
 example with nine recycled DeformableSurfaces and one shared SnowWorldManager. Run with WASD/arrows,

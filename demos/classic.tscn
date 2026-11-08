@@ -10,6 +10,8 @@
 [ext_resource type="PackedScene" uid="uid://c01t78ey68jer" path="res://demos/characters/mouse.tscn" id="12_mouse"]
 [ext_resource type="Script" uid="uid://deupmvloejyfn" path="res://addons/snowfall/scripts/core/snow_world_manager.gd" id="13_weather"]
 [ext_resource type="PackedScene" uid="uid://bhethw13gwt5e" path="res://demos/props/soccer_ball.tscn" id="14_ball"]
+[ext_resource type="Resource" path="res://addons/deformable_surface/resources/quality/high.tres" id="15_quality"]
+[ext_resource type="Resource" path="res://addons/deformable_surface/resources/materials/snow_profile.tres" id="16_profile"]
 
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
@@ -160,6 +162,8 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 0.35, -3)
 
 [node name="DeformableSurface" type="Node3D" parent="." unique_id=188116127 node_paths=PackedStringArray("sun")]
 script = ExtResource("8_snow")
+quality = ExtResource("15_quality")
+surface_type = ExtResource("16_profile")
 sun = NodePath("../Sun")
 
 [node name="SnowWorldManager" type="Node3D" parent="." unique_id=1437319999]

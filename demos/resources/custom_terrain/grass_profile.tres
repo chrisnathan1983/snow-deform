@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="DeformableSurfaceType" format=3]
+
+[ext_resource type="Script" path="res://addons/deformable_surface/scripts/deformable_surface_type.gd" id="1_script"]
+
+[sub_resource type="Gradient" id="Gradient_dust"]
+colors = PackedColorArray(0.55, 0.46, 0.34, 0.7, 0.55, 0.46, 0.34, 0)
+
+[resource]
+script = ExtResource("1_script")
+type_name = &"grass"
+max_depth = 0.12
+berm_height = 0.03
+initial_noise_enabled = false
+recovery_intensity = 0.12
+puff_color_ramp = SubResource("Gradient_dust")

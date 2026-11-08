@@ -10,7 +10,8 @@ const GRASS_SHADER := preload("res://demos/shaders/grass.gdshader")
 const AREA := 40.0
 const TERRAIN_CELLS := 160
 const GRASS_SPACING := 0.34
-const MAX_DEPTH := 0.12
+const QUALITY := preload("res://demos/resources/custom_terrain/quality.tres")
+const GRASS_PROFILE := preload("res://demos/resources/custom_terrain/grass_profile.tres")
 
 var _surface: DeformableSurface
 var _terrain_material: ShaderMaterial
@@ -71,20 +72,8 @@ func _build_world() -> void:
 	_surface.render_mesh = false
 	_surface.size = AREA
 	_surface.sun = _sun
-	var quality := DeformableSurfaceQuality.new()
-	quality.res = 1024
-	_surface.quality = quality
-	var surface_type := DeformableSurfaceType.new()
-	surface_type.type_name = &"grass"
-	surface_type.max_depth = MAX_DEPTH
-	surface_type.berm_height = 0.03
-	surface_type.initial_noise_enabled = false
-	surface_type.recovery_intensity = 0.12
-	var dust := Gradient.new()
-	dust.set_color(0, Color(0.55, 0.46, 0.34, 0.7))
-	dust.set_color(1, Color(0.55, 0.46, 0.34, 0.0))
-	surface_type.puff_color_ramp = dust
-	_surface.surface_type = surface_type
+	_surface.quality = QUALITY
+	_surface.surface_type = GRASS_PROFILE
 	add_child(_surface)
 
 	_brush = Deformer.new()
@@ -253,7 +242,7 @@ func _build_ui() -> void:
 	_hud.add_slider(tab, "flatten", "Flatten in prints", 0.0, 1.0, 0.05, 0.75)
 	_hud.add_heading(tab, "Terrain")
 	_hud.add_slider(tab, "normals", "Print normal strength", 0.0, 3.0, 0.05, 1.0)
-	_hud.add_slider(tab, "recovery", "Recovery", 0.0, 1.0, 0.05, 0.12)
+	_hud.add_slider(tab, "recovery", "Recovery", 0.0, 1.0, 0.05, GRASS_PROFILE.recovery_intensity)
 	_hud.changed.connect(_on_hud_changed)
 	_hud.set_info("DeformableSurface.render_mesh = false | %d grass blades" % _grass.multimesh.instance_count)
 	_hud.set_hint("WASD walk | Shift run | LMB brush | RMB drag orbit | wheel zoom | M menu", 12.0)

@@ -3,6 +3,8 @@ extends Node3D
 ## Snow tiles and scenery are pooled; the two ski ribbons use real deformation.
 
 const Props := preload("res://demos/scripts/demo_props.gd")
+const SNOW_QUALITY := preload("res://demos/resources/powder_run/quality.tres")
+const SNOW_PROFILE := preload("res://demos/resources/powder_run/snow_profile.tres")
 const SlopeGuest := preload("res://demos/scripts/slope_guest.gd")
 const TILE_SIZE := 40.0
 const COURSE_LENGTH := 144.0
@@ -79,36 +81,24 @@ func _build_world() -> void:
 	sun.shadow_enabled = not mobile_lighting
 	sun.directional_shadow_max_distance = 110.0
 	add_child(sun)
-	var quality := DeformableSurfaceQuality.new()
-	quality.res = 512
-	quality.subdiv = 96
-	quality.puff = 0
-	var snow := DeformableSurfaceType.new()
-	snow.initial_noise_enabled = false
-	snow.recovery_intensity = 0.0
-	snow.max_depth = 0.22
-	snow.berm_strength = 0.18
-	snow.berm_height = 0.06
-	var snow_material := ShaderMaterial.new()
-	snow_material.shader = preload("res://addons/deformable_surface/shaders/deformable_surface.gdshader")
-	snow_material.set_shader_parameter("surface_color", Color("c6d9e5"))
-	snow_material.set_shader_parameter("shadow_color", Color("7896b6"))
-	snow_material.set_shader_parameter("disturbed_darkening", 0.16)
+	var snow := SNOW_PROFILE
 	if mobile_lighting:
+		snow = SNOW_PROFILE.duplicate() as DeformableSurfaceType
+		var snow_material := snow.material.duplicate() as ShaderMaterial
 		# Matte powder with enough headroom for the terrain's highlights and berms.
 		snow_material.set_shader_parameter("surface_color", Color("e2edf3"))
 		snow_material.set_shader_parameter("specular_amount", 0.0)
 		snow_material.set_shader_parameter("sparkle_strength", 0.0)
 		snow_material.set_shader_parameter("normal_strength", 4.0)
 		snow_material.set_shader_parameter("disturbed_darkening", 0.06)
-	snow.material = snow_material
+		snow.material = snow_material
 	for z in range(-1, 2):
 		for x in range(-1, 2):
 			var field := DeformableSurface.new()
 			field.name = "Snow_%d_%d" % [x, z]
 			field.size = TILE_SIZE
 			field.position = Vector3(x * TILE_SIZE, 0, z * TILE_SIZE)
-			field.quality = quality
+			field.quality = SNOW_QUALITY
 			field.surface_type = snow
 			field.sun = sun
 			add_child(field)

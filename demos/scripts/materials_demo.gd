@@ -5,9 +5,13 @@ extends Node3D
 const PRESET_DIR := "res://addons/deformable_surface/resources/materials/"
 const PRESETS := ["snow", "sand", "mud", "dirt", "ash"]
 const AREA := 24.0
+const QUALITY_PRESETS: Array[DeformableSurfaceQuality] = [
+	preload("res://demos/resources/materials/low.tres"),
+	preload("res://demos/resources/materials/medium.tres"),
+	preload("res://demos/resources/materials/high.tres"),
+]
 
 var _surface: DeformableSurface
-var _quality_presets: Array[DeformableSurfaceQuality] = []
 var _deformer: Deformer
 var _camera: Camera3D
 var _sun: DirectionalLight3D
@@ -60,14 +64,8 @@ func _build_world() -> void:
 	_surface = DeformableSurface.new()
 	_surface.sun = _sun
 	_surface.size = AREA
-	var profile := DeformableSurfaceQuality.new()
-	profile.res = 1024
-	profile.subdiv = 192
-	_quality_presets = [_scaled(profile, 512, 96), profile, _scaled(profile, 1536, 256)]
-	_surface.quality = profile
-	var surface_type := DeformableSurfaceType.new()
-	surface_type.recovery_intensity = 0.0
-	_surface.surface_type = surface_type
+	_surface.quality = QUALITY_PRESETS[1]
+	_surface.surface_type = DemoSettings.SNOW_PROFILE
 	add_child(_surface)
 
 	_deformer = Deformer.new()
@@ -94,13 +92,6 @@ func _build_world() -> void:
 	_camera = Camera3D.new()
 	add_child(_camera)
 	_update_camera()
-
-
-func _scaled(base: DeformableSurfaceQuality, res: int, subdiv: int) -> DeformableSurfaceQuality:
-	var p := base.duplicate() as DeformableSurfaceQuality
-	p.res = res
-	p.subdiv = subdiv
-	return p
 
 
 func _build_textures() -> void:
@@ -168,7 +159,7 @@ func _build_ui() -> void:
 	var fields: Array[DeformableSurface] = [_surface]
 	var settings := DemoSettings.create(_hud, fields)
 	settings.preset_handler = _apply_preset
-	settings.quality_presets = _quality_presets
+	settings.quality_presets = QUALITY_PRESETS
 	settings.add_surface_tab()
 	settings.add_graphics_tab(_sun)
 

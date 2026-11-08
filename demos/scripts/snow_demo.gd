@@ -16,6 +16,7 @@ const LOOK_YAW_RATE := 2.4
 const LOOK_PITCH_RATE := 1.5
 const HALF := FIELD_SIZE * 0.5
 const GROUND_Y := -0.3
+const SNOWFALL := 0.4
 
 var snow: DeformableSurface
 var snow_fields: Array[DeformableSurface] = []
@@ -38,10 +39,8 @@ var _penguins: Array[DemoCharacter] = []
 var _yeti: Node3D
 var _snowangel: Snowangel
 
-var _quality := 1
-var _quality_presets: Array[DeformableSurfaceQuality] = []
-var _snowfall := 0.4
-var _wind := 0.3
+var _quality := DeformableSurfaceQuality.platform_tier()
+var _quality_presets: Array[DeformableSurfaceQuality] = DemoSettings.QUALITY_PRESETS
 var _sun_height := 30.0
 var _run_button := false
 var _touch_ui := false
@@ -74,7 +73,6 @@ func _ready() -> void:
     _build_scenery()
     _build_actors()
     _build_ui()
-    settings.set_quality(_quality)
     _set_sun(_sun_height)
     if _touch_ui:
         ui.set_hint("Left side: move   |   Right side: drag to turn the camera, tap to throw", 12.0)
@@ -116,42 +114,18 @@ func _build_environment() -> void:
 func _build_snow() -> void:
     snow = DeformableSurface.new()
     snow.name = "DeformableSurface"
-    _quality_presets = _make_quality_presets()
-    _quality = DeformableSurfaceQuality.platform_tier()
     snow.quality = _quality_presets[_quality]
     snow.size = FIELD_SIZE
-    snow.surface_type = _make_surface_type()
+    snow.surface_type = _snow_profile()
     snow.sun = sun
     snow_fields.append(snow)
     add_child(snow)
 
 
-## Low / Medium / High, created in code so the demo is independent of the addon's presets.
-func _make_quality_presets() -> Array[DeformableSurfaceQuality]:
-    return [_make_profile(384, 64, 4, 0.3, 64), _make_profile(768, 128, 8, 1.0, 96),
-            _make_profile(1024, 192, 12, 1.5, 128)]
-
-
-func _make_surface_type() -> DeformableSurfaceType:
-    var m := DeformableSurfaceType.new()
-    m.recovery_intensity = _snowfall
-    m.max_depth = 0.4
-    m.berm_strength = 0.2
-    m.berm_height = 0.08
-    m.refill_levels_per_sec = 16.0
-    return m
-
-
-func _make_profile(res: int, subdiv: int, puff: int,
-        sparkle: float, stamps: int) -> DeformableSurfaceQuality:
-    var p := DeformableSurfaceQuality.new()
-    p.res = res
-    p.subdiv = subdiv
-    p.puff = puff
-    p.sparkle = sparkle
-    p.max_stamps_per_frame = stamps
-    p.refill_interval = 0.5 if res <= 384 else 0.25
-    return p
+func _snow_profile() -> DeformableSurfaceType:
+    var profile := DemoSettings.SNOW_PROFILE.duplicate() as DeformableSurfaceType
+    profile.recovery_intensity = SNOWFALL
+    return profile
 
 
 func _build_scenery() -> void:
@@ -224,7 +198,14 @@ func _build_actors() -> void:
     # weather follows the player
     weather = SnowWorldManager.new()
     weather.name = "SnowWorldManager"
-    weather.weather_settings = _make_weather_profile(_quality)
+    var profile := DemoSettings.WEATHER_PRESETS[1].duplicate() as SnowWeatherSettings
+    var tier := DemoSettings.WEATHER_PRESETS[_quality]
+    profile.flake_count = tier.flake_count
+    profile.near_flake_count = tier.near_flake_count
+    profile.quality = tier.quality
+    profile.wind.y = 0.09
+    profile.snowfall_intensity = SNOWFALL
+    weather.weather_settings = profile
     add_child(weather)
     weather.follow_target = player
 
@@ -288,6 +269,7 @@ func _build_ui() -> void:
     ui.set_title("Snow Lab")
     settings = DemoSettings.create(ui, snow_fields)
     settings.quality_presets = _quality_presets
+    settings.quality_index = _quality
     settings.sun_handler = _set_sun
     settings.add_surface_tab()
     settings.add_weather_tab(weather)
@@ -313,24 +295,6 @@ func _build_ui() -> void:
 
 
 # ================================================================ settings
-
-func _make_weather_profile(q: int) -> SnowWeatherSettings:
-    var profile := SnowWeatherSettings.new()
-    match q:
-        0:
-            profile.flake_count = 300
-            profile.near_flake_count = 0
-        1:
-            profile.flake_count = 900
-            profile.near_flake_count = 120
-        2:
-            profile.flake_count = 2000
-            profile.near_flake_count = 280
-    profile.wind = Vector2(_wind, _wind * 0.3)
-    profile.snowfall_intensity = _snowfall
-    profile.quality = q as SnowWeatherSettings.Quality
-    return profile
-
 
 func _set_sun(height_deg: float) -> void:
     _sun_height = height_deg

@@ -6,6 +6,12 @@ const DemoCharacter := preload("res://demos/scripts/demo_character.gd")
 const TILE_SIZE := 40.0
 const TILE_RADIUS := 1
 const FIELD_COUNT := (TILE_RADIUS * 2 + 1) * (TILE_RADIUS * 2 + 1)
+const QUALITY_PRESETS: Array[DeformableSurfaceQuality] = [
+	preload("res://demos/resources/infinite_snow/low.tres"),
+	preload("res://demos/resources/infinite_snow/medium.tres"),
+	preload("res://demos/resources/infinite_snow/high.tres"),
+]
+const WEATHER := preload("res://demos/resources/infinite_snow/weather.tres")
 
 var _player: DemoCharacter
 var _camera: Camera3D
@@ -13,7 +19,6 @@ var _sun: DirectionalLight3D
 var _distant_ground: MeshInstance3D
 var _weather: SnowWorldManager
 var _fields: Array[DeformableSurface] = []
-var _quality_presets: Array[DeformableSurfaceQuality] = []
 var _tiles: Dictionary = {}
 var _center_tile := Vector2i.ZERO
 var _yaw := 0.0
@@ -98,20 +103,14 @@ func _build_world() -> void:
 
 	_weather = SnowWorldManager.new()
 	_weather.name = "SnowWorldManager"
-	_weather.follow_target = _player
-	_weather.fall_height = 12.0
-	_weather.emitter_area = Vector2(48.0, 48.0)
-	_weather.flake_count = 900
-	_weather.near_flake_count = 100
-	_weather.snowfall_intensity = 0.45
-	_weather.wind = Vector2(0.3, 0.1)
+	_weather.weather_settings = WEATHER
 	add_child(_weather)
+	_weather.follow_target = _player
 
 	_create_field_grid()
 
 
 func _create_field_grid() -> void:
-	_quality_presets = _make_quality_presets()
 	var recovery_levels := [0.0, 0.18, 0.4]
 	for z in range(-TILE_RADIUS, TILE_RADIUS + 1):
 		for x in range(-TILE_RADIUS, TILE_RADIUS + 1):
@@ -119,11 +118,10 @@ func _create_field_grid() -> void:
 			field.name = "SnowField_%02d" % _fields.size()
 			field.size = TILE_SIZE
 			field.sun = _sun
-			field.quality = _quality_presets[1]
+			field.quality = QUALITY_PRESETS[1]
 
-			var surface_type := DeformableSurfaceType.new()
+			var surface_type := DemoSettings.SNOW_PROFILE.duplicate() as DeformableSurfaceType
 			surface_type.recovery_intensity = recovery_levels[posmod(x + z, recovery_levels.size())]
-			surface_type.refill_levels_per_sec = 16.0
 			surface_type.initial_noise_enabled = false
 			field.surface_type = surface_type
 
@@ -134,27 +132,12 @@ func _create_field_grid() -> void:
 			_tiles[tile] = field
 
 
-func _make_quality_presets() -> Array[DeformableSurfaceQuality]:
-	var medium := DeformableSurfaceQuality.new()
-	medium.res = 256
-	medium.subdiv = 64
-	return [_scaled(medium, 192, 48, 4), medium, _scaled(medium, 320, 80, 12)]
-
-
-func _scaled(base: DeformableSurfaceQuality, res: int, subdiv: int, puff: int) -> DeformableSurfaceQuality:
-	var p := base.duplicate() as DeformableSurfaceQuality
-	p.res = res
-	p.subdiv = subdiv
-	p.puff = puff
-	return p
-
-
 func _build_hud() -> void:
 	_hud = DemoHud.new()
 	add_child(_hud)
 	_hud.set_title("Infinite Snow")
 	_settings = DemoSettings.create(_hud, _fields)
-	_settings.quality_presets = _quality_presets
+	_settings.quality_presets = QUALITY_PRESETS
 	_settings.add_surface_tab()
 	_settings.add_weather_tab(_weather)
 	_settings.add_graphics_tab(_sun)

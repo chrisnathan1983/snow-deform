@@ -3,6 +3,11 @@ extends "res://demos/scripts/snow_demo.gd"
 
 const TILE_RADIUS := 1
 const PREFETCH_DISTANCE := 8.0
+const TILE_QUALITY_PRESETS: Array[DeformableSurfaceQuality] = [
+	preload("res://demos/resources/snow_lab_infinite/low.tres"),
+	preload("res://demos/resources/snow_lab_infinite/medium.tres"),
+	preload("res://demos/resources/snow_lab_infinite/high.tres"),
+]
 
 var _tiles: Dictionary = {}
 var _center_tile := Vector2i.ZERO
@@ -15,16 +20,9 @@ var _travel_direction := Vector3.ZERO
 var _has_player_sample := false
 
 
-func _make_quality_presets() -> Array[DeformableSurfaceQuality]:
-	var low := _make_profile(192, 48, 4, 0.3, 64)
-	low.refill_interval = 0.5
-	return [low, _make_profile(256, 64, 8, 1.0, 96),
-			_make_profile(320, 80, 12, 1.5, 128)]
-
-
 func _build_snow() -> void:
-	_quality_presets = _make_quality_presets()
-	_quality = DeformableSurfaceQuality.platform_tier()
+	_quality_presets = TILE_QUALITY_PRESETS
+	var profile := _snow_profile()
 	for z in range(-TILE_RADIUS, TILE_RADIUS + 1):
 		for x in range(-TILE_RADIUS, TILE_RADIUS + 1):
 			var tile := Vector2i(x, z)
@@ -32,7 +30,7 @@ func _build_snow() -> void:
 			field.name = "SnowField_%d_%d" % [x, z]
 			field.sun = sun
 			field.size = FIELD_SIZE
-			field.surface_type = _make_surface_type()
+			field.surface_type = profile
 			field.quality = _quality_presets[_quality]
 			field.position = Vector3(x * FIELD_SIZE, 0.0, z * FIELD_SIZE)
 			add_child(field)
