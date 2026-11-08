@@ -2,27 +2,11 @@ Here are the web-specific improvements I'd make, roughly in priority order.
 
 ## ~~1. Fix the thread dependency (likely a real bug on web)~~
 
-`prepare_initial_noise_at()` relies on `Thread`, but the README recommends single-threaded web exports for phone compatibility. Without thread support, `Thread.start()` fails, the code does `push_error` and returns `false`, and every caller polls until it returns `true`. That means:
+The custom `FastNoiseLite` CPU fallback checks the `nothreads` feature tag and advances a shared stateful noise generator in short slices. Worker builds use that same generator off the main thread.
 
-- `DemoSettings._process` never applies a surface update.
-- `_recenter_fields` in the infinite demos never finishes a relocation.
+## ~~2. Move the starting-noise generation to the GPU~~
 
-Minimum fix is to guard on `OS.can_use_threads()` and fall back to time-sliced generation on the main thread:
-
-```gdscript
-if not OS.can_use_threads():
-    return _prepare_noise_sliced(key, snapshot, resolution, origin)  # N rows per frame, ~2 ms budget
-```
-
-Refactor `_generate_initial_noise_image` into a stateful generator with a `step(budget_usec)` method that processes a few rows per call. The same code can then serve both the thread and no-thread paths.
-
-## 2. Move the starting-noise generation to the GPU
-
-The per-pixel GDScript loop is the biggest CPU cost: up to 514² samples × 2–3 `FastNoiseLite` calls, plus `Image.set_pixel`. It's slow even with threads, and very slow on single-threaded WASM. Options:
-
-- **Best:** render the initial map in a shader into the existing SubViewport. Use a hash-based cellular or value noise keyed on world position, with analytic or finite-difference slopes. This removes the worker thread, the cache keys, the prefetch machinery, and the upload. Tile seams are free because the noise is a function of world position.
-- **Cheaper:** pre-bake one tileable noise texture and sample it with a world-space offset in the refill and background pass.
-- ~~**If you keep the CPU path:** write into a `PackedByteArray` and use `Image.create_from_data`, and use `ImageTexture.update()` on an existing texture instead of allocating a new one per relocation.~~
+The built-in starting profile now renders world-space value noise and finite-difference slopes in the SubViewport background and recovery shaders. Recycled tiles share the same continuous world pattern without CPU preparation or texture uploads. Custom `FastNoiseLite` resources retain the optimized CPU fallback (`PackedByteArray`, `Image.create_from_data`, and reusable `ImageTexture` buffers).
 
 ## ~~3. Fix platform detection~~
 

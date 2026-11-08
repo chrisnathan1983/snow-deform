@@ -32,6 +32,7 @@ const SurfacePuffs = preload("deformers/deformer_particles.gd")
 const SURFACE_SHADER: Shader = preload("../shaders/deformable_surface.gdshader")
 const REFILL_SHADER: Shader = preload("../shaders/deformable_surface_refill.gdshader")
 const STAMP_SHADER: Shader = preload("../shaders/deformable_surface_stamp.gdshader")
+const INITIAL_NOISE_SHADER: Shader = preload("../shaders/deformable_surface_initial_noise.gdshader")
 const InitialNoiseGenerator = preload("initial_noise_generator.gd")
 const BERM_REACH := 2.0     # berm ring radius, in brush radii
 const BERM_FORWARD := 0.3   # elongated prints push their berm ahead by this fraction
@@ -731,7 +732,18 @@ func _clear_map() -> void:
 		return
 	if is_instance_valid(_bg):
 		_bg.queue_free()
-	if _mp.initial_noise_enabled:
+	var procedural_noise := _mp.initial_noise_enabled and _mp.initial_noise == null
+	if procedural_noise:
+		_initial_map_texture = null
+		var background := ColorRect.new()
+		var background_material := ShaderMaterial.new()
+		background_material.shader = INITIAL_NOISE_SHADER
+		_configure_initial_noise_shader(background_material, _mp, global_position)
+		background.material = background_material
+		background.color = Color.WHITE
+		background.size = Vector2(_vp.size)
+		_bg = background
+	elif _mp.initial_noise_enabled:
 		_initial_map_texture = _get_initial_noise_texture()
 		var background := TextureRect.new()
 		background.texture = _initial_map_texture
@@ -747,7 +759,10 @@ func _clear_map() -> void:
 		background.size = Vector2(_vp.size)
 		_bg = background
 	_refill_material.set_shader_parameter("recovery_target", _initial_map_texture)
-	_refill_material.set_shader_parameter("recovery_target_enabled", _mp.initial_noise_enabled)
+	_refill_material.set_shader_parameter("recovery_target_enabled", _mp.initial_noise_enabled and not procedural_noise)
+	_refill_material.set_shader_parameter("procedural_initial_noise_enabled", procedural_noise)
+	if procedural_noise:
+		_configure_initial_noise_shader(_refill_material, _mp, global_position)
 	_vp.add_child(_bg)
 	_vp.move_child(_bg, 0)
 	_prime_frames = 3
@@ -759,6 +774,22 @@ func _clear_map() -> void:
 		_register_deformer(deformer)
 	for deformer in Deformer.assigned.get(get_instance_id(), []):
 		_register_deformer(deformer)
+
+
+func _configure_initial_noise_shader(shader_material: ShaderMaterial,
+		profile: DeformableSurfaceType, world_position: Vector3) -> void:
+	shader_material.set_shader_parameter("initial_noise_origin",
+		Vector2(world_position.x, world_position.z) - area_size * 0.5)
+	shader_material.set_shader_parameter("initial_noise_area", area_size)
+	shader_material.set_shader_parameter("initial_noise_resolution", float(_vp.size.x))
+	shader_material.set_shader_parameter("initial_noise_depth", profile.max_depth)
+	shader_material.set_shader_parameter("initial_noise_frequency", profile.initial_noise_frequency)
+	shader_material.set_shader_parameter("initial_noise_height", profile.initial_noise_height)
+	shader_material.set_shader_parameter("initial_noise_detail", profile.initial_noise_detail)
+	shader_material.set_shader_parameter("initial_noise_detail_scale", profile.initial_noise_detail_scale)
+	shader_material.set_shader_parameter("initial_noise_mound_height", profile.initial_noise_mound_height)
+	shader_material.set_shader_parameter("initial_noise_mound_frequency", profile.initial_noise_mound_frequency)
+	shader_material.set_shader_parameter("initial_noise_invert", profile.initial_noise_invert)
 
 
 func _initial_noise_key(resolution: int, profile: DeformableSurfaceType = null) -> Array:
@@ -789,6 +820,8 @@ func prepare_initial_noise_at(world_position: Vector3, profile: DeformableSurfac
 		settings: DeformableSurfaceQuality = null) -> bool:
 	var target := profile if profile != null else _values()
 	if not _runtime or not target.initial_noise_enabled:
+		return true
+	if target.initial_noise == null:
 		return true
 	var resolution := mini(clampi(settings.res, 128, 2048) if settings != null else _vp.size.x, 512)
 	var key := _initial_noise_key(resolution, target)
