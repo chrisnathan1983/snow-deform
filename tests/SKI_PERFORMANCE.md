@@ -8,9 +8,9 @@ specular and sparkle disabled, softer deformation normals, and diffuse lighting
 tuned to preserve bright snow without clipping. The old lighting is available
 only as an A/B option; the benchmark explicitly restores it for the original cases.
 
-Native `mobile` case: 169 median draw calls, 1.708 ms median frame time and
-2.342 ms p95 in the final check. The preceding shadowed `optimized` case measured
-438 draws and 1.876 ms median. These remain desktop Godot measurements;
+Latest native `mobile` case: 169 median draw calls, 1.870 ms median frame time and
+2.328 ms p95. The shadowed `optimized` case measured 438 draws and 2.003 ms median.
+These remain desktop Godot measurements;
 no mobile browser tests were run. Use `-- --mobile-only` for a quick native check.
 
 The measurements below describe the earlier track/scenery investigation with
@@ -26,21 +26,22 @@ advances gameplay by 1/60 second per rendered frame, warms up for 90 frames,
 then measures 270 frames. These are short comparative desktop measurements,
 not a guarantee for other devices. They include a tile transition.
 
-Latest native run (milliseconds unless otherwise indicated):
+Latest full native run (milliseconds unless otherwise indicated):
 
 | Case | Median frame | p95 frame | Median draw calls | Median stamps |
 |---|---:|---:|---:|---:|
-| Original white-mask ribbons, individual scenery | 2.374 | 3.103 | 825 | 19 |
-| Share one white mask | 2.125 | 2.516 | 818 | 19 |
-| Disable tracks | 1.532 | 1.938 | 814 | 0 |
-| Replace ribbons with elongated sled brushes | 2.373 | 3.076 | 825 | 42 |
-| Disable shadows | 1.835 | 2.401 | 269 | 19 |
-| Smooth analytical grooves only | 2.153 | 2.875 | 818 | 19 |
-| Batch scenery only | 2.093 | 2.883 | 445 | 19 |
-| Smooth grooves + batched scenery | 1.835 | 2.138 | 438 | 19 |
+| Original white-mask ribbons, individual scenery | 2.270 | 2.677 | 827 | 19 |
+| Share one white mask | 2.189 | 2.545 | 819 | 19 |
+| Disable tracks | 1.472 | 1.723 | 816 | 0 |
+| Replace ribbons with elongated sled brushes | 2.746 | 3.492 | 826 | 42 |
+| Disable shadows | 1.971 | 2.287 | 270 | 19 |
+| Smooth analytical grooves only | 2.322 | 2.979 | 819 | 19 |
+| Batch scenery only | 2.118 | 2.432 | 445 | 19 |
+| Smooth grooves + batched scenery | 2.003 | 2.771 | 438 | 19 |
 
-The combined change reduced median frame time by 23% in this run (16% in the
-preceding run), and median draw calls by 47%. Shadows remain enabled.
+The combined change reduced median frame time by 12% in this run and median draw
+calls by 47%. Frame timings vary between short runs; the draw-call reductions were
+consistent. Shadows remain enabled.
 
 ## Findings and changes
 

@@ -5,15 +5,15 @@ Items are ordered by priority. Findings marked *(audit)* come from a read-throug
 ## P0 — Fix correctness and ownership bugs
 
 - [x] **Repair `tests/ski_free_profile.gd` parse error.** Fixed the stray indentation on `batch_count`.
-- [ ] **Rerun the ski benchmark.** Confirm the numbers in `tests/SKI_PERFORMANCE.md` still hold.
+- [x] **Rerun the ski benchmark.** Ran all nine native cases and updated `tests/SKI_PERFORMANCE.md`; frame times varied, while draw-call counts remained consistent.
 - [x] **Stop `set_recovery_intensity()` and `set_wrapped_diffuse_lighting()` from mutating the shared resource.** The first runtime override now duplicates the assigned `DeformableSurfaceType` for this node, and the recovery property comment describes the per-node behavior.
 - [x] **Reset `_sun_dir` when the source material changes.** `_on_surface_material_changed` now resets the cached direction after adopting the new material, so `_process` reapplies it.
 - [ ] **Make priming robust.**
   - [x] Add a 10-second timeout; if a noise bake never finishes, switch the starting and refill targets to neutral and let priming complete.
   - [x] Share the mound texture across profiles using its seed as a separate cache key.
   - [x] Cache the noise key per profile, invalidating it when the profile or its source noise changes.
-  - [ ] Measure a preset switch on a no-threads Web export. Three 1024² seamless textures may generate on the main thread.
-- [ ] **Bake the refill target once.** Refill re-evaluates the starting surface every pass (five height evaluations, up to three texture fetches each, per pixel). That is much cheaper than the old hash path but is still recomputed work. Render the target once into a texture and have refill sample it.
+  - [ ] Measure a preset switch on a no-threads Web export. The export is currently blocked because the Godot 4.7.2 `web_nothreads` templates are not installed in this environment.
+- [x] **Bake the refill target once.** Each map clear now renders its starting surface to a target texture once; refill passes sample that texture instead of reevaluating the noise and slope shader.
 - [x] **Warm up the refill shader.** `warm_up_effects` now shows the refill rect while the loader draws its covered warmup frames, then hides it before gameplay.
 
 ## P1 — Simplify the core surface

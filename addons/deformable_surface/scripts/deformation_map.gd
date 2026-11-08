@@ -8,10 +8,14 @@ const INITIAL_NOISE_SHADER: Shader = preload("../shaders/deformable_surface_init
 const MAP_NEUTRAL := 128.0 / 255.0
 
 var viewport: SubViewport
+var target_viewport: SubViewport
 var refill: ColorRect
 var refill_material: ShaderMaterial
+var starting_target: ColorRect
 var background: Control
 var stamp_renderer: StampBatchRenderer
+var _starting_target_requested := false
+var _starting_target_request_frame := -1
 
 
 func setup(refill_shader: Shader, analytic_stamp_shader: Shader,
@@ -22,12 +26,22 @@ func setup(refill_shader: Shader, analytic_stamp_shader: Shader,
 	viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	viewport.render_target_clear_mode = SubViewport.CLEAR_MODE_NEVER
 	add_child(viewport)
+	target_viewport = SubViewport.new()
+	target_viewport.disable_3d = true
+	target_viewport.transparent_bg = false
+	target_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	target_viewport.render_target_clear_mode = SubViewport.CLEAR_MODE_ALWAYS
+	add_child(target_viewport)
+	starting_target = ColorRect.new()
+	starting_target.color = Color(MAP_NEUTRAL, MAP_NEUTRAL, MAP_NEUTRAL)
+	target_viewport.add_child(starting_target)
 
 	refill = ColorRect.new()
 	var material := ShaderMaterial.new()
 	material.shader = refill_shader
 	refill.material = material
 	refill_material = material
+	refill_material.set_shader_parameter("initial_target_texture", target_viewport.get_texture())
 	refill.visible = false
 	viewport.add_child(refill)
 
@@ -38,6 +52,8 @@ func setup(refill_shader: Shader, analytic_stamp_shader: Shader,
 func configure_resolution(resolution: int) -> void:
 	viewport.size = Vector2i(resolution, resolution)
 	refill.size = Vector2(resolution, resolution)
+	target_viewport.size = Vector2i(resolution, resolution)
+	starting_target.size = Vector2(resolution, resolution)
 
 
 func configure_stamp_material(profile: DeformableSurfaceType,
@@ -50,22 +66,27 @@ func configure_stamp_capacity(capacity: int) -> void:
 
 
 func clear(profile: DeformableSurfaceType, area_size: Vector2, world_position: Vector3) -> void:
+	_starting_target_requested = false
+	_starting_target_request_frame = -1
+	target_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	if is_instance_valid(background):
 		background.queue_free()
-	var next_background := ColorRect.new()
+	var next_background := TextureRect.new()
 	next_background.size = Vector2(viewport.size)
-	if profile.initial_noise_enabled:
-		var material := ShaderMaterial.new()
-		material.shader = INITIAL_NOISE_SHADER
-		configure_initial_noise(material, profile, area_size, world_position)
-		next_background.material = material
-		next_background.color = Color.WHITE
-	else:
-		next_background.color = Color(MAP_NEUTRAL, MAP_NEUTRAL, MAP_NEUTRAL)
+	next_background.texture = target_viewport.get_texture()
+	next_background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	next_background.stretch_mode = TextureRect.STRETCH_SCALE
+	next_background.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	background = next_background
-	refill_material.set_shader_parameter("initial_noise_enabled", profile.initial_noise_enabled)
 	if profile.initial_noise_enabled:
-		configure_initial_noise(refill_material, profile, area_size, world_position)
+		var target_material := ShaderMaterial.new()
+		target_material.shader = INITIAL_NOISE_SHADER
+		configure_initial_noise(target_material, profile, area_size, world_position)
+		starting_target.material = target_material
+		starting_target.color = Color.WHITE
+	else:
+		starting_target.material = null
+		starting_target.color = Color(MAP_NEUTRAL, MAP_NEUTRAL, MAP_NEUTRAL)
 	viewport.add_child(background)
 	viewport.move_child(background, 0)
 
@@ -79,7 +100,7 @@ func configure_initial_noise(material: ShaderMaterial, profile: DeformableSurfac
 	material.set_shader_parameter("initial_noise_origin",
 		Vector2(world_position.x, world_position.z) - area_size * 0.5)
 	material.set_shader_parameter("initial_noise_area", area_size)
-	material.set_shader_parameter("initial_noise_resolution", float(viewport.size.x))
+	material.set_shader_parameter("initial_noise_resolution", float(target_viewport.size.x))
 	material.set_shader_parameter("initial_noise_depth", profile.max_depth)
 	material.set_shader_parameter("initial_noise_world_period", InitialNoiseTextures.WORLD_PERIOD)
 	var noise_frequency := profile.initial_noise.frequency if profile.initial_noise != null \
@@ -100,10 +121,26 @@ func finish_priming() -> void:
 
 
 func fallback_to_flat() -> void:
-	if is_instance_valid(background):
-		background.material = null
-		background.color = Color(MAP_NEUTRAL, MAP_NEUTRAL, MAP_NEUTRAL)
-	refill_material.set_shader_parameter("initial_noise_enabled", false)
+	starting_target.material = null
+	starting_target.color = Color(MAP_NEUTRAL, MAP_NEUTRAL, MAP_NEUTRAL)
+	_starting_target_requested = false
+	request_starting_target_bake()
+
+
+func request_starting_target_bake() -> void:
+	if _starting_target_requested:
+		return
+	_starting_target_requested = true
+	_starting_target_request_frame = Engine.get_process_frames()
+	target_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+
+
+func is_starting_target_baked() -> bool:
+	if not _starting_target_requested \
+			or Engine.get_process_frames() <= _starting_target_request_frame:
+		return false
+	target_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	return true
 
 
 func run_refill(now: bool, dt: float, recovery_intensity: float,

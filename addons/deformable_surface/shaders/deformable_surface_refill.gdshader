@@ -1,8 +1,7 @@
 shader_type canvas_item;
 render_mode blend_mix;
 
-#include "res://addons/deformable_surface/shaders/deformable_surface_initial_noise.gdshaderinc"
-
+uniform sampler2D initial_target_texture : filter_nearest, repeat_disable;
 uniform float recovery_alpha = 0.0;
 uniform float seed = 0.0;
 
@@ -16,5 +15,5 @@ void fragment() {
 	// Stochastically boost alpha above 0.51 on a fraction of pixels so 8-bit values
 	// close to their target don't stall.
 	float dither_snap = step(hash12(FRAGCOORD.xy + seed), recovery_alpha * 0.75) * 0.52;
-	COLOR = vec4(initial_map_color(UV), max(recovery_alpha, dither_snap));
+	COLOR = vec4(texture(initial_target_texture, UV).rgb, max(recovery_alpha, dither_snap));
 }

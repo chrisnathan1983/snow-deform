@@ -1130,9 +1130,12 @@ func _process(delta: float) -> void:
 	# Only spend GPU time when something actually changed
 	if _prime_frames > 0:
 		if _prime_noise_fallback or InitialNoiseTextures.ready_for_profile(_values()):
-			_prime_frames -= 1
-			if _prime_frames == 0:
-				_map.finish_priming()
+			if not _map.is_starting_target_baked():
+				_map.request_starting_target_bake()
+			else:
+				_prime_frames -= 1
+				if _prime_frames == 0:
+					_map.finish_priming()
 		else:
 			_prime_noise_wait += delta
 			if _prime_noise_wait >= PRIME_NOISE_TIMEOUT_SEC:
