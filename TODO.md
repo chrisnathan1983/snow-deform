@@ -4,26 +4,13 @@ Items are ordered by priority. Findings marked *(audit)* come from a read-throug
 
 ## P0 — Fix correctness and ownership bugs
 
-- [x] **Repair `tests/ski_free_profile.gd` parse error.** Fixed the stray indentation on `batch_count`.
-- [x] **Rerun the ski benchmark.** Ran all nine native cases and updated `tests/SKI_PERFORMANCE.md`; frame times varied, while draw-call counts remained consistent.
-- [x] **Stop `set_recovery_intensity()` and `set_wrapped_diffuse_lighting()` from mutating the shared resource.** The first runtime override now duplicates the assigned `DeformableSurfaceType` for this node, and the recovery property comment describes the per-node behavior.
-- [x] **Reset `_sun_dir` when the source material changes.** `_on_surface_material_changed` now resets the cached direction after adopting the new material, so `_process` reapplies it.
 - [ ] **Make priming robust.**
-  - [x] Add a 10-second timeout; if a noise bake never finishes, switch the starting and refill targets to neutral and let priming complete.
-  - [x] Share the mound texture across profiles using its seed as a separate cache key.
-  - [x] Cache the noise key per profile, invalidating it when the profile or its source noise changes.
   - [ ] Measure a preset switch on a no-threads Web export. The export is currently blocked because the Godot 4.7.2 `web_nothreads` templates are not installed in this environment.
-- [x] **Bake the refill target once.** Each map clear now renders its starting surface to a target texture once; refill passes sample that texture instead of reevaluating the noise and slope shader.
-- [x] **Warm up the refill shader.** `warm_up_effects` now shows the refill rect while the loader draws its covered warmup frames, then hides it before gameplay.
 
 ## P1 — Simplify the core surface
 
 - [ ] **Move from the tile grid to one scrolling map.** Replace the demo grid only after scrolling, stamps, recovery, and edge behavior are covered. Removes `DeformableSurfaceGrid`, cross-tile reach checks, `owns_contact` bounds, the edge/corner tests, and the recycling queue.
-  - [x] Prototype and cover texel-snapped toroidal window state, ring offsets, wrapped exposed-strip rectangles, retained UVs, stamp copies at edges/corners, and teleports; document the current 96 m Playground and 120 m Powder Run history extents.
   - [ ] Connect the window state to map rendering, stamps, refill, and recovery; cover edge and teleport behavior before replacing the grid.
-- [x] **Finish splitting `DeformableSurface`.** `SurfaceStampPipeline` owns queued stamp state, packing and batch submission; `DeformerScheduler` owns deformer scheduling and movement history; `SurfaceContactDispatcher` normalizes contacts and routes puffs. Removed the `_vp` alias and moved tests to public surface diagnostics for map images, resolution, pending stamps and priming state.
-- [x] **Audit remaining resource-state bookkeeping.** Kept the resource `changed` subscriptions and clear-state snapshot, but ignored inactive noise settings and the unused fallback frequency when a custom noise resource supplies its own frequency.
-- [x] **Share stamp shader math.** Both analytic and sprite stamps now use the shared pit, berm, and slope calculations in `deformable_surface_stamp_profile.gdshaderinc`.
 
 ## P2 — Verify rendering and engine behavior
 
@@ -33,28 +20,11 @@ Items are ordered by priority. Findings marked *(audit)* come from a read-throug
 - [ ] **Decide how to handle carve blending.** The current blend can partially refill a deeper trench when a lighter stamp overlaps it. Document this behavior and keep it as a known limit unless gameplay requires true minimum-height carving and a suitably cheap implementation is available.
 - [ ] **Test the GPU noise path on real devices.** Confirm the generated shaders use `highp` on a low-end Android browser, and run the rendered seam check in `initial_noise_seams.gd` (headless runs only verify caching).
 
-## P3 — Bring docs back in sync
-
-- [x] **Separate project and addon documentation.** Keep installation and demo instructions in the root README. Keep the deformable-surface API in `addons/deformable_surface/README.md`; remove duplicated API sections from the root README after checking that links still work.
-- [x] **Fix the contact signal in the changelog.** The signal signature now names the argument `type_name`, matching the signal and addon README.
-- [x] **Resolve the Medium subdivision mismatch.** `DeformableSurfaceQuality` and the docs use `subdiv = 127`, while `resources/quality/medium.tres` uses 128. Choose the intended value and update the preset and docs consistently.
-- [x] **Remove stale README statements.**
-  - The root README's "subtract-blend refill pass" is outdated; refill uses `blend_mix`.
-  - The README layout omits `deformation_map.gd`, `stamp_batch_renderer.gd`, `initial_noise_textures.gd`, and the analytic stamp and initial-noise shaders, and still lists `snowfall/scripts/utilities/`.
-- [x] **State the supported engine version honestly.** The addon README now says this release targets and is tested on Godot 4.7; earlier minor versions are unverified.
-- [x] **Document moving a surface.** Moving a `DeformableSurface` after setup leaves the noise origin stale until `reset_trails()`. Document it or handle it in the node.
-
-## P4 — Minor cleanups
-
-- [x] `_dirty_deformers.has()` and `find()` are O(n) per transform notification; use an index map and swap removal.
-- [x] `_configure_hash_origins` allocates a key array per field per frame; compare the values directly.
-- [x] `StampBatchRenderer` never frees batches, so many unique footprint textures would accumulate. Retain at most 32 batches between frames, pruning idle batches at frame reset.
 
 ## P5 — Finish demo scene and folder cleanup
 
 ### Replace code-built content with scenes
 
-- [x] **Footstep tuning per kind:** moved footsteps and per-character movement/animation values into `explorer.tscn`, `yeti.tscn` and `penguin.tscn`, matching the scene-owned setup in `mouse.tscn`. Removed `DemoCharacter.kind`.
 - **`DemoCharacter` roles:** one script handles PLAYER, WANDERER and FOLLOWER via a `role` enum. Split it into small behavior scripts (`PlayerController`, `Wander`, `Follow`) attached to the same character scene.
 - **Scenery:** Move the shared `PineForest` and the Playground fence and hills into reusable scenes.
 - **Soccer ball vs. `demo_ball`:** two ball systems (RigidBody vs. fake bouncer/thrown). Split `demo_ball.gd` into `bouncing_ball.tscn` and `snowball.tscn` instead of a `Kind` enum.
@@ -89,8 +59,6 @@ This removes the flat `demos/scripts/` dump. The demo HUD, FPS, and settings sca
 
 ### Finish export and runtime checks
 
-- [x] Filter tests, editor tooling, and unused demos out of the single-threaded Web export.
-- [x] Generate Brotli and gzip sidecars and document how to serve them.
 - [ ] Compile and browser-test the optional custom template using `tools/godot_web_profile.py`.
 - [ ] Time a preset switch and a first-footprint refill in a real browser (see the P0 priming and refill items).
 
@@ -99,6 +67,36 @@ This removes the flat `demos/scripts/` dump. The demo HUD, FPS, and settings sca
 - To make characters sink into the surface, maintain a small CPU-side coarse height grid (for example, 64×64) alongside stamps. Avoid GPU readback, which would stall Web rendering.
 
 ## Done since the last audit
+
+### Completed TODO items
+
+- [x] **Repair `tests/ski_free_profile.gd` parse error.** Fixed the stray indentation on `batch_count`.
+- [x] **Rerun the ski benchmark.** Ran all nine native cases and updated `tests/SKI_PERFORMANCE.md`; frame times varied, while draw-call counts remained consistent.
+- [x] **Stop `set_recovery_intensity()` and `set_wrapped_diffuse_lighting()` from mutating the shared resource.** The first runtime override now duplicates the assigned `DeformableSurfaceType` for this node, and the recovery property comment describes the per-node behavior.
+- [x] **Reset `_sun_dir` when the source material changes.** `_on_surface_material_changed` now resets the cached direction after adopting the new material, so `_process` reapplies it.
+- [x] Add a 10-second timeout; if a noise bake never finishes, switch the starting and refill targets to neutral and let priming complete.
+- [x] Share the mound texture across profiles using its seed as a separate cache key.
+- [x] Cache the noise key per profile, invalidating it when the profile or its source noise changes.
+- [x] **Bake the refill target once.** Each map clear now renders its starting surface to a target texture once; refill passes sample that texture instead of reevaluating the noise and slope shader.
+- [x] **Warm up the refill shader.** `warm_up_effects` now shows the refill rect while the loader draws its covered warmup frames, then hides it before gameplay.
+- [x] Prototype and cover texel-snapped toroidal window state, ring offsets, wrapped exposed-strip rectangles, retained UVs, stamp copies at edges/corners, and teleports; document the current 96 m Playground and 120 m Powder Run history extents.
+- [x] **Finish splitting `DeformableSurface`.** `SurfaceStampPipeline` owns queued stamp state, packing and batch submission; `DeformerScheduler` owns deformer scheduling and movement history; `SurfaceContactDispatcher` normalizes contacts and routes puffs. Removed the `_vp` alias and moved tests to public surface diagnostics for map images, resolution, pending stamps and priming state.
+- [x] **Audit remaining resource-state bookkeeping.** Kept the resource `changed` subscriptions and clear-state snapshot, but ignored inactive noise settings and the unused fallback frequency when a custom noise resource supplies its own frequency.
+- [x] **Share stamp shader math.** Both analytic and sprite stamps now use the shared pit, berm, and slope calculations in `deformable_surface_stamp_profile.gdshaderinc`.
+- [x] **Separate project and addon documentation.** Keep installation and demo instructions in the root README. Keep the deformable-surface API in `addons/deformable_surface/README.md`; remove duplicated API sections from the root README after checking that links still work.
+- [x] **Fix the contact signal in the changelog.** The signal signature now names the argument `type_name`, matching the signal and addon README.
+- [x] **Resolve the Medium subdivision mismatch.** `DeformableSurfaceQuality` and the docs use `subdiv = 127`, while `resources/quality/medium.tres` uses 128. Choose the intended value and update the preset and docs consistently.
+- [x] **Remove stale README statements.**
+  - The root README's "subtract-blend refill pass" is outdated; refill uses `blend_mix`.
+  - The README layout omits `deformation_map.gd`, `stamp_batch_renderer.gd`, `initial_noise_textures.gd`, and the analytic stamp and initial-noise shaders, and still lists `snowfall/scripts/utilities/`.
+- [x] **State the supported engine version honestly.** The addon README now says this release targets and is tested on Godot 4.7; earlier minor versions are unverified.
+- [x] **Document moving a surface.** Moving a `DeformableSurface` after setup leaves the noise origin stale until `reset_trails()`. Document it or handle it in the node.
+- [x] `_dirty_deformers.has()` and `find()` are O(n) per transform notification; use an index map and swap removal.
+- [x] `_configure_hash_origins` allocates a key array per field per frame; compare the values directly.
+- [x] `StampBatchRenderer` never frees batches, so many unique footprint textures would accumulate. Retain at most 32 batches between frames, pruning idle batches at frame reset.
+- [x] **Footstep tuning per kind:** moved footsteps and per-character movement/animation values into `explorer.tscn`, `yeti.tscn` and `penguin.tscn`, matching the scene-owned setup in `mouse.tscn`. Removed `DemoCharacter.kind`.
+- [x] Filter tests, editor tooling, and unused demos out of the single-threaded Web export.
+- [x] Generate Brotli and gzip sidecars and document how to serve them.
 
 - [x] Editor preview now assigns its material.
 - [x] Removed the custom `light()` function; wrap and cool tint are computed in `fragment()`, so specular and roughness uniforms take effect.
